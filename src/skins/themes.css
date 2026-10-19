@@ -1,0 +1,175 @@
+/* 每套皮肤的主题令牌：chrome 与业务面板统一消费这些变量 */
+
+.fm-app[data-skin='ide'] {
+  color-scheme: dark;
+  --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  --fm-font: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --fm-bg: #1e1e1e;
+  --fm-panel: #252526;
+  --fm-panel-2: #2d2d2d;
+  --fm-panel-3: #333333;
+  --fm-border: #3c3c3c;
+  --fm-text: #cccccc;
+  --fm-text-dim: #9d9d9d;
+  --fm-text-muted: #6e7681;
+  --fm-accent: #007acc;
+  --fm-accent-soft: rgba(0, 122, 204, 0.18);
+  --fm-on-accent: #ffffff;
+  --fm-ok: #3fb950;
+  --fm-warn: #d29922;
+  --fm-err: #f85149;
+  --fm-link: #4daafc;
+  --fm-hover: rgba(255, 255, 255, 0.06);
+  --fm-active: rgba(255, 255, 255, 0.1);
+  --fm-topbar: #323233;
+  --fm-status: #007acc;
+  --fm-status-text: #ffffff;
+  --fm-radius: 4px;
+  --fm-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --fm-selection: rgba(0, 122, 204, 0.35);
+}
+
+.fm-app[data-skin='terminal'] {
+  color-scheme: dark;
+  --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  --fm-font: var(--fm-mono);
+  --fm-bg: #0c0c0c;
+  --fm-panel: #111111;
+  --fm-panel-2: #161616;
+  --fm-panel-3: #1c1c1c;
+  --fm-border: #2a2a2a;
+  --fm-text: #d6d6d6;
+  --fm-text-dim: #8a8a8a;
+  --fm-text-muted: #5c5c5c;
+  --fm-accent: #00e08a;
+  --fm-accent-soft: rgba(0, 224, 138, 0.12);
+  --fm-on-accent: #03140b;
+  --fm-ok: #00e08a;
+  --fm-warn: #e5b567;
+  --fm-err: #ff5f56;
+  --fm-link: #58c8ff;
+  --fm-hover: rgba(255, 255, 255, 0.05);
+  --fm-active: rgba(0, 224, 138, 0.1);
+  --fm-topbar: #151515;
+  --fm-status: #1b1b1b;
+  --fm-status-text: #9a9a9a;
+  --fm-radius: 2px;
+  --fm-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+  --fm-selection: rgba(0, 224, 138, 0.25);
+}
+
+.fm-app[data-skin='grafana'] {
+  color-scheme: dark;
+  --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+  --fm-font: 'Inter', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --fm-bg: #111217;
+  --fm-panel: #181b1f;
+  --fm-panel-2: #22252b;
+  --fm-panel-3: #2b3036;
+  --fm-border: #2c3235;
+  --fm-text: #d8d9da;
+  --fm-text-dim: #9fa7b3;
+  --fm-text-muted: #6e7681;
+  --fm-accent: #ff8833;
+  --fm-accent-soft: rgba(255, 136, 51, 0.15);
+  --fm-on-accent: #111217;
+  --fm-ok: #73bf69;
+  --fm-warn: #f2cc0c;
+  --fm-err: #f2495c;
+  --fm-link: #6e9fff;
+  --fm-hover: rgba(255, 255, 255, 0.06);
+  --fm-active: rgba(255, 136, 51, 0.12);
+  --fm-topbar: #141619;
+  --fm-status: #141619;
+  --fm-status-text: #9fa7b3;
+  --fm-radius: 4px;
+  --fm-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --fm-selection: rgba(255, 136, 51, 0.25);
+}
+
+.fm-app[data-skin='swagger'] {
+  color-scheme: light;
+  --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+  --fm-font: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --fm-bg: #fafafa;
+  --fm-panel: #ffffff;
+  --fm-panel-2: #f0f2f5;
+  --fm-panel-3: #e8ebef;
+  --fm-border: #d8dde3;
+  --fm-text: #1f2937;
+  --fm-text-dim: #5b6472;
+  --fm-text-muted: #8a94a6;
+  --fm-accent: #4990e2;
+  --fm-accent-soft: rgba(73, 144, 226, 0.12);
+  --fm-on-accent: #ffffff;
+  --fm-ok: #49cc90;
+  --fm-warn: #fca130;
+  --fm-err: #f93e3e;
+  --fm-link: #3b82f6;
+  --fm-hover: rgba(0, 0, 0, 0.04);
+  --fm-active: rgba(73, 144, 226, 0.1);
+  --fm-topbar: #ffffff;
+  --fm-status: #f0f2f5;
+  --fm-status-text: #5b6472;
+  --fm-radius: 3px;
+  --fm-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --fm-selection: rgba(73, 144, 226, 0.2);
+}
+
+.fm-app[data-skin='jenkins'] {
+  color-scheme: dark;
+  --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+  --fm-font: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --fm-bg: #10151c;
+  --fm-panel: #161e26;
+  --fm-panel-2: #1c2630;
+  --fm-panel-3: #24313e;
+  --fm-border: #2a3744;
+  --fm-text: #e1e7ee;
+  --fm-text-dim: #8b9bad;
+  --fm-text-muted: #5f7184;
+  --fm-accent: #2f7ec4;
+  --fm-accent-soft: rgba(47, 126, 196, 0.18);
+  --fm-on-accent: #ffffff;
+  --fm-ok: #4caf7d;
+  --fm-warn: #e3a63b;
+  --fm-err: #e05252;
+  --fm-link: #6cb6ff;
+  --fm-hover: rgba(255, 255, 255, 0.06);
+  --fm-active: rgba(47, 126, 196, 0.16);
+  --fm-topbar: #141b23;
+  --fm-status: #1a2530;
+  --fm-status-text: #8b9bad;
+  --fm-radius: 4px;
+  --fm-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --fm-selection: rgba(47, 126, 196, 0.25);
+}
+
+.fm-app[data-skin='kibana'] {
+  color-scheme: dark;
+  --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+  --fm-font: 'Inter', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --fm-bg: #14161a;
+  --fm-panel: #1d1e24;
+  --fm-panel-2: #25262e;
+  --fm-panel-3: #2f303a;
+  --fm-border: #3a3e47;
+  --fm-text: #dfe5ef;
+  --fm-text-dim: #98a2b3;
+  --fm-text-muted: #6b7385;
+  --fm-accent: #00bfb3;
+  --fm-accent-soft: rgba(0, 191, 179, 0.15);
+  --fm-on-accent: #06211f;
+  --fm-ok: #00bfb3;
+  --fm-warn: #f2cc0c;
+  --fm-err: #f04e98;
+  --fm-link: #48a2f0;
+  --fm-hover: rgba(255, 255, 255, 0.06);
+  --fm-active: rgba(0, 191, 179, 0.12);
+  --fm-topbar: #1d1e24;
+  --fm-status: #1d1e24;
+  --fm-status-text: #98a2b3;
+  --fm-radius: 4px;
+  --fm-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --fm-selection: rgba(0, 191, 179, 0.25);
+}
