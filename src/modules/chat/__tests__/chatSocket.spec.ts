@@ -160,6 +160,36 @@ describe('ChatSocketClient', () => {
     client.close()
   })
 
+  it('发送群聊图片 data URL 与私聊图片 ID', async () => {
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const socket = FakeSocket.instances[0]
+    socket?.open()
+    client.join('dev-group')
+    if (socket) socket.sent = []
+
+    client.sendGroupImage('data:image/png;base64,AAAA')
+    client.sendDirectImage('u2', 'img-1')
+
+    expect(socket?.sent.map((raw) => JSON.parse(raw))).toEqual([
+      {
+        type: 'message',
+        content: 'data:image/png;base64,AAAA',
+        kind: 'image',
+        clientMsgId: expect.any(String),
+      },
+      {
+        type: 'dm',
+        toUserId: 'u2',
+        content: 'img-1',
+        kind: 'image',
+        clientMsgId: expect.any(String),
+      },
+    ])
+    client.close()
+  })
+
   it('断线重连时重新申请 ticket', async () => {
     vi.useFakeTimers()
     vi.mocked(fetchWsTicket)

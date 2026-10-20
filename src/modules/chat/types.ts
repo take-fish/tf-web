@@ -1,4 +1,12 @@
-export type ChatKind = 'text' | 'ascii'
+export type ChatKind = 'text' | 'ascii' | 'image'
+
+export interface ChatImage {
+  id: string
+  ownerUserId: string
+  contentType: string
+  size: number
+  createdAt: number
+}
 
 export interface ChatMessage {
   id: string

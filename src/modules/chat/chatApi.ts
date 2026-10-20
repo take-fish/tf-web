@@ -1,6 +1,7 @@
-import { getJson, request } from '@/lib/http'
+import { getBlob, getJson, postForm, request } from '@/lib/http'
 import type {
   ChatGroup,
+  ChatImage,
   ChatMessage,
   HistoryPage,
   HistoryQuery,
@@ -112,4 +113,17 @@ export async function recallMessage(messageId: string): Promise<ChatMessage> {
 
 export async function fetchWsTicket(): Promise<WsTicket> {
   return request<WsTicket>('/api/v1/chat/ws-ticket', { method: 'POST' })
+}
+
+/** 上传私聊图片，返回持久化元数据；随后通过 WebSocket 发送其 ID。 */
+export async function uploadImage(file: File): Promise<ChatImage> {
+  const form = new FormData()
+  form.append('file', file)
+  const data = await postForm<{ image: ChatImage }>('/api/v1/chat/images', form)
+  return data.image
+}
+
+/** 带鉴权拉取私聊图片二进制。 */
+export function fetchImageBlob(imageId: string): Promise<Blob> {
+  return getBlob(`/api/v1/chat/images/${encodeURIComponent(imageId)}`)
 }

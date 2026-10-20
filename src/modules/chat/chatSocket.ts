@@ -2,6 +2,7 @@ import { ApiError } from '@/lib/http'
 import { randomId } from '@/lib/id'
 import { fetchWsTicket } from './chatApi'
 import type {
+  ChatKind,
   ChatMessage,
   ChatStatus,
   ChatUser,
@@ -66,17 +67,27 @@ export class ChatSocketClient {
     this.send({ type: 'leave' })
   }
 
-  sendGroupMessage(content: string, kind: 'text' | 'ascii' = 'text'): boolean {
+  sendGroupMessage(content: string, kind: ChatKind = 'text'): boolean {
     if (!this.groupId) return false
     return this.send({ type: 'message', content, kind, clientMsgId: randomId() })
+  }
+
+  /** 群聊图片以 data URL 只做实时广播，不写入数据库或磁盘。 */
+  sendGroupImage(dataUrl: string): boolean {
+    return this.sendGroupMessage(dataUrl, 'image')
   }
 
   sendDirectMessage(
     toUserId: string,
     content: string,
-    kind: 'text' | 'ascii' = 'text',
+    kind: ChatKind = 'text',
   ): boolean {
     return this.send({ type: 'dm', toUserId, content, kind, clientMsgId: randomId() })
+  }
+
+  /** 私聊图片先上传获得 imageId，再通过 WebSocket 发送引用。 */
+  sendDirectImage(toUserId: string, imageId: string): boolean {
+    return this.sendDirectMessage(toUserId, imageId, 'image')
   }
 
   sendRead(payload: ReadPayload): boolean {

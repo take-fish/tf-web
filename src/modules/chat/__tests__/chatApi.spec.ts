@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AUTH_STORAGE_KEY } from '@/lib/authToken'
 import {
   fetchDirectHistory,
   fetchGroupHistory,
+  fetchImageBlob,
   fetchUnread,
   fetchWsTicket,
   markRead,
   recallMessage,
   searchGroup,
+  uploadImage,
 } from '../chatApi'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -117,5 +120,55 @@ describe('chatApi', () => {
     const summary = await fetchUnread()
 
     expect(summary).toEqual({ groups: {}, dms: {}, total: 0 })
+  })
+
+  it('上传图片使用 multipart 并返回元数据', async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      jsonResponse(
+        {
+          image: {
+            id: 'img-1',
+            ownerUserId: 'u1',
+            contentType: 'image/png',
+            size: 3,
+            createdAt: 1,
+          },
+        },
+        201,
+      ),
+    )
+    const file = new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' })
+
+    const image = await uploadImage(file)
+
+    const { url, init } = lastCall()
+    expect(url).toBe('/api/v1/chat/images')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBeInstanceOf(FormData)
+    expect((init.body as FormData).get('file')).toBe(file)
+    expect(image.id).toBe('img-1')
+  })
+
+  it('拉取图片 Blob 时携带 Authorization', async () => {
+    window.localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        token: 'token-1',
+        user: { id: 1, username: 'a', nickname: '甲', role: 'USER', status: 'ACTIVE' },
+      }),
+    )
+    const blob = new Blob(['png'], { type: 'image/png' })
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      blob: async () => blob,
+    } as Response)
+
+    const result = await fetchImageBlob('img-1')
+
+    const { url, init } = lastCall()
+    expect(url).toBe('/api/v1/chat/images/img-1')
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer token-1')
+    expect(result).toBe(blob)
   })
 })

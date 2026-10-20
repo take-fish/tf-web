@@ -10,15 +10,15 @@ import { useSkinStore } from '@/stores/skin'
 import { ASCII_ARTS, findAsciiArt } from '@/modules/chat/asciiArt'
 import {
   fetchDirectHistory,
-  fetchGroupHistory,
   fetchGroups,
+  fetchImageBlob,
   fetchMembers,
   fetchOnline,
   fetchUnread,
   markRead,
   recallMessage,
   searchDirect,
-  searchGroup,
+  uploadImage,
 } from '@/modules/chat/chatApi'
 import { ChatSocketClient } from '@/modules/chat/chatSocket'
 import { parseCommand } from '@/modules/chat/commands'
@@ -69,6 +69,10 @@ const dmPeer = ref<OnlineMember | null>(null)
 const sideOpen = ref(skinStore.effectiveSkin !== 'terminal')
 const readyUser = ref<ChatUser | null>(null)
 const currentSeq = ref(0)
+const fileInput = ref<HTMLInputElement | null>(null)
+const preview = ref<GalleryEntry | null>(null)
+const galleryMessages = ref<ChatMessage[]>([])
+const imageSources = ref<Record<string, string>>({})
 let socket: ChatSocketClient | null = null
 let onlineTimer: ReturnType<typeof setInterval> | undefined
 
@@ -76,6 +80,16 @@ const seenIds = new Set<string>()
 const recalledNotified = new Set<string>()
 const shortIds = new Map<string, string>()
 const shortOrder: string[] = []
+const imageJobs = new Set<string>()
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+const MAX_DIRECT_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_GROUP_IMAGE_BYTES = 1024 * 1024
+
+interface GalleryEntry {
+  message: ChatMessage
+  src: string
+}
 
 if (auth.user) {
   identity.setAccount(`u${auth.user.id}`, auth.user.nickname || auth.user.username)
@@ -123,9 +137,16 @@ const dmUnreadEntries = computed(() =>
     })),
 )
 
+// 群聊是临时会话，不存在跨会话未读；只统计私聊。
 const totalUnread = computed(() =>
-  dmUnreadEntries.value.reduce((sum, entry) => sum + entry.count, 0) +
-  groups.value.reduce((sum, group) => sum + (group.id === currentGroupId.value && !dmPeer.value ? 0 : group.unread), 0),
+  dmUnreadEntries.value.reduce((sum, entry) => sum + entry.count, 0),
+)
+
+const gallery = computed<GalleryEntry[]>(() =>
+  galleryMessages.value.flatMap((message) => {
+    const src = message.groupId ? message.content : imageSources.value[message.content]
+    return src ? [{ message, src }] : []
+  }),
 )
 
 function nicknameFor(userId: string): string {
@@ -183,33 +204,54 @@ function trackCurrent(message: ChatMessage) {
 }
 
 function markCurrentRead() {
-  if (currentSeq.value <= 0) return
+  // 群聊不保存历史，也没有已读位点。
   const peerId = dmPeer.value?.userId
-  const groupId = currentGroupId.value
+  if (!peerId || currentSeq.value <= 0) return
   const seq = currentSeq.value
-  const request = peerId
-    ? markRead({ peerUserId: peerId, seq })
-    : markRead({ groupId, seq })
-  void request
+  void markRead({ peerUserId: peerId, seq })
     .then(() => {
-      if (peerId) {
-        delete unread.value.dms[peerId]
-      } else {
-        unread.value.groups[groupId] = 0
-        const group = groups.value.find((item) => item.id === groupId)
-        if (group) group.unread = 0
-      }
+      delete unread.value.dms[peerId]
     })
     .catch((error) => {
       handleAuthError(error)
     })
 }
 
-function bumpGroupUnread(groupId: string) {
-  const group = groups.value.find((item) => item.id === groupId)
-  if (group) group.unread += 1
-  unread.value.groups[groupId] = (unread.value.groups[groupId] ?? 0) + 1
-  unread.value.total += 1
+function clearGallery() {
+  galleryMessages.value = []
+  preview.value = null
+  for (const url of Object.values(imageSources.value)) {
+    URL.revokeObjectURL(url)
+  }
+  imageSources.value = {}
+  imageJobs.clear()
+}
+
+function loadImageSource(message: ChatMessage) {
+  if (message.groupId || message.kind !== 'image' || message.recalled) return
+  const imageId = message.content
+  if (!imageId || imageSources.value[imageId] || imageJobs.has(imageId)) return
+  imageJobs.add(imageId)
+  void fetchImageBlob(imageId)
+    .then((blob) => {
+      imageSources.value = { ...imageSources.value, [imageId]: URL.createObjectURL(blob) }
+    })
+    .catch((error) => {
+      if (!handleAuthError(error)) {
+        terminalRef.value?.writeLiveLines(
+          [`[WARN] 图片 #${shortId(message.id)} 加载失败`],
+          'warn',
+        )
+      }
+    })
+    .finally(() => imageJobs.delete(imageId))
+}
+
+function addGallery(message: ChatMessage) {
+  if (message.kind !== 'image' || message.recalled) return
+  if (galleryMessages.value.some((item) => item.id === message.id)) return
+  galleryMessages.value = [...galleryMessages.value, message].slice(-12)
+  loadImageSource(message)
 }
 
 function bumpDmUnread(peerUserId: string) {
@@ -223,6 +265,9 @@ function dmLines(message: ChatMessage): string[] {
   const target = dmPeer.value?.nickname ?? message.toUserId ?? 'peer'
   if (message.recalled) {
     return [`[${time}] [DM] -> ${target}: 该消息已撤回`]
+  }
+  if (message.kind === 'image') {
+    return [`[${time}] [DM] -> ${target}: [图片] #${shortId(message.id)}`]
   }
   return [`[${time}] [DM] -> ${target}: ${message.content}`]
 }
@@ -252,17 +297,11 @@ function onPresence(groupId: string, list: OnlineMember[]) {
 function onMessage(message: ChatMessage) {
   const fresh = rememberMessage(message)
   const current = isCurrentConversation(message)
-  if (current) trackCurrent(message)
+  // 群聊消息仅在群会话打开时实时显示；不在其他群积攒未读。
+  if (!current || dmPeer.value) return
   if (!fresh) return
-
-  const isSelf = message.fromUserId === selfUserId.value
-  if (!current) {
-    if (!isSelf && message.groupId) bumpGroupUnread(message.groupId)
-    return
-  }
-  if (dmPeer.value) return
   terminalRef.value?.writeLiveLines(formatMessageLines(message), 'message')
-  if (!isSelf) markCurrentRead()
+  addGallery(message)
 }
 
 function onDm(message: ChatMessage) {
@@ -279,6 +318,7 @@ function onDm(message: ChatMessage) {
 
   if (current) {
     terminalRef.value?.writeLiveLines(dmLines(message), 'message')
+    addGallery(message)
     if (message.fromUserId !== selfUserId.value) markCurrentRead()
     return
   }
@@ -302,7 +342,12 @@ function onOffline(messages: ChatMessage[]) {
       const peerId = message.fromUserId === selfUserId.value
         ? message.toUserId
         : message.fromUserId
-      if (peerId && !(dmPeer.value?.userId === peerId)) bumpDmUnread(peerId)
+      if (peerId && dmPeer.value?.userId === peerId) {
+        trackCurrent(message)
+        addGallery(message)
+      } else if (peerId) {
+        bumpDmUnread(peerId)
+      }
     }
   }
   terminalRef.value?.writeLiveLines(lines, 'info')
@@ -349,6 +394,7 @@ function renderHistory(messages: ChatMessage[], target: string): string[] {
     for (const message of messages) {
       if (!rememberMessage(message)) continue
       trackCurrent(message)
+      addGallery(message)
       lines.push(...(dmPeer.value ? dmLines(message) : formatMessageLines(message)))
     }
   } else {
@@ -358,18 +404,19 @@ function renderHistory(messages: ChatMessage[], target: string): string[] {
 }
 
 async function catchUp() {
-  if (currentSeq.value <= 0) return
+  // 只有私聊有历史，断线后需要补拉；群聊消息在离线期间本就不存在。
+  const peer = dmPeer.value
+  if (!peer || currentSeq.value <= 0) return
   const afterSeq = currentSeq.value
   try {
-    const page = dmPeer.value
-      ? await fetchDirectHistory(dmPeer.value.userId, { afterSeq, limit: 200 })
-      : await fetchGroupHistory(currentGroupId.value, { afterSeq, limit: 200 })
+    const page = await fetchDirectHistory(peer.userId, { afterSeq, limit: 200 })
     const lines: string[] = []
     for (const message of page.messages) {
       if (!rememberMessage(message)) continue
       if (!isCurrentConversation(message)) continue
       trackCurrent(message)
-      lines.push(...(dmPeer.value ? dmLines(message) : formatMessageLines(message)))
+      addGallery(message)
+      lines.push(...dmLines(message))
     }
     if (lines.length) {
       terminalRef.value?.writeLiveLines(['[INFO] 重连补拉完成'], 'info')
@@ -398,17 +445,13 @@ async function bootstrap() {
   socket?.join(currentGroupId.value)
   lines.push(`[INFO] session index loaded: ${groups.value.length} groups`)
   lines.push(`[INFO] joined /opt/chat/group/${currentGroupId.value}`)
+  lines.push('[INFO] 群聊为临时会话，消息与图片不保存；私聊支持历史与图片持久化')
+  lines.push('[INFO] 使用 ssh <昵称> 打开私聊，工具栏“图片”可发送图片')
   try {
-    const [history, groupMembers] = await Promise.all([
-      fetchGroupHistory(currentGroupId.value, { limit: 12 }),
-      fetchMembers(currentGroupId.value),
-    ])
-    members.value = groupMembers
-    lines.push(...renderHistory(history.messages, `/opt/chat/group/${currentGroupId.value}/chat.log`))
-    markCurrentRead()
+    members.value = await fetchMembers(currentGroupId.value)
   } catch (error) {
     if (handleAuthError(error)) return
-    lines.push('[WARN] 会话历史暂不可用')
+    lines.push('[WARN] 会话成员暂不可用')
   }
   void refreshOnline()
   term?.writeLiveLines(lines, 'info')
@@ -427,19 +470,17 @@ async function switchGroup(groupId: string, term: TerminalApi) {
   }
   currentGroupId.value = groupId
   currentSeq.value = 0
+  clearGallery()
   socket?.join(groupId)
-  const lines = [`[INFO] switched to /opt/chat/group/${groupId}`]
+  const lines = [
+    `[INFO] switched to /opt/chat/group/${groupId}`,
+    '[INFO] 群聊为临时会话，不保留历史消息',
+  ]
   try {
-    const [history, groupMembers] = await Promise.all([
-      fetchGroupHistory(groupId, { limit: 10 }),
-      fetchMembers(groupId),
-    ])
-    members.value = groupMembers
-    lines.push(...renderHistory(history.messages, `/opt/chat/group/${groupId}/chat.log`))
-    markCurrentRead()
+    members.value = await fetchMembers(groupId)
   } catch (error) {
     if (handleAuthError(error)) return
-    lines.push('[WARN] 会话历史加载失败')
+    lines.push('[WARN] 会话成员加载失败')
   }
   void refreshUnread()
   term.writeLines(lines, 'message')
@@ -455,35 +496,23 @@ function sendChat(content: string, kind: 'text' | 'ascii', term: TerminalApi) {
 }
 
 async function tail(lineCount: number, term: TerminalApi) {
+  if (!dmPeer.value) {
+    term.writeLines(
+      ['[INFO] 群聊为临时会话，不保存历史；私聊会话中可使用 tail 查看历史'],
+      'warn',
+    )
+    return
+  }
   const lines: string[] = []
   try {
-    if (dmPeer.value) {
-      const page = await fetchDirectHistory(dmPeer.value.userId, { limit: lineCount })
-      lines.push(...renderHistory(page.messages, `dm/${dmPeer.value.nickname}`))
-    } else {
-      currentSeq.value = 0
-      const page = await fetchGroupHistory(currentGroupId.value, { limit: lineCount })
-      lines.push(...renderHistory(page.messages, `/opt/chat/group/${currentGroupId.value}/chat.log`))
-    }
+    const page = await fetchDirectHistory(dmPeer.value.userId, { limit: lineCount })
+    lines.push(...renderHistory(page.messages, `dm/${dmPeer.value.nickname}`))
     markCurrentRead()
   } catch (error) {
     if (handleAuthError(error)) return
     lines.push(`[ERROR] ${errorText(error)}`)
   }
   term.writeLines(lines, 'message')
-}
-
-async function resyncCurrentGroup() {
-  try {
-    const page = await fetchGroupHistory(currentGroupId.value, { limit: 1 })
-    const last = page.messages[page.messages.length - 1]
-    if (last) {
-      trackCurrent(last)
-      markCurrentRead()
-    }
-  } catch (error) {
-    handleAuthError(error)
-  }
 }
 
 async function showMembers(term: TerminalApi) {
@@ -538,6 +567,7 @@ async function openDm(target: string, term: TerminalApi) {
   }
   dmPeer.value = member
   currentSeq.value = 0
+  clearGallery()
   const lines = [
     `[INFO] opening private session with ${member.nickname}@${member.node} ...`,
   ]
@@ -555,11 +585,16 @@ async function openDm(target: string, term: TerminalApi) {
 }
 
 async function searchMessages(keyword: string, term: TerminalApi) {
+  if (!dmPeer.value) {
+    term.writeLines(
+      ['[INFO] 群聊为临时会话，不保存消息，无法搜索；请在私聊会话中使用 grep'],
+      'warn',
+    )
+    return
+  }
   term.writeLines([`[INFO] grep -F "${keyword}"`], 'dim')
   try {
-    const messages = dmPeer.value
-      ? await searchDirect(dmPeer.value.userId, keyword, 50)
-      : await searchGroup(currentGroupId.value, keyword, 50)
+    const messages = await searchDirect(dmPeer.value.userId, keyword, 50)
     for (const message of messages) rememberMessage(message)
     term.writeLines(formatSearchResults(keyword, messages), 'message')
   } catch (error) {
@@ -569,6 +604,10 @@ async function searchMessages(keyword: string, term: TerminalApi) {
 }
 
 async function recall(messageId: string, term: TerminalApi) {
+  if (!dmPeer.value) {
+    term.writeLines(['[INFO] 群聊为临时会话，不支持撤回'], 'warn')
+    return
+  }
   const normalized = messageId.replace(/^#/, '')
   const fullId = shortIds.get(normalized) ?? (normalized.length === 36 ? normalized : null)
   if (!fullId) {
@@ -595,6 +634,64 @@ function sendAscii(name: string, term: TerminalApi) {
     return
   }
   sendChat(art.content, 'ascii', term)
+}
+
+function pickImage() {
+  fileInput.value?.click()
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(new Error('图片读取失败'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function onImagePicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  input.value = ''
+  const term = terminalRef.value
+  if (!file || !term) return
+  if (!IMAGE_TYPES.includes(file.type)) {
+    term.writeLines(['[ERROR] 仅支持 PNG/JPEG/GIF/WebP 图片'], 'error')
+    return
+  }
+  const inDm = Boolean(dmPeer.value)
+  const limit = inDm ? MAX_DIRECT_IMAGE_BYTES : MAX_GROUP_IMAGE_BYTES
+  if (file.size > limit) {
+    term.writeLines(
+      [`[ERROR] 图片超过 ${Math.round(limit / 1024 / 1024)}MB 限制（${inDm ? '私聊' : '群聊'}）`],
+      'error',
+    )
+    return
+  }
+  try {
+    if (dmPeer.value) {
+      const image = await uploadImage(file)
+      if (!socket?.sendDirectImage(dmPeer.value.userId, image.id)) {
+        term.writeLines(['[ERROR] 消息通道未连接，图片未发送'], 'error')
+        return
+      }
+      term.writeLines(
+        [`[INFO] 图片已发送（私聊持久化，${Math.max(1, Math.round(image.size / 1024))} KB）`],
+        'dim',
+      )
+    } else {
+      const dataUrl = await readAsDataUrl(file)
+      if (!socket?.sendGroupImage(dataUrl)) {
+        term.writeLines(['[ERROR] 消息通道未连接，图片未发送'], 'error')
+        return
+      }
+      term.writeLines(['[INFO] 图片已发送（群聊临时消息，不保存）'], 'dim')
+    }
+  } catch (error) {
+    if (!handleAuthError(error)) {
+      term.writeLines([`[ERROR] ${errorText(error)}`], 'error')
+    }
+  }
 }
 
 async function onCommand(raw: string) {
@@ -659,7 +756,7 @@ async function onCommand(raw: string) {
         if (dmPeer.value) {
           dmPeer.value = null
           currentSeq.value = 0
-          void resyncCurrentGroup()
+          clearGallery()
           void refreshUnread()
           term.writeLines(['[INFO] closed private session'], 'info')
         } else {
@@ -717,6 +814,7 @@ onBeforeUnmount(() => {
   if (onlineTimer) clearInterval(onlineTimer)
   socket?.close()
   socket = null
+  clearGallery()
 })
 </script>
 
@@ -739,6 +837,17 @@ onBeforeUnmount(() => {
           <AppIcon name="refresh" :size="12" />
           清屏
         </button>
+        <button class="chat-tool" title="发送图片" @click="pickImage">
+          <AppIcon name="file" :size="12" />
+          图片
+        </button>
+        <input
+          ref="fileInput"
+          class="chat-file"
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          @change="onImagePicked"
+        />
       </div>
       <div class="chat-terminal">
         <TerminalPane
@@ -747,6 +856,18 @@ onBeforeUnmount(() => {
           :banner="banner"
           @command="onCommand"
         />
+      </div>
+      <div v-if="gallery.length" class="chat-gallery" aria-label="图片消息">
+        <button
+          v-for="entry in gallery"
+          :key="entry.message.id"
+          class="chat-gallery__item"
+          :title="`查看图片 #${shortId(entry.message.id)}`"
+          @click="preview = entry"
+        >
+          <img :src="entry.src" :alt="`图片 #${shortId(entry.message.id)}`" />
+          <span>#{{ shortId(entry.message.id) }}</span>
+        </button>
       </div>
     </div>
 
@@ -833,11 +954,23 @@ onBeforeUnmount(() => {
         <template v-if="readyUser"><br />ticket session · {{ readyUser.node }}</template>
       </div>
     </aside>
+
+    <div v-if="preview" class="chat-preview" @click.self="preview = null">
+      <figure class="chat-preview__frame">
+        <img :src="preview.src" alt="图片预览" />
+        <figcaption>
+          #{{ shortId(preview.message.id) }} · {{ preview.message.fromNickname }} ·
+          {{ new Date(preview.message.ts).toLocaleString('zh-CN') }}
+        </figcaption>
+      </figure>
+      <button class="chat-preview__close" @click="preview = null">关闭</button>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .chat-view {
+  position: relative;
   display: flex;
   height: 100%;
   min-height: 0;
@@ -931,6 +1064,109 @@ onBeforeUnmount(() => {
 .chat-terminal {
   flex: 1;
   min-height: 0;
+}
+
+.chat-file {
+  display: none;
+}
+
+.chat-gallery {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--fm-border);
+  background: var(--fm-panel);
+  overflow-x: auto;
+}
+
+.chat-gallery__item {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.chat-gallery__item:hover {
+  border-color: var(--fm-accent);
+}
+
+.chat-gallery__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.chat-gallery__item span {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 0 3px;
+  background: rgb(0 0 0 / 60%);
+  color: var(--fm-text-dim);
+  font-family: var(--fm-mono);
+  font-size: 7.5px;
+}
+
+.chat-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgb(0 0 0 / 78%);
+}
+
+.chat-preview__frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 88vw;
+  max-height: 88vh;
+  margin: 0;
+}
+
+.chat-preview__frame img {
+  max-width: 88vw;
+  max-height: 78vh;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  object-fit: contain;
+}
+
+.chat-preview__frame figcaption {
+  color: var(--fm-text-dim);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+}
+
+.chat-preview__close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  padding: 4px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.chat-preview__close:hover {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
 }
 
 .chat-side {
