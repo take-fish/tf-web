@@ -166,7 +166,8 @@ function handleData(data: string) {
       submit()
       break
     }
-    if (char === '\x7f') {
+    // DEL 与 BS 都按退格处理：不同浏览器/输入法可能发送 \x7f 或 \x08。
+    if (char === '\x7f' || char === '\x08') {
       backspace()
       continue
     }

@@ -636,8 +636,21 @@ function sendAscii(name: string, term: TerminalApi) {
   sendChat(art.content, 'ascii', term)
 }
 
+function focusTerminal() {
+  terminalRef.value?.focus()
+}
+
+function closePreview() {
+  preview.value = null
+  focusTerminal()
+}
+
 function pickImage() {
-  fileInput.value?.click()
+  const input = fileInput.value
+  if (!input) return
+  // 文件选择框关闭后浏览器会把焦点留在隐藏 input 上，导致退格/输入无响应。
+  window.addEventListener('focus', focusTerminal, { once: true })
+  input.click()
 }
 
 function readAsDataUrl(file: File): Promise<string> {
@@ -654,21 +667,24 @@ async function onImagePicked(event: Event) {
   const file = input.files?.[0] ?? null
   input.value = ''
   const term = terminalRef.value
-  if (!file || !term) return
-  if (!IMAGE_TYPES.includes(file.type)) {
-    term.writeLines(['[ERROR] 仅支持 PNG/JPEG/GIF/WebP 图片'], 'error')
-    return
-  }
-  const inDm = Boolean(dmPeer.value)
-  const limit = inDm ? MAX_DIRECT_IMAGE_BYTES : MAX_GROUP_IMAGE_BYTES
-  if (file.size > limit) {
-    term.writeLines(
-      [`[ERROR] 图片超过 ${Math.round(limit / 1024 / 1024)}MB 限制（${inDm ? '私聊' : '群聊'}）`],
-      'error',
-    )
+  if (!file || !term) {
+    focusTerminal()
     return
   }
   try {
+    if (!IMAGE_TYPES.includes(file.type)) {
+      term.writeLines(['[ERROR] 仅支持 PNG/JPEG/GIF/WebP 图片'], 'error')
+      return
+    }
+    const inDm = Boolean(dmPeer.value)
+    const limit = inDm ? MAX_DIRECT_IMAGE_BYTES : MAX_GROUP_IMAGE_BYTES
+    if (file.size > limit) {
+      term.writeLines(
+        [`[ERROR] 图片超过 ${Math.round(limit / 1024 / 1024)}MB 限制（${inDm ? '私聊' : '群聊'}）`],
+        'error',
+      )
+      return
+    }
     if (dmPeer.value) {
       const image = await uploadImage(file)
       if (!socket?.sendDirectImage(dmPeer.value.userId, image.id)) {
@@ -691,6 +707,9 @@ async function onImagePicked(event: Event) {
     if (!handleAuthError(error)) {
       term.writeLines([`[ERROR] ${errorText(error)}`], 'error')
     }
+  } finally {
+    // 关闭文件选择框后把键盘焦点还给终端，避免退格/打字无响应。
+    term.focus()
   }
 }
 
@@ -847,6 +866,7 @@ onBeforeUnmount(() => {
           type="file"
           accept="image/png,image/jpeg,image/gif,image/webp"
           @change="onImagePicked"
+          @cancel="focusTerminal"
         />
       </div>
       <div class="chat-terminal">
@@ -955,7 +975,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
 
-    <div v-if="preview" class="chat-preview" @click.self="preview = null">
+    <div v-if="preview" class="chat-preview" @click.self="closePreview">
       <figure class="chat-preview__frame">
         <img :src="preview.src" alt="图片预览" />
         <figcaption>
@@ -963,7 +983,7 @@ onBeforeUnmount(() => {
           {{ new Date(preview.message.ts).toLocaleString('zh-CN') }}
         </figcaption>
       </figure>
-      <button class="chat-preview__close" @click="preview = null">关闭</button>
+      <button class="chat-preview__close" @click="closePreview">关闭</button>
     </div>
   </div>
 </template>
