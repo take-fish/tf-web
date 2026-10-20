@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/lib/http'
-import type { ChatMessage, ChatStatus } from '../types'
+import type { ChatMessage, ChatStatus, ChatUser, WsTicket } from '../types'
 
 import { fetchWsTicket } from '../chatApi'
 import { ChatSocketClient } from '../chatSocket'
 
 vi.mock('../chatApi', () => ({
-  fetchWsTicket: vi.fn(),
+  fetchWsTicket: vi.fn<() => Promise<WsTicket>>(),
 }))
 
 class FakeSocket {
@@ -68,12 +68,12 @@ const message: ChatMessage = {
 function handlers() {
   return {
     onStatus: vi.fn<(status: ChatStatus) => void>(),
-    onReady: vi.fn(),
-    onMessage: vi.fn(),
-    onDm: vi.fn(),
-    onRecalled: vi.fn(),
-    onError: vi.fn(),
-    onAuthError: vi.fn(),
+    onReady: vi.fn<(user: ChatUser) => void>(),
+    onMessage: vi.fn<(message: ChatMessage) => void>(),
+    onDm: vi.fn<(message: ChatMessage) => void>(),
+    onRecalled: vi.fn<(message: ChatMessage, byUserId: string) => void>(),
+    onError: vi.fn<(message: string, code?: string) => void>(),
+    onAuthError: vi.fn<() => void>(),
   }
 }
 

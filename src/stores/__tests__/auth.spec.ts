@@ -4,13 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, AUTH_EXPIRED_EVENT } from '@/lib/http'
 import { AUTH_STORAGE_KEY, readAuth, writeAuth } from '@/lib/authToken'
 import { useAuthStore } from '@/stores/auth'
-import type { AuthUser } from '@/modules/auth/types'
+import type {
+  AuthUser,
+  Credentials,
+  LoginResponse,
+  RegisterResponse,
+} from '@/modules/auth/types'
 
 const api = vi.hoisted(() => ({
-  login: vi.fn(),
-  register: vi.fn(),
-  fetchMe: vi.fn(),
-  logout: vi.fn(),
+  login: vi.fn<(credentials: Credentials) => Promise<LoginResponse>>(),
+  register: vi.fn<(credentials: Credentials) => Promise<RegisterResponse>>(),
+  fetchMe: vi.fn<() => Promise<AuthUser>>(),
+  logout: vi.fn<() => Promise<void>>(),
 }))
 
 vi.mock('@/modules/auth/authApi', () => api)
