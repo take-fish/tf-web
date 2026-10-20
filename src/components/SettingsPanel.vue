@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
 import type { ReaderTemplateId } from '@/stores/settings'
+import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSettingsStore } from '@/stores/settings'
 import { useSkinStore } from '@/stores/skin'
@@ -10,10 +12,17 @@ import { SKINS } from '@/skins/registry'
 
 const emit = defineEmits<{ close: [] }>()
 
+const router = useRouter()
+const auth = useAuthStore()
 const settings = useSettingsStore()
 const identity = useIdentityStore()
 const skinStore = useSkinStore()
 const nickname = ref(identity.state.nickname)
+const loggingOut = ref(false)
+
+const accountName = computed(() => auth.user?.username ?? '')
+const accountNickname = computed(() => auth.user?.nickname ?? '')
+const accountRole = computed(() => (auth.isAdmin ? '管理员' : '成员'))
 
 const READER_TEMPLATES: ReadonlyArray<{ id: ReaderTemplateId; label: string }> = [
   { id: 'springboot', label: 'SpringBoot 业务层' },
@@ -55,6 +64,19 @@ function onAutoScroll(event: Event) {
 function onVolume(event: Event) {
   settings.update({ volume: Number((event.target as HTMLInputElement).value) })
 }
+
+async function onLogout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    await auth.logout()
+    identity.reset()
+    emit('close')
+    await router.replace({ name: 'login' })
+  } finally {
+    loggingOut.value = false
+  }
+}
 </script>
 
 <template>
@@ -79,6 +101,15 @@ function onVolume(event: Event) {
       <div class="settings-body">
         <section class="settings-section">
           <h3>身份</h3>
+          <div class="settings-row">
+            <span>当前账号</span>
+            <code v-if="accountName">@{{ accountName }} · {{ accountRole }}</code>
+            <code v-else>未登录</code>
+          </div>
+          <div v-if="accountNickname" class="settings-row">
+            <span>账号昵称</span>
+            <code>{{ accountNickname }}</code>
+          </div>
           <label class="settings-row">
             <span>显示名称</span>
             <span class="settings-inline">
@@ -94,6 +125,13 @@ function onVolume(event: Event) {
           <div class="settings-row">
             <span>节点标识</span>
             <code>{{ identity.nodeName }} · {{ identity.state.userId.slice(0, 8) }}</code>
+          </div>
+          <div class="settings-row">
+            <span>会话</span>
+            <button class="ghost-button" :disabled="loggingOut" @click="onLogout">
+              <AppIcon name="power" :size="13" />
+              {{ loggingOut ? '退出中…' : '退出登录' }}
+            </button>
           </div>
         </section>
 

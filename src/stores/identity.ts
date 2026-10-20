@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 
 export const IDENTITY_STORAGE_KEY = 'fm.identity.v1'
 
@@ -83,8 +83,27 @@ export const useIdentityStore = defineStore('identity', () => {
     state.nickname = sanitizeNickname(value)
   }
 
+  function setAccount(userIdValue: string, nicknameValue: string) {
+    state.userId = /^[A-Za-z0-9_-]{1,64}$/.test(userIdValue) ? userIdValue : generateUserId()
+    state.nickname = sanitizeNickname(nicknameValue)
+  }
+
+  function reset() {
+    state.userId = generateUserId()
+    state.nickname = `摸鱼-${randomHex(4)}`
+  }
+
   watch(state, persist, { deep: true })
   persist()
 
-  return { state, setNickname, persist, nodeName: nodeNameFor(state.userId) }
+  const nodeName = computed(() => nodeNameFor(state.userId))
+
+  return {
+    state,
+    nodeName,
+    setNickname,
+    setAccount,
+    reset,
+    persist,
+  }
 })
