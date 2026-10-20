@@ -1,9 +1,12 @@
+import { ApiError } from '@/lib/http'
 import { randomId } from '@/lib/id'
+import { fetchWsTicket } from './chatApi'
 import type {
   ChatMessage,
   ChatStatus,
   ChatUser,
   OnlineMember,
+  ReadPayload,
   ServerFrame,
 } from './types'
 
@@ -14,15 +17,20 @@ export interface ChatSocketHandlers {
   onMessage?: (message: ChatMessage) => void
   onDm?: (message: ChatMessage) => void
   onOffline?: (messages: ChatMessage[]) => void
-  onError?: (message: string) => void
+  onRecalled?: (message: ChatMessage, byUserId: string) => void
+  onError?: (message: string, code?: string) => void
+  onAuthError?: () => void
 }
 
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000]
 
-function socketUrl(userId: string, nickname: string): string {
+function socketUrl(ticket: string): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const query = new URLSearchParams({ userId, nickname })
-  return `${protocol}//${window.location.host}/ws/chat?${query.toString()}`
+  return `${protocol}//${window.location.host}/ws/chat?ticket=${encodeURIComponent(ticket)}`
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : '聊天通道建立失败'
 }
 
 export class ChatSocketClient {
@@ -33,16 +41,19 @@ export class ChatSocketClient {
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined
   private lastPong = 0
   private manuallyClosed = false
+  private authFailed = false
+  private connectAttempt = 0
 
-  constructor(
-    private readonly userId: string,
-    private readonly nickname: string,
-    private readonly handlers: ChatSocketHandlers,
-  ) {}
+  constructor(private readonly handlers: ChatSocketHandlers) {}
 
-  connect() {
+  /**
+   * 先向 REST 申请一次性 ticket，再建立 WebSocket；
+   * 重连时同样重新申请，长期 token 不会出现在 URL 中。
+   */
+  connect(): Promise<void> {
     this.manuallyClosed = false
-    this.open()
+    this.authFailed = false
+    return this.open()
   }
 
   join(groupId: string) {
@@ -68,8 +79,17 @@ export class ChatSocketClient {
     return this.send({ type: 'dm', toUserId, content, kind, clientMsgId: randomId() })
   }
 
+  sendRead(payload: ReadPayload): boolean {
+    return this.send({ type: 'read', ...payload })
+  }
+
+  sendRecall(messageId: string): boolean {
+    return this.send({ type: 'recall', messageId })
+  }
+
   close() {
     this.manuallyClosed = true
+    this.connectAttempt += 1
     this.stopHeartbeat()
     this.clearReconnect()
     this.handlers.onStatus?.('offline')
@@ -77,12 +97,31 @@ export class ChatSocketClient {
     this.ws = null
   }
 
-  private open() {
+  private async open(): Promise<void> {
     this.clearReconnect()
     this.handlers.onStatus?.(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting')
+    const attempt = ++this.connectAttempt
+
+    let ticket: string
+    try {
+      ticket = (await fetchWsTicket()).ticket
+    } catch (error) {
+      if (this.manuallyClosed || attempt !== this.connectAttempt) return
+      if (error instanceof ApiError && error.status === 401) {
+        this.authFailed = true
+        this.handlers.onStatus?.('offline')
+        this.handlers.onAuthError?.()
+        return
+      }
+      this.handlers.onError?.(errorText(error), 'HANDSHAKE_FAILED')
+      this.scheduleReconnect()
+      return
+    }
+    if (this.manuallyClosed || attempt !== this.connectAttempt) return
+
     let ws: WebSocket
     try {
-      ws = new WebSocket(socketUrl(this.userId, this.nickname))
+      ws = new WebSocket(socketUrl(ticket))
     } catch {
       this.scheduleReconnect()
       return
@@ -109,7 +148,7 @@ export class ChatSocketClient {
     ws.onclose = () => {
       this.stopHeartbeat()
       if (this.ws === ws) this.ws = null
-      if (this.manuallyClosed) return
+      if (this.manuallyClosed || this.authFailed) return
       this.handlers.onStatus?.('reconnecting')
       this.scheduleReconnect()
     }
@@ -136,11 +175,18 @@ export class ChatSocketClient {
       case 'dm_offline':
         this.handlers.onOffline?.(frame.messages ?? [])
         break
+      case 'recalled':
+        this.handlers.onRecalled?.(frame.message, frame.byUserId ?? frame.message.fromUserId)
+        break
       case 'pong':
         this.lastPong = Date.now()
         break
       case 'error':
-        this.handlers.onError?.(frame.message || '消息通道异常')
+        this.handlers.onError?.(frame.message || '消息通道异常', frame.code)
+        if (frame.code === 'UNAUTHORIZED') {
+          this.authFailed = true
+          this.handlers.onAuthError?.()
+        }
         break
       case 'left':
         break
@@ -177,7 +223,9 @@ export class ChatSocketClient {
     const delay = RECONNECT_DELAYS[Math.min(this.reconnectAttempts, RECONNECT_DELAYS.length - 1)]
     this.reconnectAttempts += 1
     this.clearReconnect()
-    this.reconnectTimer = setTimeout(() => this.open(), delay ?? 15000)
+    this.reconnectTimer = setTimeout(() => {
+      void this.open()
+    }, delay ?? 15000)
   }
 
   private clearReconnect() {
