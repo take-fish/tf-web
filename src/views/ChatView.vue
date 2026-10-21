@@ -80,11 +80,15 @@ const seenIds = new Set<string>()
 const recalledNotified = new Set<string>()
 const shortIds = new Map<string, string>()
 const shortOrder: string[] = []
-const imageJobs = new Set<string>()
+const imageMessages = new Map<string, ChatMessage>()
+const imagePromises = new Map<string, Promise<string | null>>()
+let galleryEpoch = 0
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 const MAX_DIRECT_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_GROUP_IMAGE_BYTES = 1024 * 1024
+const MAX_IMAGE_INPUT_BYTES = 20 * 1024 * 1024
+const MAX_TRACKED_IMAGES = 200
 
 interface GalleryEntry {
   message: ChatMessage
@@ -119,6 +123,7 @@ const banner = [
   `Last login: ${new Date().toLocaleString('zh-CN')} from 10.28.25.34`,
   `Connected to ${identity.nodeName}.`,
   '直接输入内容并回车发送；cd 切换群组，ssh 发起私聊。',
+  'Ctrl+V 粘贴文本/图片；Ctrl+C 复制选中文本（无选区时中断）。',
 ]
 
 const sessionLabel = computed(() =>
@@ -218,40 +223,84 @@ function markCurrentRead() {
 }
 
 function clearGallery() {
+  // 切会话后旧图片请求可能仍在路上，用 epoch 丢弃过期结果，避免把旧会话图片塞进新会话。
+  galleryEpoch += 1
   galleryMessages.value = []
   preview.value = null
+  imageMessages.clear()
+  imagePromises.clear()
   for (const url of Object.values(imageSources.value)) {
     URL.revokeObjectURL(url)
   }
   imageSources.value = {}
-  imageJobs.clear()
 }
 
-function loadImageSource(message: ChatMessage) {
-  if (message.groupId || message.kind !== 'image' || message.recalled) return
+function rememberImageMessage(message: ChatMessage) {
+  if (message.kind !== 'image' || message.recalled) return
+  imageMessages.set(message.id, message)
+  if (imageMessages.size <= MAX_TRACKED_IMAGES) return
+  const oldest = imageMessages.keys().next().value
+  if (oldest) imageMessages.delete(oldest)
+}
+
+async function ensureImageSource(message: ChatMessage): Promise<string | null> {
+  if (message.groupId) return message.content
   const imageId = message.content
-  if (!imageId || imageSources.value[imageId] || imageJobs.has(imageId)) return
-  imageJobs.add(imageId)
-  void fetchImageBlob(imageId)
+  if (!imageId) return null
+  const cached = imageSources.value[imageId]
+  if (cached) return cached
+  const pending = imagePromises.get(imageId)
+  if (pending) return pending
+
+  const epoch = galleryEpoch
+  const promise = fetchImageBlob(imageId)
     .then((blob) => {
-      imageSources.value = { ...imageSources.value, [imageId]: URL.createObjectURL(blob) }
+      if (epoch !== galleryEpoch) return null
+      const src = URL.createObjectURL(blob)
+      imageSources.value = { ...imageSources.value, [imageId]: src }
+      return src
     })
-    .catch((error) => {
-      if (!handleAuthError(error)) {
+    .catch((error: unknown) => {
+      if (epoch === galleryEpoch && !handleAuthError(error)) {
         terminalRef.value?.writeLiveLines(
           [`[WARN] 图片 #${shortId(message.id)} 加载失败`],
           'warn',
         )
       }
+      return null
     })
-    .finally(() => imageJobs.delete(imageId))
+    .finally(() => {
+      imagePromises.delete(imageId)
+    })
+  imagePromises.set(imageId, promise)
+  return promise
 }
 
 function addGallery(message: ChatMessage) {
   if (message.kind !== 'image' || message.recalled) return
+  // 缩略图只保留最近 12 张，但点击终端里更早的图片占位符时仍要能预览。
+  rememberImageMessage(message)
   if (galleryMessages.value.some((item) => item.id === message.id)) return
   galleryMessages.value = [...galleryMessages.value, message].slice(-12)
-  loadImageSource(message)
+  void ensureImageSource(message)
+}
+
+async function previewImageByShortId(id: string) {
+  const messageId = shortIds.get(id)
+  const known = messageId ? imageMessages.get(messageId) : undefined
+  const message = known
+    ?? Array.from(imageMessages.values()).find((item) => shortId(item.id) === id)
+  if (!message) {
+    terminalRef.value?.writeLiveLines(
+      [`[WARN] 图片 #${id} 不在当前图片索引中，可点击下方缩略图查看`],
+      'warn',
+    )
+    return
+  }
+  const src = await ensureImageSource(message)
+  // 等待期间切换会话/撤回时不再打开旧预览。
+  if (!src || !imageMessages.has(message.id)) return
+  preview.value = { message, src }
 }
 
 function bumpDmUnread(peerUserId: string) {
@@ -446,7 +495,7 @@ async function bootstrap() {
   lines.push(`[INFO] session index loaded: ${groups.value.length} groups`)
   lines.push(`[INFO] joined /opt/chat/group/${currentGroupId.value}`)
   lines.push('[INFO] 群聊为临时会话，消息与图片不保存；私聊支持历史与图片持久化')
-  lines.push('[INFO] 使用 ssh <昵称> 打开私聊，工具栏“图片”可发送图片')
+  lines.push('[INFO] 使用 ssh <昵称> 打开私聊；工具栏“图片”或 Ctrl+V 可发送图片')
   try {
     members.value = await fetchMembers(currentGroupId.value)
   } catch (error) {
@@ -662,32 +711,114 @@ function readAsDataUrl(file: File): Promise<string> {
   })
 }
 
-async function onImagePicked(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0] ?? null
-  input.value = ''
-  const term = terminalRef.value
-  if (!file || !term) {
-    focusTerminal()
-    return
+function imageExtension(type: string): string {
+  if (type === 'image/jpeg') return 'jpg'
+  const ext = type.split('/')[1] ?? 'png'
+  return ext.replace(/[^a-z0-9]/gi, '') || 'png'
+}
+
+function normalizeImageFile(file: File): File {
+  // 剪贴板图片有时没有文件名，补一个，保证 multipart 上传与后端扩展名判断稳定。
+  if (file.name) return file
+  return new File([file], `pasted-${Date.now()}.${imageExtension(file.type)}`, { type: file.type })
+}
+
+function sizeLabel(bytes: number): string {
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob((blob) => resolve(blob), type, quality)
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+// 群聊图片走 WebSocket data URL（上限 1MB），粘贴的截图常常超过。
+// 超限时用 canvas 转 WebP/JPEG 并逐步缩小；GIF 动图仅在超限时退化为静态帧。
+async function shrinkImage(file: File, limit: number): Promise<File | null> {
+  if (typeof createImageBitmap !== 'function') return null
+  let bitmap: ImageBitmap
+  try {
+    bitmap = await createImageBitmap(file)
+  } catch {
+    return null
   }
+  try {
+    const longSide = Math.max(bitmap.width, bitmap.height, 1)
+    const initialScale = Math.min(1, 1920 / longSide)
+    let width = Math.max(1, Math.round(bitmap.width * initialScale))
+    let height = Math.max(1, Math.round(bitmap.height * initialScale))
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const context = canvas.getContext('2d')
+      if (!context) return null
+      context.drawImage(bitmap, 0, 0, width, height)
+      for (const type of ['image/webp', 'image/jpeg'] as const) {
+        const blob = await canvasToBlob(canvas, type, 0.82)
+        if (blob && blob.type === type && blob.size <= limit) {
+          const ext = type === 'image/webp' ? 'webp' : 'jpg'
+          return new File([blob], `image-${Date.now()}.${ext}`, { type })
+        }
+      }
+      width = Math.max(1, Math.round(width * 0.75))
+      height = Math.max(1, Math.round(height * 0.75))
+    }
+  } finally {
+    bitmap.close()
+  }
+  return null
+}
+
+async function sendImageFile(file: File) {
+  const term = terminalRef.value
+  if (!term) return
   try {
     if (!IMAGE_TYPES.includes(file.type)) {
       term.writeLines(['[ERROR] 仅支持 PNG/JPEG/GIF/WebP 图片'], 'error')
       return
     }
-    const inDm = Boolean(dmPeer.value)
-    const limit = inDm ? MAX_DIRECT_IMAGE_BYTES : MAX_GROUP_IMAGE_BYTES
-    if (file.size > limit) {
-      term.writeLines(
-        [`[ERROR] 图片超过 ${Math.round(limit / 1024 / 1024)}MB 限制（${inDm ? '私聊' : '群聊'}）`],
-        'error',
-      )
+    if (file.size > MAX_IMAGE_INPUT_BYTES) {
+      term.writeLines(['[ERROR] 图片超过 20MB，请先压缩后再发送'], 'error')
       return
     }
-    if (dmPeer.value) {
-      const image = await uploadImage(file)
-      if (!socket?.sendDirectImage(dmPeer.value.userId, image.id)) {
+    const peer = dmPeer.value
+    const groupId = currentGroupId.value
+    const inDm = Boolean(peer)
+    const limit = inDm ? MAX_DIRECT_IMAGE_BYTES : MAX_GROUP_IMAGE_BYTES
+    let upload = normalizeImageFile(file)
+    if (upload.size > limit) {
+      term.writeLines(
+        [`[INFO] 图片 ${sizeLabel(upload.size)}，超过${inDm ? '私聊' : '群聊'}限制，正在压缩...`],
+        'dim',
+      )
+      const shrunk = await shrinkImage(upload, limit)
+      if (!shrunk) {
+        term.writeLines(
+          [`[ERROR] 图片超过 ${Math.round(limit / 1024 / 1024)}MB 限制，自动压缩失败`],
+          'error',
+        )
+        return
+      }
+      upload = normalizeImageFile(shrunk)
+      term.writeLines([`[INFO] 已压缩为 ${sizeLabel(upload.size)}`], 'dim')
+    }
+    if (peer) {
+      const image = await uploadImage(upload)
+      if (dmPeer.value?.userId !== peer.userId) {
+        term.writeLines(['[WARN] 会话已切换，图片未发送'], 'warn')
+        return
+      }
+      if (!socket?.sendDirectImage(peer.userId, image.id)) {
         term.writeLines(['[ERROR] 消息通道未连接，图片未发送'], 'error')
         return
       }
@@ -695,21 +826,47 @@ async function onImagePicked(event: Event) {
         [`[INFO] 图片已发送（私聊持久化，${Math.max(1, Math.round(image.size / 1024))} KB）`],
         'dim',
       )
-    } else {
-      const dataUrl = await readAsDataUrl(file)
-      if (!socket?.sendGroupImage(dataUrl)) {
-        term.writeLines(['[ERROR] 消息通道未连接，图片未发送'], 'error')
-        return
-      }
-      term.writeLines(['[INFO] 图片已发送（群聊临时消息，不保存）'], 'dim')
+      return
     }
+    const dataUrl = await readAsDataUrl(upload)
+    if (currentGroupId.value !== groupId || dmPeer.value) {
+      term.writeLines(['[WARN] 会话已切换，图片未发送'], 'warn')
+      return
+    }
+    if (!socket?.sendGroupImage(dataUrl)) {
+      term.writeLines(['[ERROR] 消息通道未连接，图片未发送'], 'error')
+      return
+    }
+    term.writeLines(['[INFO] 图片已发送（群聊临时消息，不保存）'], 'dim')
   } catch (error) {
     if (!handleAuthError(error)) {
       term.writeLines([`[ERROR] ${errorText(error)}`], 'error')
     }
   } finally {
-    // 关闭文件选择框后把键盘焦点还给终端，避免退格/打字无响应。
+    // 关闭文件选择框/粘贴图片后把键盘焦点还给终端，避免退格/打字无响应。
     term.focus()
+  }
+}
+
+async function onImagePicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  input.value = ''
+  if (!file) {
+    focusTerminal()
+    return
+  }
+  await sendImageFile(file)
+}
+
+async function onPasteImages(files: File[]) {
+  const term = terminalRef.value
+  if (!term || files.length === 0) return
+  if (files.length > 1) {
+    term.writeLines([`[INFO] 收到 ${files.length} 张粘贴图片，将按顺序发送`], 'dim')
+  }
+  for (const file of files) {
+    await sendImageFile(file)
   }
 }
 
@@ -875,6 +1032,8 @@ onBeforeUnmount(() => {
           :prompt="prompt"
           :banner="banner"
           @command="onCommand"
+          @paste-image="onPasteImages"
+          @preview-image="previewImageByShortId"
         />
       </div>
       <div v-if="gallery.length" class="chat-gallery" aria-label="图片消息">
