@@ -37,7 +37,7 @@ function isAuthEntry(path: string): boolean {
   return path.startsWith('/api/v1/user/auth/login') || path.startsWith('/api/v1/user/auth/register')
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers)
   const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData
   if (init.body !== undefined && !isForm && !headers.has('Content-Type')) {
@@ -58,8 +58,22 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     }
     throw await parseError(response)
   }
+  return response
+}
+
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await authFetch(path, init)
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/**
+ * 下载二进制资源（例如私聊图片）。浏览器 <img> 无法携带 Authorization，
+ * 因此先带 token 取回 Blob，再由调用方生成 object URL。
+ */
+export async function getBlob(path: string): Promise<Blob> {
+  const response = await authFetch(path)
+  return response.blob()
 }
 
 export function getJson<T>(path: string): Promise<T> {
