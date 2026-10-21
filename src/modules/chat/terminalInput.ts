@@ -34,12 +34,15 @@ const WIDE_RANGES: ReadonlyArray<readonly [number, number]> = [
 
  
  
+// oxlint-disable-next-line no-control-regex -- 需要匹配 OSC 转义序列
 const OSC_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g
  
  
+// oxlint-disable-next-line no-control-regex -- 需要匹配 ANSI 转义序列
 const ANSI_RE = /\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g
  
  
+// oxlint-disable-next-line no-control-regex -- 需要过滤 C0/C1 控制字符
 const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g
 const BIDI_RE = /[\u202A-\u202E\u2066-\u2069]/g
 
