@@ -1,5 +1,5 @@
 import { getJson, postJson, request } from '@/lib/http'
-import type { AuthUser, Credentials, LoginResponse, RegisterResponse } from './types'
+import type { AppMeta, AuthUser, Credentials, LoginResponse, RegisterResponse } from './types'
 
 const BASE = '/api/v1/user/auth'
 
@@ -17,4 +17,8 @@ export function fetchMe(): Promise<AuthUser> {
 
 export function logout(): Promise<void> {
   return request<void>(`${BASE}/logout`, { method: 'POST' })
+}
+
+export function fetchMeta(): Promise<AppMeta> {
+  return getJson<AppMeta>('/api/v1/user/meta')
 }
