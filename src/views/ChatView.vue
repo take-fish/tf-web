@@ -72,6 +72,7 @@ const currentSeq = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
 const preview = ref<GalleryEntry | null>(null)
 const galleryMessages = ref<ChatMessage[]>([])
+const dismissedGalleryIds = ref<Set<string>>(new Set())
 const imageSources = ref<Record<string, string>>({})
 let socket: ChatSocketClient | null = null
 let onlineTimer: ReturnType<typeof setInterval> | undefined
@@ -89,6 +90,7 @@ const MAX_DIRECT_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_GROUP_IMAGE_BYTES = 1024 * 1024
 const MAX_IMAGE_INPUT_BYTES = 20 * 1024 * 1024
 const MAX_TRACKED_IMAGES = 200
+const MAX_DISMISSED_GALLERY_IDS = 200
 
 interface GalleryEntry {
   message: ChatMessage
@@ -226,6 +228,7 @@ function clearGallery() {
   // 切会话后旧图片请求可能仍在路上，用 epoch 丢弃过期结果，避免把旧会话图片塞进新会话。
   galleryEpoch += 1
   galleryMessages.value = []
+  dismissedGalleryIds.value = new Set()
   preview.value = null
   imageMessages.clear()
   imagePromises.clear()
@@ -280,9 +283,27 @@ function addGallery(message: ChatMessage) {
   if (message.kind !== 'image' || message.recalled) return
   // 缩略图只保留最近 12 张，但点击终端里更早的图片占位符时仍要能预览。
   rememberImageMessage(message)
+  if (dismissedGalleryIds.value.has(message.id)) return
   if (galleryMessages.value.some((item) => item.id === message.id)) return
   galleryMessages.value = [...galleryMessages.value, message].slice(-12)
   void ensureImageSource(message)
+}
+
+function dismissGallery(message: ChatMessage) {
+  // 只从底部缩略图移除，保留 imageMessages 与图片缓存，终端里的 [图片] 链接仍可预览。
+  const next = new Set(dismissedGalleryIds.value)
+  next.add(message.id)
+  while (next.size > MAX_DISMISSED_GALLERY_IDS) {
+    const oldest = next.values().next().value
+    if (!oldest) break
+    next.delete(oldest)
+  }
+  dismissedGalleryIds.value = next
+  galleryMessages.value = galleryMessages.value.filter((item) => item.id !== message.id)
+  if (preview.value?.message.id === message.id) {
+    preview.value = null
+  }
+  focusTerminal()
 }
 
 async function previewImageByShortId(id: string) {
@@ -1038,16 +1059,24 @@ onBeforeUnmount(() => {
         />
       </div>
       <div v-if="gallery.length" class="chat-gallery" aria-label="图片消息">
-        <button
-          v-for="entry in gallery"
-          :key="entry.message.id"
-          class="chat-gallery__item"
-          :title="`查看图片 #${shortId(entry.message.id)}`"
-          @click="preview = entry"
-        >
-          <img :src="entry.src" :alt="`图片 #${shortId(entry.message.id)}`" />
-          <span>#{{ shortId(entry.message.id) }}</span>
-        </button>
+        <div v-for="entry in gallery" :key="entry.message.id" class="chat-gallery__item">
+          <button
+            class="chat-gallery__open"
+            :title="`查看图片 #${shortId(entry.message.id)}`"
+            @click="preview = entry"
+          >
+            <img :src="entry.src" :alt="`图片 #${shortId(entry.message.id)}`" />
+            <span>#{{ shortId(entry.message.id) }}</span>
+          </button>
+          <button
+            class="chat-gallery__remove"
+            :aria-label="`不再在下方展示图片 #${shortId(entry.message.id)}`"
+            title="不再在下方展示"
+            @click.stop="dismissGallery(entry.message)"
+          >
+            ×
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1265,6 +1294,13 @@ onBeforeUnmount(() => {
   flex: none;
   width: 52px;
   height: 52px;
+}
+
+.chat-gallery__open {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: 1px solid var(--fm-border);
   border-radius: var(--fm-radius);
@@ -1273,18 +1309,23 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.chat-gallery__item:hover {
+.chat-gallery__item:hover .chat-gallery__open {
   border-color: var(--fm-accent);
 }
 
-.chat-gallery__item img {
+.chat-gallery__open:focus-visible {
+  outline: 2px solid var(--fm-accent);
+  outline-offset: -2px;
+}
+
+.chat-gallery__open img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.chat-gallery__item span {
+.chat-gallery__open span {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -1293,6 +1334,51 @@ onBeforeUnmount(() => {
   color: var(--fm-text-dim);
   font-family: var(--fm-mono);
   font-size: 7.5px;
+}
+
+.chat-gallery__remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--fm-border);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 72%);
+  color: var(--fm-text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.85);
+  transition: opacity 0.12s ease, transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.chat-gallery__item:hover .chat-gallery__remove,
+.chat-gallery__item:focus-within .chat-gallery__remove {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.chat-gallery__remove:hover,
+.chat-gallery__remove:focus-visible {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+  outline: none;
+}
+
+@media (hover: none) {
+  .chat-gallery__remove {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
 }
 
 .chat-preview {
