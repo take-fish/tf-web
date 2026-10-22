@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
+import { formatApiError } from '@/lib/http'
 import { useIdentityStore } from '@/stores/identity'
 import { useSettingsStore, type ReaderTemplateId } from '@/stores/settings'
 import { useSkinStore } from '@/stores/skin'
@@ -149,7 +150,7 @@ const annotationCounts = computed<Record<number, number>>(() => {
 })
 
 function errorText(value: unknown): string {
-  return value instanceof Error ? value.message : '操作失败'
+  return formatApiError(value)
 }
 
 function clock(iso: string): string {

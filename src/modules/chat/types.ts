@@ -80,38 +80,45 @@ export interface ReadyFrame {
   type: 'ready'
   user: ChatUser
   serverTime: number
+  traceId?: string
 }
 
 export interface PresenceFrame {
   type: 'presence'
   groupId: string
   members: OnlineMember[]
+  traceId?: string
 }
 
 export interface MessageFrame {
   type: 'message'
   message: ChatMessage
+  traceId?: string
 }
 
 export interface DmFrame {
   type: 'dm'
   message: ChatMessage
+  traceId?: string
 }
 
 export interface OfflineFrame {
   type: 'dm_offline'
   messages: ChatMessage[]
+  traceId?: string
 }
 
 export interface RecalledFrame {
   type: 'recalled'
   message: ChatMessage
   byUserId: string
+  traceId?: string
 }
 
 export interface PongFrame {
   type: 'pong'
   ts: number
+  traceId?: string
 }
 
 export interface ErrorFrame {
@@ -119,10 +126,12 @@ export interface ErrorFrame {
   code: string
   message: string
   clientMsgId?: string
+  traceId?: string
 }
 
 export interface LeftFrame {
   type: 'left'
+  traceId?: string
 }
 
 export type ServerFrame =

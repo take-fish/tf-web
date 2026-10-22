@@ -19,7 +19,7 @@ export interface ChatSocketHandlers {
   onDm?: (message: ChatMessage) => void
   onOffline?: (messages: ChatMessage[]) => void
   onRecalled?: (message: ChatMessage, byUserId: string) => void
-  onError?: (message: string, code?: string) => void
+  onError?: (message: string, code?: string, traceId?: string) => void
   onAuthError?: () => void
 }
 
@@ -193,7 +193,7 @@ export class ChatSocketClient {
         this.lastPong = Date.now()
         break
       case 'error':
-        this.handlers.onError?.(frame.message || '消息通道异常', frame.code)
+        this.handlers.onError?.(frame.message || '消息通道异常', frame.code, frame.traceId)
         if (frame.code === 'UNAUTHORIZED') {
           this.authFailed = true
           this.handlers.onAuthError?.()
