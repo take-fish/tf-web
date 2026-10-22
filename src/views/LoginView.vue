@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { ApiError } from '@/lib/http'
+import { ApiError, appendErrorReference } from '@/lib/http'
 import { fetchMeta } from '@/modules/auth/authApi'
 import type { AppMeta } from '@/modules/auth/types'
 import { useAuthStore } from '@/stores/auth'
@@ -195,16 +195,16 @@ function handleFailure(caught: unknown) {
       break
     case 'INVALID_CREDENTIALS':
       password.value = ''
-      fail('名号或口号不对，再想想？')
+      fail(appendErrorReference('名号或口号不对，再想想？', caught))
       void focusField()
       break
     case 'USERNAME_TAKEN':
       phase.value = 'account'
-      fail('这个名号已经有人用了，换一个？')
+      fail(appendErrorReference('这个名号已经有人用了，换一个？', caught))
       void focusField()
       break
     default:
-      fail(caught.message)
+      fail(appendErrorReference(caught.message, caught))
   }
 }
 
