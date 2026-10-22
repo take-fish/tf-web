@@ -21,6 +21,15 @@ export interface LoginResponse {
 }
 
 export interface RegisterResponse {
+  id: number
   status: string
   message: string
+}
+
+export interface AppMeta {
+  environment: 'production' | 'test' | string
+  environmentLabel: string
+  database: string
+  namespace: string
+  version: string
 }

@@ -58,11 +58,12 @@ describe('auth store', () => {
   })
 
   it('注册成功不建立会话', async () => {
-    api.register.mockResolvedValue({ status: 'PENDING', message: '等待通过中' })
+    api.register.mockResolvedValue({ id: 12, status: 'PENDING', message: '等待通过中' })
 
     const store = useAuthStore()
     const result = await store.register({ username: '新人', password: 'secret1' })
 
+    expect(result.id).toBe(12)
     expect(result.status).toBe('PENDING')
     expect(store.hasToken).toBe(false)
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()

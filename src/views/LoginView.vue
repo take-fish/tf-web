@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { ApiError } from '@/lib/http'
+import { fetchMeta } from '@/modules/auth/authApi'
+import type { AppMeta } from '@/modules/auth/types'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 
@@ -47,8 +49,10 @@ const busy = ref(false)
 const error = ref('')
 const errorKey = ref(0)
 const pendingName = ref('')
+const pendingId = ref<number | null>(null)
 const blockedTitle = ref('')
 const blockedMessage = ref('')
+const meta = ref<AppMeta | null>(null)
 const field = ref<HTMLInputElement | null>(null)
 
 const isRegister = computed(() => mode.value === 'register')
@@ -75,6 +79,11 @@ const adminUrl = computed(() => {
   if (port === '18088') return `${protocol}//${hostname}:18101/admin/`
   if (port === '8088' || port === '80' || port === '') return `${protocol}//${hostname}:8101/admin/`
   return ''
+})
+const adminLabel = computed(() => {
+  if (meta.value?.environment === 'test') return '测试用户中台'
+  if (meta.value?.environment === 'production') return '生产用户中台'
+  return '用户中台'
 })
 
 function fail(message: string) {
@@ -142,8 +151,9 @@ async function submitPassword() {
   busy.value = true
   try {
     if (isRegister.value) {
-      await auth.register({ username: account, password: secret })
+      const result = await auth.register({ username: account, password: secret })
       pendingName.value = account
+      pendingId.value = result.id
       password.value = ''
       phase.value = 'pending'
       return
@@ -169,6 +179,7 @@ function handleFailure(caught: unknown) {
   switch (caught.code) {
     case 'PENDING_APPROVAL':
       pendingName.value = username.value.trim()
+      pendingId.value = null
       password.value = ''
       phase.value = 'pending'
       break
@@ -213,9 +224,18 @@ function resetToAsk() {
   clearError()
   password.value = ''
   pendingName.value = ''
+  pendingId.value = null
   blockedTitle.value = ''
   blockedMessage.value = ''
   phase.value = 'ask'
+}
+
+async function loadMeta() {
+  try {
+    meta.value = await fetchMeta()
+  } catch {
+    // 环境标识只用于提示，失败不阻塞登录/注册
+  }
 }
 
 function afterLoginTarget(): string {
@@ -233,6 +253,7 @@ function afterLoginTarget(): string {
 
 onMounted(() => {
   document.title = '认识一下 · FishMatrix'
+  void loadMeta()
   if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     return
   }
@@ -290,6 +311,15 @@ onBeforeUnmount(() => {
       <span class="login-brand__mark">◈</span>
       <span class="login-brand__name">FishMatrix</span>
       <em>workspace</em>
+      <span
+        v-if="meta"
+        class="login-env"
+        :class="meta.environment === 'test' ? 'login-env--test' : 'login-env--production'"
+        :title="[meta.database, meta.namespace, meta.version].filter(Boolean).join(' · ')"
+      >
+        <i aria-hidden="true" />
+        {{ meta.environmentLabel }}
+      </span>
     </header>
 
     <main class="login-stage">
@@ -407,7 +437,9 @@ onBeforeUnmount(() => {
             <p class="login-eyebrow">PENDING APPROVAL</p>
             <h1>等待通过中</h1>
             <p class="login-lede">
-              “{{ pendingName }}”的申请已经递到用户中台。<br />
+              “{{ pendingName }}”的申请已经递到{{ adminLabel
+              }}<template v-if="pendingId">，编号 #{{ pendingId }}</template>。<br />
+              <template v-if="meta">当前是{{ meta.environmentLabel }}，请让该环境的管理员审批。<br /></template>
               管理员通过后，你就能进门了。
             </p>
             <button type="button" class="link link--center" @click="resetToAsk">回到开始</button>
@@ -425,7 +457,7 @@ onBeforeUnmount(() => {
 
       <footer class="login-foot">
         <span>FishMatrix · 暗号只属于你</span>
-        <a v-if="adminUrl" :href="adminUrl" target="_blank" rel="noopener">用户中台 ↗</a>
+        <a v-if="adminUrl" :href="adminUrl" target="_blank" rel="noopener">{{ adminLabel }} ↗</a>
       </footer>
     </main>
   </div>
@@ -575,6 +607,35 @@ onBeforeUnmount(() => {
   font-size: 10px;
   font-style: normal;
   letter-spacing: 0.18em;
+}
+
+.login-env {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  border-radius: 999px;
+  background: rgba(94, 234, 212, 0.07);
+  color: #5eead4;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+}
+
+.login-env i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.login-env--test {
+  border-color: rgba(255, 196, 107, 0.38);
+  background: rgba(255, 196, 107, 0.09);
+  color: #ffc46b;
 }
 
 /* ── 舞台 ── */
