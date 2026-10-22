@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
-import { ApiError } from '@/lib/http'
+import { ApiError, formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
@@ -161,7 +161,7 @@ function nicknameFor(userId: string): string {
 }
 
 function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : '操作失败'
+  return formatApiError(error)
 }
 
 function handleAuthError(error: unknown): boolean {
@@ -413,8 +413,9 @@ function onRecalled(message: ChatMessage, byUserId: string) {
   )
 }
 
-function onSocketError(message: string) {
-  terminalRef.value?.writeLiveLines([`[ERROR] ${message}`], 'error')
+function onSocketError(message: string, _code?: string, traceId?: string) {
+  const reference = traceId ? `（编号 ${traceId}）` : ''
+  terminalRef.value?.writeLiveLines([`[ERROR] ${message}${reference}`], 'error')
 }
 
 async function refreshOnline() {

@@ -5,18 +5,34 @@ export const AUTH_EXPIRED_EVENT = 'fm:auth-expired'
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
+  readonly traceId?: string
+  readonly requestId?: string
+  readonly timestamp?: string
 
-  constructor(status: number, code: string, message: string) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    traceId?: string,
+    requestId?: string,
+    timestamp?: string,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.traceId = traceId
+    this.requestId = requestId
+    this.timestamp = timestamp
   }
 }
 
 interface ErrorBody {
   error?: string
   message?: string
+  traceId?: string
+  requestId?: string
+  timestamp?: string
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -30,7 +46,29 @@ async function parseError(response: Response): Promise<ApiError> {
     response.status,
     body.error ?? `HTTP_${response.status}`,
     body.message ?? `请求失败（HTTP ${response.status}）`,
+    body.traceId ?? response.headers.get('X-Trace-ID') ?? undefined,
+    body.requestId ?? response.headers.get('X-Request-ID') ?? undefined,
+    body.timestamp,
   )
+}
+
+/** 返回可用于日志检索的错误编号，没有编号时返回空串。 */
+export function errorReference(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.traceId ?? error.requestId ?? ''
+  }
+  return ''
+}
+
+/** 错误文案统一附带可复制的链路编号。 */
+export function formatApiError(error: unknown, fallback = '操作失败'): string {
+  const message = error instanceof Error && error.message ? error.message : fallback
+  return appendErrorReference(message, error)
+}
+
+export function appendErrorReference(message: string, error: unknown): string {
+  const reference = errorReference(error)
+  return reference ? `${message}（编号 ${reference}）` : message
 }
 
 function isAuthEntry(path: string): boolean {

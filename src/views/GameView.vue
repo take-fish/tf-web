@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
+import { formatApiError } from '@/lib/http'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
 import BreakoutCanvas from '@/modules/games/components/BreakoutCanvas.vue'
@@ -117,7 +118,7 @@ async function loadLeaderboard() {
       myRank.value = own.rank
     }
   } catch (error) {
-    leaderboardError.value = error instanceof Error ? error.message : '排行服务暂不可用'
+    leaderboardError.value = formatApiError(error, '排行服务暂不可用')
   } finally {
     leaderboardLoading.value = false
   }
@@ -137,7 +138,7 @@ async function onGameFinish(score: number) {
     showNotice(`演练记录已提交：${score} 分 · 当前第 ${result.rank} 名`)
     await loadLeaderboard()
   } catch (error) {
-    showNotice(error instanceof Error ? error.message : '排行服务暂不可用')
+    showNotice(formatApiError(error, '排行服务暂不可用'))
   }
 }
 

@@ -72,7 +72,7 @@ function handlers() {
     onMessage: vi.fn<(message: ChatMessage) => void>(),
     onDm: vi.fn<(message: ChatMessage) => void>(),
     onRecalled: vi.fn<(message: ChatMessage, byUserId: string) => void>(),
-    onError: vi.fn<(message: string, code?: string) => void>(),
+    onError: vi.fn<(message: string, code?: string, traceId?: string) => void>(),
     onAuthError: vi.fn<() => void>(),
   }
 }
@@ -131,7 +131,12 @@ describe('ChatSocketClient', () => {
     socket?.emit({ type: 'message', message })
     socket?.emit({ type: 'dm', message })
     socket?.emit({ type: 'recalled', message: { ...message, recalled: true }, byUserId: 'u2' })
-    socket?.emit({ type: 'error', code: 'RATE_LIMITED', message: '太快了' })
+    socket?.emit({
+      type: 'error',
+      code: 'RATE_LIMITED',
+      message: '太快了',
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+    })
 
     expect(events.onMessage).toHaveBeenCalledWith(message)
     expect(events.onDm).toHaveBeenCalledWith(message)
@@ -139,7 +144,11 @@ describe('ChatSocketClient', () => {
       expect.objectContaining({ id: 'm-1', recalled: true }),
       'u2',
     )
-    expect(events.onError).toHaveBeenCalledWith('太快了', 'RATE_LIMITED')
+    expect(events.onError).toHaveBeenCalledWith(
+      '太快了',
+      'RATE_LIMITED',
+      '4bf92f3577b34da6a3ce929d0e0e4736',
+    )
     client.close()
   })
 
