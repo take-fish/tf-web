@@ -65,15 +65,6 @@ const onlineHint = computed(() =>
   userActive.value > 0 ? `${onlinePct.value}% 已启用用户在线 · 点击查看` : '统计加载中 · 点击查看',
 )
 
-const clusterOnline = computed(() =>
-  groups.value.reduce((sum, group) => sum + (group.onlineCount ?? 0), 0),
-)
-const groupSummary = computed(() =>
-  groups.value.length
-    ? groups.value.map((group) => `${group.name} ${group.onlineCount ?? 0} 人`).join(' · ')
-    : '暂无群聊',
-)
-
 const smoking = computed(() => smokeState.value?.smoking ?? [])
 const invites = computed(() => smokeState.value?.invites ?? [])
 const mySession = computed(() => smokeState.value?.mySession ?? null)
@@ -277,17 +268,25 @@ onUnmounted(() => {
         <em class="tone-ok">{{ onlineHint }}</em>
       </button>
 
-      <div class="metric-item">
+      <div class="metric-item metric-item--quiet">
         <span class="metric-item__label">集群状态</span>
-        <b>{{ groups.length }} 个群聊 · {{ clusterOnline }} 人在线</b>
-        <em class="metric-item__detail" :title="groupSummary">{{ groupSummary }}</em>
+        <ul v-if="groups.length" class="metric-groups">
+          <li v-for="group in groups" :key="group.id">
+            <span>{{ group.name }}</span>
+            <em>[{{ group.onlineCount ?? 0 }}]</em>
+          </li>
+        </ul>
+        <em v-else class="metric-item__detail">暂无群聊</em>
       </div>
 
-      <button type="button" class="metric-item metric-item--action" @click="openSmoke">
+      <button
+        type="button"
+        class="metric-item metric-item--action metric-item--quiet"
+        @click="openSmoke"
+      >
         <span v-if="smokeUnread" class="metric-item__dot" aria-label="有新的冒烟测试邀请" />
         <span class="metric-item__label">冒烟测试</span>
-        <b>冒烟测试数：{{ smokeCount }}</b>
-        <em class="tone-ok"> {{ smoking.length }} 人正在冒烟 · 点击查看 </em>
+        <b>sm数 -- {{ smokeCount }}</b>
       </button>
 
       <div class="metric-item">
