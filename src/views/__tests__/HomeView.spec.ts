@@ -128,8 +128,9 @@ describe('HomeView 工作台', () => {
 
     const text = wrapper.text()
     expect(text).toContain('2 / 10')
+    expect(text).not.toContain('已启用用户在线')
     const groupRows = wrapper.findAll('.metric-groups li')
-    expect(groupRows.map((row) => row.text())).toEqual(['研发协作[2]', '闲聊[1]'])
+    expect(groupRows.map((row) => row.text())).toEqual(['dev-group[2]', 'lounge[1]'])
     expect(text).toContain('sm数 -- 0')
     expect(mocks.connect).toHaveBeenCalledTimes(1)
     wrapper.unmount()
