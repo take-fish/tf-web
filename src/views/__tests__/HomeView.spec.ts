@@ -128,10 +128,9 @@ describe('HomeView 工作台', () => {
 
     const text = wrapper.text()
     expect(text).toContain('2 / 10')
-    expect(text).toContain('2 个群聊 · 3 人在线')
-    expect(text).toContain('研发协作 2 人')
-    expect(text).toContain('闲聊 1 人')
-    expect(text).toContain('冒烟测试数：0')
+    const groupRows = wrapper.findAll('.metric-groups li')
+    expect(groupRows.map((row) => row.text())).toEqual(['研发协作[2]', '闲聊[1]'])
+    expect(text).toContain('sm数 -- 0')
     expect(mocks.connect).toHaveBeenCalledTimes(1)
     wrapper.unmount()
     expect(mocks.close).toHaveBeenCalledTimes(1)
@@ -198,8 +197,7 @@ describe('HomeView 工作台', () => {
     )
     await flushPromises()
 
-    expect(wrapper.text()).toContain('冒烟测试数：2')
-    expect(wrapper.text()).toContain('2 人正在冒烟')
+    expect(wrapper.text()).toContain('sm数 -- 2')
 
     await wrapper.findAll('.metric-item--action')[1]?.trigger('click')
     expect(wrapper.text()).toContain('我的冒烟测试')

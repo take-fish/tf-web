@@ -2127,6 +2127,40 @@ kbd {
   line-height: 1.45;
 }
 
+/* 集群状态与冒烟测试只做轻量展示，避免抢过在线人数与错误率。 */
+.metric-item--quiet b {
+  color: var(--fm-text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.metric-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.metric-groups li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--fm-text-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.metric-groups em {
+  color: var(--fm-text-dim);
+  font-size: 10.5px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
 .metric-item__dot {
   position: absolute;
   top: 11px;
