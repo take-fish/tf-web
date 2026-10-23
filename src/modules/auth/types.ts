@@ -3,6 +3,9 @@ export interface AuthUser {
   username: string
   nickname: string
   role: 'USER' | 'ADMIN' | string
+  /** 多角色与细粒度权限均由用户中台下发；role 仅作单角色兼容字段。 */
+  roles?: string[]
+  permissions?: string[]
   status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'DISABLED' | string
   createdAt?: string
   approvedAt?: string | null
