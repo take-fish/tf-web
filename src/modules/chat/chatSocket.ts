@@ -9,6 +9,7 @@ import type {
   OnlineMember,
   ReadPayload,
   ServerFrame,
+  SmokeState,
 } from './types'
 
 export interface ChatSocketHandlers {
@@ -19,6 +20,7 @@ export interface ChatSocketHandlers {
   onDm?: (message: ChatMessage) => void
   onOffline?: (messages: ChatMessage[]) => void
   onRecalled?: (message: ChatMessage, byUserId: string) => void
+  onSmokeState?: (state: SmokeState) => void
   onError?: (message: string, code?: string, traceId?: string) => void
   onAuthError?: () => void
 }
@@ -77,11 +79,7 @@ export class ChatSocketClient {
     return this.sendGroupMessage(dataUrl, 'image')
   }
 
-  sendDirectMessage(
-    toUserId: string,
-    content: string,
-    kind: ChatKind = 'text',
-  ): boolean {
+  sendDirectMessage(toUserId: string, content: string, kind: ChatKind = 'text'): boolean {
     return this.send({ type: 'dm', toUserId, content, kind, clientMsgId: randomId() })
   }
 
@@ -96,6 +94,26 @@ export class ChatSocketClient {
 
   sendRecall(messageId: string): boolean {
     return this.send({ type: 'recall', messageId })
+  }
+
+  inviteSmoke(toUserId: string): boolean {
+    return this.send({ type: 'smoke_invite', toUserId })
+  }
+
+  acceptSmoke(sessionId: string): boolean {
+    return this.send({ type: 'smoke_accept', sessionId })
+  }
+
+  declineSmoke(sessionId: string): boolean {
+    return this.send({ type: 'smoke_decline', sessionId })
+  }
+
+  leaveSmoke(): boolean {
+    return this.send({ type: 'smoke_leave' })
+  }
+
+  endSmoke(): boolean {
+    return this.send({ type: 'smoke_end' })
   }
 
   close() {
@@ -188,6 +206,9 @@ export class ChatSocketClient {
         break
       case 'recalled':
         this.handlers.onRecalled?.(frame.message, frame.byUserId ?? frame.message.fromUserId)
+        break
+      case 'smoke_state':
+        this.handlers.onSmokeState?.(frame.state)
         break
       case 'pong':
         this.lastPong = Date.now()

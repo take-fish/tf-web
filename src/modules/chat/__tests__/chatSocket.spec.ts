@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/lib/http'
-import type { ChatMessage, ChatStatus, ChatUser, WsTicket } from '../types'
+import type { ChatMessage, ChatStatus, ChatUser, SmokeState, WsTicket } from '../types'
 
 import { fetchWsTicket } from '../chatApi'
 import { ChatSocketClient } from '../chatSocket'
@@ -72,6 +72,7 @@ function handlers() {
     onMessage: vi.fn<(message: ChatMessage) => void>(),
     onDm: vi.fn<(message: ChatMessage) => void>(),
     onRecalled: vi.fn<(message: ChatMessage, byUserId: string) => void>(),
+    onSmokeState: vi.fn<(state: SmokeState) => void>(),
     onError: vi.fn<(message: string, code?: string, traceId?: string) => void>(),
     onAuthError: vi.fn<() => void>(),
   }
@@ -108,9 +109,7 @@ describe('ChatSocketClient', () => {
   })
 
   it('ticket 鉴权失败时停止重连并通知', async () => {
-    vi.mocked(fetchWsTicket).mockRejectedValueOnce(
-      new ApiError(401, 'UNAUTHORIZED', '登录已失效'),
-    )
+    vi.mocked(fetchWsTicket).mockRejectedValueOnce(new ApiError(401, 'UNAUTHORIZED', '登录已失效'))
     const events = handlers()
     const client = new ChatSocketClient(events)
 
@@ -165,6 +164,38 @@ describe('ChatSocketClient', () => {
     expect(socket?.sent.map((raw) => JSON.parse(raw))).toEqual([
       { type: 'read', groupId: 'dev-group', seq: 9 },
       { type: 'recall', messageId: 'm-1' },
+    ])
+    client.close()
+  })
+
+  it('分发冒烟状态并发送冒烟操作帧', async () => {
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const socket = FakeSocket.instances[0]
+    socket?.open()
+    const state: SmokeState = {
+      count: 1,
+      smoking: [{ sessionId: 's-1', userId: 'u2', nickname: '乙', initiator: true }],
+      online: [],
+      invites: [{ sessionId: 's-1', fromUserId: 'u2', fromNickname: '乙', invitedAt: 1 }],
+      mySession: null,
+    }
+
+    socket?.emit({ type: 'smoke_state', state })
+    client.inviteSmoke('u2')
+    client.acceptSmoke('s-1')
+    client.declineSmoke('s-2')
+    client.leaveSmoke()
+    client.endSmoke()
+
+    expect(events.onSmokeState).toHaveBeenCalledWith(state)
+    expect(socket?.sent.map((raw) => JSON.parse(raw))).toEqual([
+      { type: 'smoke_invite', toUserId: 'u2' },
+      { type: 'smoke_accept', sessionId: 's-1' },
+      { type: 'smoke_decline', sessionId: 's-2' },
+      { type: 'smoke_leave' },
+      { type: 'smoke_end' },
     ])
     client.close()
   })

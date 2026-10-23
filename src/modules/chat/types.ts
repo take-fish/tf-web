@@ -74,6 +74,51 @@ export interface WsTicket {
   expiresIn: number
 }
 
+export type SmokeStatus = 'WAITING' | 'ACTIVE'
+
+export interface SmokeMember {
+  sessionId: string
+  userId: string
+  nickname: string
+  initiator: boolean
+}
+
+export interface SmokeInvite {
+  sessionId: string
+  fromUserId: string
+  fromNickname: string
+  invitedAt: number
+}
+
+export interface SmokeParticipant {
+  userId: string
+  nickname: string
+  joinedAt: number
+}
+
+export interface SmokePendingInvite {
+  userId: string
+  nickname: string
+  invitedAt: number
+}
+
+export interface SmokeSession {
+  id: string
+  status: SmokeStatus
+  initiatorUserId: string
+  initiatorNickname: string
+  participants: SmokeParticipant[]
+  pendingInvites: SmokePendingInvite[]
+}
+
+export interface SmokeState {
+  count: number
+  smoking: SmokeMember[]
+  online: OnlineMember[]
+  invites: SmokeInvite[]
+  mySession: SmokeSession | null
+}
+
 export type ChatStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
 
 export interface ReadyFrame {
@@ -134,6 +179,12 @@ export interface LeftFrame {
   traceId?: string
 }
 
+export interface SmokeStateFrame {
+  type: 'smoke_state'
+  state: SmokeState
+  traceId?: string
+}
+
 export type ServerFrame =
   | ReadyFrame
   | PresenceFrame
@@ -144,3 +195,4 @@ export type ServerFrame =
   | PongFrame
   | ErrorFrame
   | LeftFrame
+  | SmokeStateFrame
