@@ -14,13 +14,13 @@ const mocks = vi.hoisted(() => {
     onSmokeState?: (state: SmokeState) => void
   }
   const handlersRef: { current: Handlers | null } = { current: null }
-  const connect = vi.fn(async () => {})
-  const close = vi.fn()
-  const inviteSmoke = vi.fn(() => true)
-  const acceptSmoke = vi.fn(() => true)
-  const declineSmoke = vi.fn(() => true)
-  const leaveSmoke = vi.fn(() => true)
-  const endSmoke = vi.fn(() => true)
+  const connect = vi.fn<() => Promise<void>>(async () => {})
+  const close = vi.fn<() => void>()
+  const inviteSmoke = vi.fn<(toUserId: string) => boolean>(() => true)
+  const acceptSmoke = vi.fn<(sessionId: string) => boolean>(() => true)
+  const declineSmoke = vi.fn<(sessionId: string) => boolean>(() => true)
+  const leaveSmoke = vi.fn<() => boolean>(() => true)
+  const endSmoke = vi.fn<() => boolean>(() => true)
   const fetchGroups = vi.fn<() => Promise<ChatGroup[]>>()
   const fetchOnline = vi.fn<() => Promise<OnlineMember[]>>()
   const fetchUserStats = vi.fn<() => Promise<{ active: number; total: number }>>()
