@@ -58,12 +58,6 @@ const sortedOnline = computed(() =>
 )
 const onlineCount = computed(() => onlineMembers.value.length)
 const totalLabel = computed(() => (userActive.value > 0 ? String(userActive.value) : '—'))
-const onlinePct = computed(() =>
-  userActive.value > 0 ? Math.round((onlineCount.value * 100) / userActive.value) : 0,
-)
-const onlineHint = computed(() =>
-  userActive.value > 0 ? `${onlinePct.value}% 已启用用户在线 · 点击查看` : '统计加载中 · 点击查看',
-)
 
 const smoking = computed(() => smokeState.value?.smoking ?? [])
 const invites = computed(() => smokeState.value?.invites ?? [])
@@ -265,14 +259,13 @@ onUnmounted(() => {
       <button type="button" class="metric-item metric-item--action" @click="openOnline">
         <span class="metric-item__label">节点在线</span>
         <b>{{ onlineCount }} / {{ totalLabel }}</b>
-        <em class="tone-ok">{{ onlineHint }}</em>
       </button>
 
       <div class="metric-item metric-item--quiet">
         <span class="metric-item__label">集群状态</span>
         <ul v-if="groups.length" class="metric-groups">
           <li v-for="group in groups" :key="group.id">
-            <span>{{ group.name }}</span>
+            <span>{{ group.id }}</span>
             <em>[{{ group.onlineCount ?? 0 }}]</em>
           </li>
         </ul>

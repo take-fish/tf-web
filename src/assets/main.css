@@ -2149,16 +2149,21 @@ kbd {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  color: var(--fm-text-muted);
+  color: #fff;
   font-size: 11.5px;
   line-height: 1.45;
 }
 
 .metric-groups em {
-  color: var(--fm-text-dim);
+  color: #fff;
   font-size: 10.5px;
   font-style: normal;
   font-variant-numeric: tabular-nums;
+}
+
+.fm-app[data-skin='swagger'] .metric-groups li,
+.fm-app[data-skin='swagger'] .metric-groups em {
+  color: var(--fm-text);
 }
 
 .metric-item__dot {
