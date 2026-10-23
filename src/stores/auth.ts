@@ -25,7 +25,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   const hasToken = computed(() => token.value.length > 0)
   const isAuthenticated = computed(() => hasToken.value && user.value !== null)
-  const isAdmin = computed(() => user.value?.role === 'ADMIN')
+  const isAdmin = computed(
+    () => user.value?.role === 'ADMIN' || Boolean(user.value?.roles?.includes('ADMIN')),
+  )
+  const permissions = computed(() => user.value?.permissions ?? [])
+
+  /** 与服务端 @RequirePermission 对齐的前端能力判断，仅用于隐藏入口，不替代后端校验。 */
+  function hasPermission(code: string): boolean {
+    return permissions.value.includes(code)
+  }
 
   function clear() {
     token.value = ''
@@ -128,6 +136,8 @@ export const useAuthStore = defineStore('auth', () => {
     hasToken,
     isAuthenticated,
     isAdmin,
+    permissions,
+    hasPermission,
     login,
     register,
     fetchMe,

@@ -57,6 +57,40 @@ describe('auth store', () => {
     expect(JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)!).token).toBe('tok-login')
   })
 
+  it('权限集合来自用户中台并可判断能力', async () => {
+    const privileged: AuthUser = {
+      ...USER,
+      role: 'USER',
+      roles: ['USER', 'CONTENT_ADMIN'],
+      permissions: ['reader.public.upload', 'reader.private.manage'],
+    }
+    api.login.mockResolvedValue({ token: 'tok-perm', user: privileged })
+
+    const store = useAuthStore()
+    await store.login({ username: '摸鱼小明', password: 'secret1' })
+
+    expect(store.permissions).toEqual(['reader.public.upload', 'reader.private.manage'])
+    expect(store.hasPermission('reader.public.upload')).toBe(true)
+    expect(store.hasPermission('reader.category.manage')).toBe(false)
+    expect(store.isAdmin).toBe(false)
+  })
+
+  it('多角色包含 ADMIN 时视为管理员', () => {
+    const admin: AuthUser = {
+      ...USER,
+      role: 'USER',
+      roles: ['ADMIN'],
+      permissions: ['reader.category.manage'],
+    }
+    writeAuth({ token: 'tok-admin', user: admin })
+    setActivePinia(createPinia())
+
+    const store = useAuthStore()
+
+    expect(store.isAdmin).toBe(true)
+    expect(store.hasPermission('reader.category.manage')).toBe(true)
+  })
+
   it('注册成功不建立会话', async () => {
     api.register.mockResolvedValue({ id: 12, status: 'PENDING', message: '等待通过中' })
 
