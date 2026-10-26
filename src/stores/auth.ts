@@ -8,6 +8,8 @@ import {
   login as loginRequest,
   logout as logoutRequest,
   register as registerRequest,
+  removeAvatar as removeAvatarRequest,
+  uploadAvatar as uploadAvatarRequest,
 } from '@/modules/auth/authApi'
 import type {
   AuthUser,
@@ -93,12 +95,28 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function applyUser(next: AuthUser) {
+    user.value = next
+    validated.value = true
+    if (token.value) writeAuth({ token: token.value, user: next })
+  }
+
   async function fetchMe(): Promise<AuthUser> {
     const me = await fetchMeRequest()
-    user.value = me
-    validated.value = true
-    if (token.value) writeAuth({ token: token.value, user: me })
+    applyUser(me)
     return me
+  }
+
+  async function uploadAvatar(file: File): Promise<AuthUser> {
+    const next = await uploadAvatarRequest(file)
+    applyUser(next)
+    return next
+  }
+
+  async function removeAvatar(): Promise<AuthUser> {
+    const next = await removeAvatarRequest()
+    applyUser(next)
+    return next
   }
 
   /**
@@ -141,6 +159,8 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     fetchMe,
+    uploadAvatar,
+    removeAvatar,
     ensureSession,
     logout,
     clear,

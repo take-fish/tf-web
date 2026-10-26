@@ -3,7 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
+import { useAuthStore } from '@/stores/auth'
 import { useTournamentStore } from '@/stores/tournament'
 import {
   countdown,
@@ -18,6 +20,7 @@ const emit = defineEmits<{ close: [] }>()
 
 const MAX_PLAYERS = 16
 const store = useTournamentStore()
+const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -406,7 +409,12 @@ onBeforeUnmount(() => {
               </div>
               <div class="lobby__roster">
                 <div class="lobby__member is-self">
-                  <span class="lobby__avatar">{{ store.ownNickname.slice(0, 1).toUpperCase() }}</span>
+                  <UserAvatar
+                    class="lobby__avatar"
+                    :name="store.ownNickname"
+                    :src="auth.user?.avatarUrl"
+                    :user-id="store.ownUserId"
+                  />
                   <span class="lobby__member-main">
                     <b>{{ store.ownNickname }}</b>
                     <em>你 · 创建者</em>
@@ -422,7 +430,11 @@ onBeforeUnmount(() => {
                   :disabled="!isSelected(member.userId) && roster.length >= MAX_PLAYERS"
                   @click="toggle(member.userId)"
                 >
-                  <span class="lobby__avatar">{{ member.nickname.slice(0, 1).toUpperCase() }}</span>
+                  <UserAvatar
+                    class="lobby__avatar"
+                    :name="member.nickname"
+                    :user-id="member.userId"
+                  />
                   <span class="lobby__member-main">
                     <b>{{ member.nickname }}</b>
                     <em>@{{ member.userId }}</em>
