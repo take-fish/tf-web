@@ -244,7 +244,7 @@ onBeforeUnmount(() => {
                   <span class="duel__avatar">{{ member.nickname.slice(0, 1).toUpperCase() }}</span>
                   <span class="duel__member-main">
                     <b>{{ member.nickname }}</b>
-                    <em>@{{ member.userId }}</em>
+                    <em>ID {{ member.userId }}</em>
                   </span>
                   <span v-if="busyWith(member.userId)" class="duel__member-tag">约战中</span>
                   <AppIcon
@@ -668,8 +668,8 @@ onBeforeUnmount(() => {
 .duel__member-main {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -683,12 +683,11 @@ onBeforeUnmount(() => {
 }
 
 .duel__member-main em {
-  overflow: hidden;
+  flex: none;
   color: var(--fm-text-muted);
   font-family: var(--fm-mono);
-  font-size: 7.5px;
+  font-size: 8px;
   font-style: normal;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
