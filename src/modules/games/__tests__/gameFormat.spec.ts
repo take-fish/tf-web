@@ -85,9 +85,9 @@ function tournament(
 
 describe('gameFormat 标签', () => {
   it('格式化赛制与状态', () => {
-    expect(formatLabel('BO1')).toBe('BO1 · 一局定胜负')
-    expect(formatLabel('BO3')).toBe('BO3 · 三局两胜')
-    expect(formatLabel('BO5')).toBe('BO5 · 五局三胜')
+    expect(formatLabel('BO1')).toBe('BO1 · 单次执行')
+    expect(formatLabel('BO3')).toBe('BO3 · 三轮两胜')
+    expect(formatLabel('BO5')).toBe('BO5 · 五轮三胜')
     expect(tournamentStatusLabel('INVITING')).toBe('邀请中')
     expect(tournamentStatusLabel('FINISHED')).toBe('已结束')
     expect(matchStatusLabel('BYE')).toBe('轮空')
@@ -95,16 +95,16 @@ describe('gameFormat 标签', () => {
 
   it('淘汰赛轮次按总轮数换算', () => {
     const t = tournament({ totalRounds: 4 })
-    expect(matchRoundLabel(t, match('m1', 1, 'KNOCKOUT'))).toBe('1/8 决赛')
-    expect(matchRoundLabel(t, match('m2', 2, 'KNOCKOUT'))).toBe('1/4 决赛')
-    expect(matchRoundLabel(t, match('m3', 3, 'KNOCKOUT'))).toBe('半决赛')
-    expect(matchRoundLabel(t, match('m4', 4, 'KNOCKOUT'))).toBe('决赛')
+    expect(matchRoundLabel(t, match('m1', 1, 'KNOCKOUT'))).toBe('第 1 轮')
+    expect(matchRoundLabel(t, match('m2', 2, 'KNOCKOUT'))).toBe('第 2 轮')
+    expect(matchRoundLabel(t, match('m3', 3, 'KNOCKOUT'))).toBe('第 3 轮')
+    expect(matchRoundLabel(t, match('m4', 4, 'KNOCKOUT'))).toBe('最终轮')
   })
 
   it('阶梯决赛区分挑战赛与巅峰战', () => {
     const t = tournament({ totalRounds: 5 })
-    expect(matchRoundLabel(t, match('m1', 4, 'LADDER'))).toBe('阶梯决赛 · 挑战赛')
-    expect(matchRoundLabel(t, match('m2', 5, 'LADDER'))).toBe('阶梯决赛 · 巅峰战')
+    expect(matchRoundLabel(t, match('m1', 4, 'LADDER'))).toBe('收尾轮 · 挑战')
+    expect(matchRoundLabel(t, match('m2', 5, 'LADDER'))).toBe('收尾轮 · 最终轮')
   })
 })
 
@@ -122,9 +122,9 @@ describe('groupMatches', () => {
     })
     const groups = groupMatches(t)
     expect(groups.map((group) => group.label)).toEqual([
-      '积分赛 · 第 1 轮',
-      '积分赛 · 第 2 轮',
-      '阶梯决赛 · 挑战赛',
+      '循环计分 · 第 1 轮',
+      '循环计分 · 第 2 轮',
+      '收尾轮 · 挑战',
     ])
     expect(groups[0]?.matches.map((entry) => entry.id)).toEqual(['m1', 'm2'])
     expect(groups[0]?.subtitle).toBe('BO1')

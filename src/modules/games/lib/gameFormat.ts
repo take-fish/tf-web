@@ -7,9 +7,9 @@ import type {
 } from '../types'
 
 export function formatLabel(format: GameFormat): string {
-  if (format === 'BO5') return 'BO5 · 五局三胜'
-  if (format === 'BO3') return 'BO3 · 三局两胜'
-  return 'BO1 · 一局定胜负'
+  if (format === 'BO5') return 'BO5 · 五轮三胜'
+  if (format === 'BO3') return 'BO3 · 三轮两胜'
+  return 'BO1 · 单次执行'
 }
 
 export function tournamentStatusLabel(status: TournamentStatus): string {
@@ -17,7 +17,7 @@ export function tournamentStatusLabel(status: TournamentStatus): string {
     case 'INVITING':
       return '邀请中'
     case 'RUNNING':
-      return '进行中'
+      return '执行中'
     case 'FINISHED':
       return '已结束'
     case 'CANCELLED':
@@ -80,17 +80,14 @@ export interface MatchGroup {
 
 function knockoutRoundLabel(tournament: GameTournament, roundNo: number): string {
   const remaining = tournament.totalRounds - roundNo
-  if (remaining <= 0) return '决赛'
-  if (remaining === 1) return '半决赛'
-  if (remaining === 2) return '1/4 决赛'
-  if (remaining === 3) return '1/8 决赛'
-  return `淘汰赛 · 第 ${roundNo} 轮`
+  if (remaining <= 0) return '最终轮'
+  return `第 ${roundNo} 轮`
 }
 
 export function matchRoundLabel(tournament: GameTournament, match: GameMatch): string {
-  if (match.stage === 'LEAGUE') return `积分赛 · 第 ${match.roundNo} 轮`
+  if (match.stage === 'LEAGUE') return `循环计分 · 第 ${match.roundNo} 轮`
   if (match.stage === 'LADDER') {
-    return match.roundNo >= tournament.totalRounds ? '阶梯决赛 · 巅峰战' : '阶梯决赛 · 挑战赛'
+    return match.roundNo >= tournament.totalRounds ? '收尾轮 · 最终轮' : '收尾轮 · 挑战'
   }
   return knockoutRoundLabel(tournament, match.roundNo)
 }

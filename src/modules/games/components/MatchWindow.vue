@@ -40,7 +40,7 @@ const participant = computed(() => isParticipant(match.value, selfId.value))
 const isBlack = computed(() => Boolean(round.value && round.value.blackUserId === selfId.value))
 const myColor = computed(() => {
   if (!participant.value || !round.value) return ''
-  return isBlack.value ? '黑棋' : '白棋'
+  return isBlack.value ? '先手' : '后手'
 })
 const blackName = computed(() =>
   match.value && round.value
@@ -91,16 +91,16 @@ const maxGames = computed(() => {
   return format === 'BO5' ? 5 : format === 'BO3' ? 3 : 1
 })
 const gameLabel = computed(() => {
-  if (round.value) return `第 ${round.value.gameNo} 局`
+  if (round.value) return `第 ${round.value.gameNo} / ${maxGames.value} 阶段`
   return maxGames.value > 1 ? `BO${maxGames.value}` : 'BO1'
 })
 const stateLabel = computed(() => {
   if (!match.value) return ''
   if (match.value.status === 'FINISHED') return '已结束'
-  if (match.value.status === 'READY') return '等待双方准备'
-  if (round.value?.status === 'REST') return '局间休息'
-  if (round.value?.status === 'RUNNING') return '对局中'
-  return '准备中'
+  if (match.value.status === 'READY') return '等待双方就绪'
+  if (round.value?.status === 'REST') return '阶段间隔'
+  if (round.value?.status === 'RUNNING') return '执行中'
+  return '就绪中'
 })
 const winnerName = computed(() => {
   const value = match.value
@@ -119,22 +119,22 @@ const chatMessages = computed(() =>
 )
 const privateTabVisible = computed(() => participant.value)
 const chatHint = computed(() => {
-  if (chatClosed.value) return '赛事已结束，聊天记录仅供回看'
-  if (channel.value === 'PLAYER_DM') return '仅双方选手可见，赛后仍可回看'
-  return '公开频道 · 所有观战者可见'
+  if (chatClosed.value) return '演练已结束，聊天记录仅供回看'
+  if (channel.value === 'PLAYER_DM') return '仅双方成员可见，结束后仍可回看'
+  return '公开频道 · 所有查看者可见'
 })
 const chatPlaceholder = computed(() => {
-  if (chatClosed.value) return '赛事已结束，无法发送消息'
-  if (channel.value === 'PLAYER_DM') return '与对手私聊…'
-  return '和房间里的所有人聊聊…'
+  if (chatClosed.value) return '演练已结束，无法发送消息'
+  if (channel.value === 'PLAYER_DM') return '与对方私聊…'
+  return '和频道里的成员聊聊…'
 })
 const readyState = computed(() => {
   if (!match.value) return ''
-  if (match.value.status === 'READY') return '双方点击准备后开局，随机决定黑白'
+  if (match.value.status === 'READY') return '双方确认就绪后开始执行，随机分配先手'
   if (round.value?.status === 'REST') {
     return readyUserIds.value.length
-      ? `已准备：${readyUserIds.value.map(nicknameFor).join('、')}`
-      : '双方可选择立即开始，或等待休息结束'
+      ? `已就绪：${readyUserIds.value.map(nicknameFor).join('、')}`
+      : '双方可选择立即继续，或等待间隔结束'
   }
   return ''
 })
@@ -157,8 +157,8 @@ function nicknameFor(userId: string | null): string {
 
 function colorFor(userId: string | null): string {
   if (!userId || !round.value) return ''
-  if (round.value.blackUserId === userId) return '黑'
-  if (round.value.whiteUserId === userId) return '白'
+  if (round.value.blackUserId === userId) return 'A'
+  if (round.value.whiteUserId === userId) return 'B'
   return ''
 }
 
@@ -200,7 +200,7 @@ function place(x: number, y: number) {
 
 function resign() {
   if (!participant.value || resigning.value) return
-  if (!window.confirm('确认认输？认输后本局判负。')) return
+  if (!window.confirm('确认终止本轮？本轮将判定为失败。')) return
   resigning.value = true
   actionError.value = ''
   if (!store.resign()) {
@@ -238,17 +238,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="match-window" role="dialog" aria-modal="true" aria-label="热力五子棋比赛">
+  <div class="match-window" role="dialog" aria-modal="true" aria-label="演练执行窗口">
     <div class="match-window__panel">
       <header class="match-window__head">
         <div class="match-window__title">
-          <span class="match-window__mark">五</span>
+          <span class="match-window__mark">T</span>
           <div>
             <div class="match-window__eyebrow">
-              {{ tournament?.name || '热力五子棋' }} / HEATMAP GOMOKU
+              {{ tournament?.name || '联调演练' }} / DRILL SESSION
             </div>
             <h2>
-              {{ match ? `${gameLabel} · ${stateLabel}` : '正在连接比赛…' }}
+              {{ match ? `${gameLabel} · ${stateLabel}` : '正在连接执行通道…' }}
               <span v-if="tournament" class="match-window__format">
                 {{ tournament.format }}
               </span>
@@ -258,13 +258,13 @@ onBeforeUnmount(() => {
         <div class="match-window__head-actions">
           <span class="match-window__mode">
             <span class="match-window__dot" :class="{ 'is-live': store.status === 'online' }" />
-            {{ participant ? (myColor ? `你是${myColor}` : '选手') : '观战模式' }}
+            {{ participant ? (myColor ? `你是${myColor}` : '参与方') : '只读查看' }}
           </span>
-          <button class="match-window__close" title="关闭比赛窗口" @click="emit('close')">×</button>
+          <button class="match-window__close" title="关闭执行窗口" @click="emit('close')">×</button>
         </div>
       </header>
 
-      <div v-if="matchLoading" class="match-window__loading">正在载入棋局…</div>
+      <div v-if="matchLoading" class="match-window__loading">正在载入执行记录…</div>
       <div v-else-if="matchError" class="match-window__error">
         <span>{{ matchError }}</span>
         <button type="button" @click="store.currentMatchId && store.watch(store.currentMatchId)">
@@ -288,7 +288,7 @@ onBeforeUnmount(() => {
               </span>
               <div class="match-window__player-main">
                 <b>{{ playerName(match.player1UserId, match.player1Nickname) }}</b>
-                <span v-if="hasReady(match.player1UserId)" class="match-window__ready">已准备</span>
+                <span v-if="hasReady(match.player1UserId)" class="match-window__ready">已就绪</span>
               </div>
               <strong>{{ match.player1Score }}</strong>
             </div>
@@ -309,7 +309,7 @@ onBeforeUnmount(() => {
               <strong>{{ match.player2Score }}</strong>
               <div class="match-window__player-main">
                 <b>{{ playerName(match.player2UserId, match.player2Nickname) }}</b>
-                <span v-if="hasReady(match.player2UserId)" class="match-window__ready">已准备</span>
+                <span v-if="hasReady(match.player2UserId)" class="match-window__ready">已就绪</span>
               </div>
               <span class="match-window__chip" :class="{ 'is-white': round?.whiteUserId === match.player2UserId }">
                 {{ colorFor(match.player2UserId) || '·' }}
@@ -326,7 +326,7 @@ onBeforeUnmount(() => {
                 :disabled="hasReady(selfId)"
                 @click="ready"
               >
-                {{ hasReady(selfId) ? '已准备，等待对手' : '准备开始' }}
+                {{ hasReady(selfId) ? '已就绪，等待对方' : '开始执行' }}
               </button>
             </template>
             <template v-else-if="match.status === 'RUNNING' && round?.status === 'REST'">
@@ -339,14 +339,14 @@ onBeforeUnmount(() => {
                 :disabled="hasReady(selfId)"
                 @click="ready"
               >
-                {{ hasReady(selfId) ? (bothReady ? '双方已同意，即将开始' : '已准备，等待对手') : '立即开始' }}
+                {{ hasReady(selfId) ? (bothReady ? '双方已确认，即将开始' : '已就绪，等待对方') : '立即继续' }}
               </button>
             </template>
             <template v-else-if="match.status === 'RUNNING'">
               <span class="match-window__hint">
-                {{ turnName }} 回合 · {{ round?.moveCount ?? 0 }} 手
-                <template v-if="isMyTurn"> · 请落子</template>
-                <template v-else-if="participant"> · 等待对手</template>
+                {{ turnName }} 轮次 · {{ round?.moveCount ?? 0 }} 步
+                <template v-if="isMyTurn"> · 请提交</template>
+                <template v-else-if="participant"> · 等待对方</template>
               </span>
               <span
                 class="match-window__clock"
@@ -355,12 +355,12 @@ onBeforeUnmount(() => {
                 {{ formatDuration(moveSeconds) }}
               </span>
               <button v-if="participant" class="match-window__ghost" :disabled="resigning" @click="resign">
-                认输
+                终止本轮
               </button>
             </template>
             <template v-else-if="match.status === 'FINISHED'">
               <span class="match-window__hint">
-                胜者：<b>{{ winnerName }}</b>
+                结果：<b>{{ winnerName }}</b>
                 <template v-if="resultReason"> · {{ resultReason }}</template>
               </span>
               <span class="match-window__finished">FINISHED</span>
@@ -372,19 +372,19 @@ onBeforeUnmount(() => {
 
           <div v-if="match.status === 'FINISHED'" class="match-window__result">
             <span class="match-window__result-title">
-              {{ winnerName }} 获胜
+              {{ winnerName }} 完成本轮
             </span>
             <span class="match-window__result-score">
               {{ match.player1Score }} : {{ match.player2Score }}
             </span>
             <span class="match-window__result-note">
-              {{ chatClosed ? '聊天记录仅供回看' : '赛事仍在进行，可继续留在公开房间' }}
+              {{ chatClosed ? '聊天记录仅供回看' : '演练仍在进行，可继续留在公开频道' }}
             </span>
           </div>
 
           <div v-if="!participant && match.status !== 'FINISHED'" class="match-window__spectator">
             <AppIcon name="user" :size="12" />
-            你正在观战 · 公开频道可参与讨论
+            只读查看 · 公开频道可参与讨论
           </div>
 
           <GomokuBoard
@@ -400,12 +400,12 @@ onBeforeUnmount(() => {
 
           <div class="match-window__footer">
             <span>
-              {{ blackName }} 执黑 · {{ whiteName }} 执白
+              {{ blackName }} 先手 · {{ whiteName }} 后手
             </span>
             <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
-            <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 局</span>
+            <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
             <span v-if="match.status === 'RUNNING' && round">
-              落子倒计时 {{ formatDuration(moveSeconds) }}
+              提交倒计时 {{ formatDuration(moveSeconds) }}
             </span>
           </div>
 
@@ -422,7 +422,7 @@ onBeforeUnmount(() => {
                 :class="{ 'is-active': channel === 'PUBLIC' }"
                 @click="channel = 'PUBLIC'"
               >
-                公开房间
+                公开频道
               </button>
               <button
                 v-if="privateTabVisible"
@@ -430,7 +430,7 @@ onBeforeUnmount(() => {
                 :class="{ 'is-active': channel === 'PLAYER_DM' }"
                 @click="channel = 'PLAYER_DM'"
               >
-                选手私聊
+                双方私聊
               </button>
             </div>
             <span class="match-window__chat-hint">{{ chatHint }}</span>
@@ -439,7 +439,7 @@ onBeforeUnmount(() => {
           <div ref="chatBody" class="match-window__messages">
             <div v-if="chatLoading" class="match-window__chat-empty">正在同步聊天记录…</div>
             <div v-else-if="chatMessages.length === 0" class="match-window__chat-empty">
-              {{ channel === 'PLAYER_DM' ? '还没有私聊消息，先和对手打个招呼吧' : '暂时没有消息' }}
+              {{ channel === 'PLAYER_DM' ? '还没有私聊消息，先和对方打个招呼吧' : '暂时没有消息' }}
             </div>
             <div
               v-for="message in chatMessages"

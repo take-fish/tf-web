@@ -8,6 +8,7 @@ import {
   cancelTournament,
   createTournament,
   declineTournament,
+  deleteTournament,
   fetchActiveMatches,
   fetchGameNotifications,
   fetchInvitations,
@@ -139,6 +140,7 @@ export const useTournamentStore = defineStore('tournament', () => {
           (match) => match.tournamentId !== tournamentId,
         )
       },
+      onTournamentDeleted: (tournamentId) => removeTournamentLocally(tournamentId),
       onMatch: applyMatch,
       onMatchReady: (matchId, readyUserIds) => {
         const match = currentMatch.value
@@ -180,7 +182,7 @@ export const useTournamentStore = defineStore('tournament', () => {
       },
       onAuthError: () => {
         status.value = 'offline'
-        lastError.value = '登录状态已失效，比赛通道已断开'
+        lastError.value = '登录状态已失效，调度通道已断开'
       },
     })
     void socket.connect()
@@ -258,7 +260,7 @@ export const useTournamentStore = defineStore('tournament', () => {
       }))
     }
     if (results.every((result) => result.status === 'rejected')) {
-      lobbyError.value = '赛事大厅暂时不可用，请稍后重试'
+      lobbyError.value = '演练列表暂时不可用，请稍后重试'
     }
     socket?.refreshLobby()
     lobbyLoading.value = false
@@ -289,6 +291,21 @@ export const useTournamentStore = defineStore('tournament', () => {
       }
     } else if (invitationIndex >= 0) {
       invitations.value.splice(invitationIndex, 1)
+    }
+  }
+
+  /** 删除或收到删除广播后，从大厅、邀请与观看态中移除。 */
+  function removeTournamentLocally(tournamentId: string) {
+    tournaments.value = tournaments.value.filter((entry) => entry.id !== tournamentId)
+    invitations.value = invitations.value.filter((entry) => entry.id !== tournamentId)
+    activeMatches.value = activeMatches.value.filter(
+      (match) => match.tournamentId !== tournamentId,
+    )
+    if (currentTournament.value?.id === tournamentId) {
+      currentTournament.value = null
+    }
+    if (currentMatch.value?.tournamentId === tournamentId) {
+      leaveWatch()
     }
   }
 
@@ -437,7 +454,7 @@ export const useTournamentStore = defineStore('tournament', () => {
       }
       await loadChat()
     } catch (error) {
-      matchError.value = formatApiError(error, '比赛加载失败')
+      matchError.value = formatApiError(error, '执行记录加载失败')
     } finally {
       matchLoading.value = false
     }
@@ -472,7 +489,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     const id = currentMatchId.value
     if (!id) return false
     if (!socket?.ready(id)) {
-      lastError.value = '比赛通道未连接，请稍后重试'
+      lastError.value = '调度通道未连接，请稍后重试'
       return false
     }
     lastError.value = ''
@@ -494,7 +511,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     const id = currentMatchId.value
     if (!id) return false
     if (!socket?.resign(id)) {
-      lastError.value = '比赛通道未连接，请稍后重试'
+      lastError.value = '调度通道未连接，请稍后重试'
       return false
     }
     lastError.value = ''
@@ -512,7 +529,7 @@ export const useTournamentStore = defineStore('tournament', () => {
       upsertTournament(tournament)
       return tournament
     } catch (error) {
-      lobbyError.value = formatApiError(error, '赛事创建失败')
+      lobbyError.value = formatApiError(error, '演练创建失败')
       throw error
     }
   }
@@ -548,7 +565,18 @@ export const useTournamentStore = defineStore('tournament', () => {
       upsertTournament(tournament)
       return tournament
     } catch (error) {
-      lobbyError.value = formatApiError(error, '取消赛事失败')
+      lobbyError.value = formatApiError(error, '取消演练失败')
+      throw error
+    }
+  }
+
+  async function remove(id: string) {
+    lobbyError.value = ''
+    try {
+      await deleteTournament(id)
+      removeTournamentLocally(id)
+    } catch (error) {
+      lobbyError.value = formatApiError(error, '删除演练失败')
       throw error
     }
   }
@@ -684,6 +712,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     acceptInvitation,
     declineInvitation,
     cancel,
+    remove,
     openLobby,
     closeLobby,
     dismissFinal,

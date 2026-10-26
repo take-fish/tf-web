@@ -22,10 +22,10 @@ withDefaults(
         <template v-else>暂无个人记录</template>
       </span>
     </header>
-    <p class="leaderboard__hint">五子棋胜 +3 / 负 +1 / 冠军 +10 · 打砖块每 100 分折算 1 积分</p>
+    <p class="leaderboard__hint">演练成功 +3 / 参与 +1 / 结果确认 +10 · 采样每 100 分折算 1 积分</p>
     <div v-if="loading" class="leaderboard__empty">正在同步排行…</div>
     <div v-else-if="error" class="leaderboard__empty leaderboard__empty--err">{{ error }}</div>
-    <div v-else-if="entries.length === 0" class="leaderboard__empty">暂无比赛记录</div>
+    <div v-else-if="entries.length === 0" class="leaderboard__empty">暂无演练记录</div>
     <ol v-else class="leaderboard__list">
       <li v-for="entry in entries" :key="entry.userId">
         <span class="leaderboard__rank" :class="{ 'is-top': entry.rank <= 3 }">
@@ -34,7 +34,7 @@ withDefaults(
         <span class="leaderboard__name">
           {{ entry.nickname }}
           <em v-if="(entry.championships ?? 0) > 0" class="leaderboard__crown">
-            ♛ {{ entry.championships }}
+            T {{ entry.championships }}
           </em>
         </span>
         <span class="leaderboard__record">

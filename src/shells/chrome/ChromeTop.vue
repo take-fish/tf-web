@@ -86,11 +86,11 @@ const TERMINAL_MENUS = ['文件', '会话', '查看', '工具', '窗口', '帮�
             type="button"
             class="grafana-nav__action"
             :class="{ 'has-invite': tournament.pendingInvitationCount > 0 }"
-            title="连接：进入热力五子棋赛事大厅"
+            title="调度台：进入联调演练调度"
             @click="emit('tournament')"
           >
             <span class="grafana-nav__dot" :class="{ 'is-online': tournament.connected }" />
-            连接
+            调度台
             <em v-if="tournament.pendingInvitationCount > 0">
               {{ tournament.pendingInvitationCount > 9 ? '9+' : tournament.pendingInvitationCount }}
             </em>
