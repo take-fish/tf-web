@@ -25,6 +25,7 @@ const chatInput = ref('')
 const chatBody = ref<HTMLElement | null>(null)
 const actionError = ref('')
 const resigning = ref(false)
+const boardExpanded = ref(false)
 
 let clockTimer: ReturnType<typeof setInterval> | undefined
 
@@ -200,6 +201,20 @@ function place(x: number, y: number) {
   if (!store.placeStone(x, y)) actionError.value = store.lastError
 }
 
+function openBoardWindow() {
+  boardExpanded.value = true
+}
+
+function closeBoardWindow() {
+  boardExpanded.value = false
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !boardExpanded.value) return
+  event.preventDefault()
+  closeBoardWindow()
+}
+
 function resign() {
   if (!participant.value || resigning.value) return
   if (!window.confirm('确认终止本轮？本轮将判定为失败。')) return
@@ -231,11 +246,13 @@ onMounted(() => {
   clockTimer = setInterval(() => {
     now.value = Date.now()
   }, 1000)
+  window.addEventListener('keydown', onKeydown)
   void scrollChat()
 })
 
 onBeforeUnmount(() => {
   if (clockTimer) clearInterval(clockTimer)
+  window.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -434,6 +451,7 @@ onBeforeUnmount(() => {
             :interactive="boardInteractive"
             :disabled="match.status !== 'RUNNING' || round?.status !== 'RUNNING'"
             @place="place"
+            @expand="openBoardWindow"
           />
 
           <div class="match-window__footer">
@@ -445,6 +463,10 @@ onBeforeUnmount(() => {
             <span v-if="match.status === 'RUNNING' && round">
               提交倒计时 {{ formatDuration(moveSeconds) }}
             </span>
+            <button type="button" class="match-window__expand" @click="openBoardWindow">
+              <AppIcon name="external" :size="10" />
+              双击棋盘放大
+            </button>
           </div>
 
           <p v-if="actionError || store.lastError" class="match-window__action-error">
@@ -512,6 +534,60 @@ onBeforeUnmount(() => {
           </form>
         </aside>
       </div>
+    </div>
+
+    <div
+      v-if="boardExpanded"
+      class="board-window"
+      role="dialog"
+      aria-modal="true"
+      aria-label="放大棋盘"
+      @click.self="closeBoardWindow"
+    >
+      <section class="board-window__panel">
+        <header class="board-window__head">
+          <div class="board-window__title">
+            <span class="board-window__mark">15×15</span>
+            <div>
+              <div class="board-window__eyebrow">BOARD / FOCUS VIEW</div>
+              <b>{{ blackName }} 先手 · {{ whiteName }} 后手</b>
+            </div>
+          </div>
+          <div class="board-window__actions">
+            <span class="board-window__status">
+              {{ stateLabel }}
+              <template v-if="match?.status === 'RUNNING' && round">
+                · {{ turnName }} 轮次 · {{ formatDuration(moveSeconds) }}
+              </template>
+            </span>
+            <span class="board-window__hint">
+              拖动右下角调整大小 · 双击棋盘或按 Esc 退出
+            </span>
+            <button
+              type="button"
+              class="board-window__close"
+              title="关闭放大棋盘"
+              @click="closeBoardWindow"
+            >
+              ×
+            </button>
+          </div>
+        </header>
+        <div class="board-window__stage">
+          <GomokuBoard
+            fluid
+            :moves="round?.moves ?? []"
+            :black-user-id="round?.blackUserId ?? match?.player1UserId ?? ''"
+            :white-user-id="round?.whiteUserId ?? match?.player2UserId ?? ''"
+            :self-user-id="selfId"
+            :turn-user-id="round?.turnUserId ?? null"
+            :interactive="boardInteractive"
+            :disabled="match?.status !== 'RUNNING' || round?.status !== 'RUNNING'"
+            @place="place"
+            @expand="closeBoardWindow"
+          />
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -946,6 +1022,26 @@ onBeforeUnmount(() => {
   content: '·';
 }
 
+.match-window__expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-family: inherit;
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.match-window__expand:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 32%, var(--fm-border));
+  color: var(--fm-accent);
+}
+
 .match-window__action-error {
   margin: 0;
   padding: 5px 8px;
@@ -1091,6 +1187,140 @@ onBeforeUnmount(() => {
   height: 28px;
 }
 
+.board-window {
+  position: fixed;
+  inset: 0;
+  z-index: 1250;
+  background: rgba(3, 5, 8, 0.82);
+  backdrop-filter: blur(5px);
+}
+
+.board-window__panel {
+  --board-window-inset: clamp(10px, 3vw, 36px);
+
+  position: absolute;
+  top: var(--board-window-inset);
+  left: var(--board-window-inset);
+  display: flex;
+  flex-direction: column;
+  width: min(
+    1180px,
+    calc(100vw - var(--board-window-inset) - var(--board-window-inset))
+  );
+  height: min(
+    900px,
+    calc(100vh - var(--board-window-inset) - var(--board-window-inset))
+  );
+  min-width: 380px;
+  min-height: 320px;
+  max-width: calc(100vw - var(--board-window-inset) - var(--board-window-inset));
+  max-height: calc(100vh - var(--board-window-inset) - var(--board-window-inset));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 24%, var(--fm-border));
+  border-radius: 4px;
+  background: var(--fm-panel);
+  box-shadow: var(--fm-shadow);
+  resize: both;
+}
+
+.board-window__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--fm-border);
+  background: color-mix(in srgb, var(--fm-bg) 38%, transparent);
+}
+
+.board-window__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.board-window__mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
+  border-radius: 3px;
+  background: var(--fm-panel-2);
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.board-window__eyebrow {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 7.5px;
+  letter-spacing: 0.1em;
+}
+
+.board-window__title b {
+  display: block;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--fm-text);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-window__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.board-window__status {
+  color: var(--fm-text-dim);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.board-window__hint {
+  color: var(--fm-text-muted);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.board-window__close {
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.board-window__close:hover {
+  border-color: var(--fm-err);
+  color: var(--fm-err);
+}
+
+.board-window__stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 6px 10px 10px;
+}
+
+.board-window__stage :deep(.gomoku) {
+  flex: 1;
+  min-height: 0;
+}
+
 @media (max-width: 980px) {
   .match-window {
     padding: 10px;
@@ -1131,6 +1361,32 @@ onBeforeUnmount(() => {
 
   .match-window__mode {
     display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .board-window__panel {
+    --board-window-inset: 8px;
+
+    width: calc(100vw - var(--board-window-inset) - var(--board-window-inset));
+    height: calc(100vh - var(--board-window-inset) - var(--board-window-inset));
+    min-width: 0;
+    min-height: 0;
+    max-width: calc(100vw - var(--board-window-inset) - var(--board-window-inset));
+    max-height: calc(100vh - var(--board-window-inset) - var(--board-window-inset));
+    resize: none;
+  }
+
+  .board-window__head {
+    padding: 6px 8px;
+  }
+
+  .board-window__hint {
+    display: none;
+  }
+
+  .board-window__stage {
+    padding: 4px 6px 6px;
   }
 }
 </style>
