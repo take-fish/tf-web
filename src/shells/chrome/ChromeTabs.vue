@@ -5,12 +5,14 @@ import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ModuleNav from '@/components/ModuleNav.vue'
 import { moduleByPath } from '@/modules/registry'
+import { useChatStore } from '@/stores/chat'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
 
 const route = useRoute()
 const skinStore = useSkinStore()
 const identity = useIdentityStore()
+const chatStore = useChatStore()
 
 const skin = computed(() => skinStore.effectiveSkin)
 const module = computed(() => moduleByPath(route.path))
@@ -18,7 +20,7 @@ const host = computed(() => identity.nodeName)
 const breadcrumbs = computed(() => {
   const item = module.value
   if (item.id === 'overview') return ['fishmatrix-api', 'src', 'main']
-  if (item.id === 'chat') return ['/opt/chat/group', 'dev-group']
+  if (item.id === 'chat') return ['/opt/chat/group', chatStore.selectedGroupId]
   if (item.id === 'reader') return ['src/main/java', 'com/fishmatrix/reader', 'ReaderService.java']
   if (item.id === 'games') return ['Dashboards', 'FishMatrix', 'Overview']
   return ['Pipelines', 'fishmatrix-api', '#128']
