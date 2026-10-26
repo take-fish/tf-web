@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
 import { formatApiError } from '@/lib/http'
-import { useIdentityStore } from '@/stores/identity'
-import { useSkinStore } from '@/stores/skin'
 import BreakoutCanvas from '@/modules/games/components/BreakoutCanvas.vue'
 import GamePanel from '@/modules/games/components/GamePanel.vue'
 import LeaderboardPanel from '@/modules/games/components/LeaderboardPanel.vue'
+import MatchWindow from '@/modules/games/components/MatchWindow.vue'
 import MetricChart from '@/modules/games/components/MetricChart.vue'
-import { fetchLeaderboard, submitScore } from '@/modules/games/gameApi'
+import TournamentBracket from '@/modules/games/components/TournamentBracket.vue'
+import { fetchOverallLeaderboard, submitScore } from '@/modules/games/gameApi'
 import { GAMES } from '@/modules/games/gameRegistry'
+import {
+  formatLabel,
+  tournamentStatusLabel,
+} from '@/modules/games/lib/gameFormat'
 import {
   diskOption,
   heatmapOption,
@@ -20,9 +25,17 @@ import {
 } from '@/modules/games/lib/chartOptions'
 import type { EChartsCoreOption } from 'echarts/core'
 import type { LeaderboardEntry } from '@/modules/games/types'
+import { useAuthStore } from '@/stores/auth'
+import { useIdentityStore } from '@/stores/identity'
+import { useSkinStore } from '@/stores/skin'
+import { useTournamentStore } from '@/stores/tournament'
 
 const identity = useIdentityStore()
 const skinStore = useSkinStore()
+const auth = useAuthStore()
+const tournamentStore = useTournamentStore()
+const route = useRoute()
+const router = useRouter()
 
 const light = computed(() => skinStore.effectiveSkin === 'swagger')
 const labels = ref<string[]>([])
@@ -39,6 +52,16 @@ const leaderboardLoading = ref(false)
 const leaderboardError = ref('')
 const bestScore = ref(0)
 const myRank = ref(0)
+const selectedTournamentId = ref('')
+
+const playableCount = computed(() => GAMES.filter((game) => game.playable).length)
+const pendingCount = computed(() => GAMES.length - playableCount.value)
+const selectedTournament = computed(() =>
+  tournamentStore.tournaments.find(
+    (tournament) => tournament.id === selectedTournamentId.value,
+  ),
+)
+const matchVisible = computed(() => Boolean(tournamentStore.currentMatchId))
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
@@ -111,11 +134,14 @@ async function loadLeaderboard() {
   leaderboardLoading.value = true
   leaderboardError.value = ''
   try {
-    leaderboard.value = await fetchLeaderboard('qps-breakout', 10)
+    leaderboard.value = await fetchOverallLeaderboard(10)
     const own = leaderboard.value.find((entry) => entry.userId === identity.state.userId)
     if (own) {
-      bestScore.value = own.score
+      bestScore.value = own.points ?? own.score
       myRank.value = own.rank
+    } else {
+      bestScore.value = 0
+      myRank.value = 0
     }
   } catch (error) {
     leaderboardError.value = formatApiError(error, '排行服务暂不可用')
@@ -135,27 +161,88 @@ async function onGameFinish(score: number) {
     })
     bestScore.value = result.bestScore
     myRank.value = result.rank
-    showNotice(`演练记录已提交：${score} 分 · 当前第 ${result.rank} 名`)
+    showNotice(`演练记录已提交：${score} 分 · 综合第 ${result.rank} 名`)
     await loadLeaderboard()
   } catch (error) {
     showNotice(formatApiError(error, '排行服务暂不可用'))
   }
 }
 
-function launchGame() {
+function launchGame(gameId: string) {
+  if (gameId === 'heatmap-gomoku') {
+    tournamentStore.openLobby()
+    return
+  }
   showBreakout.value = true
 }
 
+function openLobby() {
+  tournamentStore.openLobby()
+}
+
+function openMatch(matchId: string) {
+  if (tournamentStore.currentMatchId === matchId) return
+  void router.push({ path: '/games', query: { ...route.query, watch: matchId } })
+}
+
+function closeMatch() {
+  tournamentStore.leaveWatch()
+  const query = { ...route.query }
+  delete query.watch
+  void router.replace({ path: route.path, query })
+}
+
+function selectTournament(id: string) {
+  selectedTournamentId.value = id
+}
+
+function syncIdentity() {
+  if (!auth.user) return
+  identity.setAccount(`u${auth.user.id}`, auth.user.nickname)
+}
+
+watch(
+  () => tournamentStore.tournaments,
+  (tournaments) => {
+    if (
+      selectedTournamentId.value &&
+      tournaments.some((tournament) => tournament.id === selectedTournamentId.value)
+    ) {
+      return
+    }
+    const preferred =
+      tournaments.find((tournament) => tournament.status === 'RUNNING') ?? tournaments[0]
+    selectedTournamentId.value = preferred?.id ?? ''
+  },
+  { deep: true, immediate: true },
+)
+
+watch(
+  () => route.query.watch,
+  (value) => {
+    const matchId = typeof value === 'string' ? value : ''
+    if (matchId) {
+      if (tournamentStore.currentMatchId !== matchId) void tournamentStore.watch(matchId)
+      return
+    }
+    if (tournamentStore.currentMatchId) tournamentStore.leaveWatch()
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
+  syncIdentity()
   labels.value = createLabels()
   refreshCharts()
   refreshTimer = setInterval(refreshCharts, 2000)
   void loadLeaderboard()
+  void tournamentStore.refreshLobby()
 })
 
 onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   if (noticeTimer) clearTimeout(noticeTimer)
+  if (tournamentStore.currentMatchId) tournamentStore.leaveWatch()
 })
 </script>
 
@@ -170,9 +257,20 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="games__toolbar">
+        <span class="games__pill games__pill--live">
+          <span class="games__live-dot" :class="{ 'is-online': tournamentStore.connected }" />
+          {{ tournamentStore.connected ? '比赛大厅在线' : '比赛大厅离线' }}
+        </span>
         <span class="games__pill">集群: fishmatrix-prod</span>
         <span class="games__pill">实例: dev-node-01</span>
         <span class="games__updated">刷新 {{ updatedLabel }}</span>
+        <button class="games__connect" @click="openLobby">
+          <AppIcon name="plus" :size="12" />
+          连接
+          <em v-if="tournamentStore.pendingInvitationCount > 0">
+            {{ tournamentStore.pendingInvitationCount }}
+          </em>
+        </button>
         <button class="games__refresh" @click="refreshCharts">
           <AppIcon name="refresh" :size="12" />
           刷新
@@ -191,8 +289,12 @@ onBeforeUnmount(() => {
           :title="game.metricTitle"
           :subtitle="game.name"
           :playable="game.playable"
-          :active="showBreakout && game.id === 'qps-breakout'"
-          @launch="launchGame"
+          :active="
+            (showBreakout && game.id === 'qps-breakout') ||
+            (tournamentStore.lobbyOpen && game.id === 'heatmap-gomoku')
+          "
+          :action-label="game.id === 'heatmap-gomoku' ? '进入比赛' : '启动演练'"
+          @launch="launchGame(game.id)"
         >
           <MetricChart
             :option="chartOptions[game.id] ?? latencyOption([], [], light)"
@@ -201,6 +303,90 @@ onBeforeUnmount(() => {
         </GamePanel>
       </div>
     </div>
+
+    <section v-if="tournamentStore.activeMatches.length" class="games__my-match">
+      <span class="games__my-match-icon">五</span>
+      <div>
+        <b>你有正在进行的比赛</b>
+        <span>
+          {{
+            tournamentStore.activeMatches
+              .map(
+                (match) =>
+                  `${match.player1Nickname || match.player1UserId} vs ${match.player2Nickname || match.player2UserId}`,
+              )
+              .join(' · ')
+          }}
+        </span>
+      </div>
+      <button
+        type="button"
+        class="games__refresh games__connect"
+        @click="openMatch(tournamentStore.activeMatches[0]!.id)"
+      >
+        进入比赛
+      </button>
+    </section>
+
+    <section class="games__tourneys">
+      <header class="games__tourneys-head">
+        <div class="games__tourneys-title">
+          <span class="games__tourneys-mark">五</span>
+          <div>
+            <b>热力五子棋赛事</b>
+            <span>创建比赛 · 邀请在线选手 · 淘汰赛/积分赛 · 观战与回放</span>
+          </div>
+        </div>
+        <div class="games__tourneys-actions">
+          <span class="games__tourneys-count">
+            {{ tournamentStore.tournaments.length }} 个赛事
+            <template v-if="tournamentStore.pendingInvitationCount > 0">
+              · {{ tournamentStore.pendingInvitationCount }} 个邀请待处理
+            </template>
+          </span>
+          <button type="button" class="games__refresh" @click="tournamentStore.refreshLobby()">
+            <AppIcon name="refresh" :size="12" />
+            刷新赛事
+          </button>
+          <button type="button" class="games__connect" @click="openLobby">
+            <AppIcon name="plus" :size="12" />
+            连接
+          </button>
+        </div>
+      </header>
+
+      <div v-if="tournamentStore.lobbyLoading && tournamentStore.tournaments.length === 0" class="games__tourneys-empty">
+        正在载入赛事…
+      </div>
+      <div v-else-if="tournamentStore.tournaments.length === 0" class="games__tourneys-empty">
+        <p>还没有五子棋赛事。点击“连接”选择在线选手，创建 BO1 / BO3 / BO5 比赛。</p>
+        <p>2/4/8/16 人自动生成淘汰赛；其他人数先积分排位，再进行阶梯决赛。</p>
+        <button type="button" class="games__connect" @click="openLobby">创建第一场比赛</button>
+      </div>
+      <template v-else>
+        <div class="games__tournament-tabs">
+          <button
+            v-for="tournament in tournamentStore.tournaments"
+            :key="tournament.id"
+            type="button"
+            class="games__tournament-tab"
+            :class="{ 'is-active': selectedTournamentId === tournament.id }"
+            @click="selectTournament(tournament.id)"
+          >
+            <span class="games__tournament-name">{{ tournament.name }}</span>
+            <em>{{ tournamentStatusLabel(tournament.status) }}</em>
+            <span>{{ formatLabel(tournament.format).split(' · ')[0] }}</span>
+            <span>{{ tournament.players.filter((player) => player.status === 'ACCEPTED').length }}/{{ tournament.targetPlayers }}</span>
+          </button>
+        </div>
+        <TournamentBracket
+          v-if="selectedTournament"
+          :tournament="selectedTournament"
+          :self-user-id="tournamentStore.ownUserId"
+          @watch="openMatch"
+        />
+      </template>
+    </section>
 
     <div class="games__bottom">
       <section class="games__bottom-panel">
@@ -215,7 +401,7 @@ onBeforeUnmount(() => {
       <section class="games__bottom-panel games__tasks">
         <div class="games__tasks-head">
           <span>演练任务</span>
-          <em>4 项待接入 · 1 项可执行</em>
+          <em>{{ pendingCount }} 项待接入 · {{ playableCount }} 项可执行</em>
         </div>
         <div class="games__task-list">
           <div v-for="game in GAMES" :key="game.id" class="games__task">
@@ -242,6 +428,8 @@ onBeforeUnmount(() => {
         <BreakoutCanvas @finish="onGameFinish" @exit="showBreakout = false" />
       </div>
     </div>
+
+    <MatchWindow v-if="matchVisible" @close="closeMatch" />
 
     <div v-if="notice" class="games__notice">{{ notice }}</div>
   </div>
@@ -337,6 +525,230 @@ onBeforeUnmount(() => {
 .games__refresh:hover {
   border-color: var(--fm-accent);
   color: var(--fm-text);
+}
+
+.games__connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 25px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 55%, transparent);
+  border-radius: var(--fm-radius);
+  background: color-mix(in srgb, var(--fm-accent) 12%, transparent);
+  color: var(--fm-accent);
+  font-size: 9.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.games__connect:hover {
+  background: color-mix(in srgb, var(--fm-accent) 22%, transparent);
+}
+
+.games__connect em {
+  min-width: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--fm-err);
+  color: #fff;
+  font-size: 8px;
+  font-style: normal;
+  line-height: 14px;
+  text-align: center;
+}
+
+.games__pill--live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.games__live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fm-text-muted);
+}
+
+.games__live-dot.is-online {
+  background: var(--fm-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fm-ok) 16%, transparent);
+}
+
+.games__my-match {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 45%, transparent);
+  border-radius: 3px;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--fm-accent) 10%, transparent), transparent 65%),
+    var(--fm-panel);
+}
+
+.games__my-match-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #ffd08a, #ff7a1a 62%, #a93c00);
+  color: #23160a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.games__my-match > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.games__my-match b {
+  color: var(--fm-text);
+  font-size: 11px;
+}
+
+.games__my-match span {
+  overflow: hidden;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.games__tourneys {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: var(--fm-panel);
+}
+
+.games__tourneys-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.games__tourneys-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.games__tourneys-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: linear-gradient(160deg, #ff9830, #f46800);
+  color: #23160a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.games__tourneys-title > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.games__tourneys-title b {
+  color: var(--fm-text);
+  font-size: 12px;
+}
+
+.games__tourneys-title span {
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+}
+
+.games__tourneys-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.games__tourneys-count {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8.5px;
+}
+
+.games__tourneys-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 12px;
+  border: 1px dashed var(--fm-border);
+  border-radius: 3px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.games__tourneys-empty p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.games__tournaments-tabs,
+.games__tournament-tabs {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+}
+
+.games__tournament-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  height: 27px;
+  padding: 0 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.games__tournament-tab:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+  color: var(--fm-text-dim);
+}
+
+.games__tournament-tab.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 12%, transparent);
+  color: var(--fm-text);
+}
+
+.games__tournament-name {
+  font-weight: 600;
+}
+
+.games__tournament-tab em {
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--fm-panel-2, rgba(255, 255, 255, 0.06));
+  color: var(--fm-text-muted);
+  font-size: 8px;
+  font-style: normal;
 }
 
 .games__grid {

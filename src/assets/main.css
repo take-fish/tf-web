@@ -370,6 +370,56 @@ kbd {
   color: var(--fm-text);
 }
 
+.grafana-nav__action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.grafana-nav__action:hover,
+.grafana-nav__action.has-invite {
+  border-bottom-color: var(--fm-accent);
+  color: var(--fm-text);
+}
+
+.grafana-nav__action em {
+  display: inline-grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--fm-err);
+  color: #fff;
+  font-family: var(--fm-mono);
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fm-err) 16%, transparent);
+}
+
+.grafana-nav__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fm-text-muted);
+}
+
+.grafana-nav__dot.is-online {
+  background: var(--fm-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fm-ok) 15%, transparent);
+}
+
 .grafana-crumbs {
   display: flex;
   align-items: center;

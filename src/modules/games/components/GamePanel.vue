@@ -7,8 +7,9 @@ withDefaults(
     subtitle?: string
     playable?: boolean
     active?: boolean
+    actionLabel?: string
   }>(),
-  { subtitle: '', playable: false, active: false },
+  { subtitle: '', playable: false, active: false, actionLabel: '启动演练' },
 )
 
 const emit = defineEmits<{ launch: [] }>()
@@ -30,7 +31,7 @@ const emit = defineEmits<{ launch: [] }>()
           @click="emit('launch')"
         >
           <AppIcon name="play" :size="10" />
-          启动演练
+          {{ actionLabel }}
         </button>
         <span v-else class="game-panel__pending">采集任务待接入</span>
       </div>
