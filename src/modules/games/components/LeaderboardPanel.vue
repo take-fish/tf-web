@@ -16,22 +16,31 @@ withDefaults(
 <template>
   <section class="leaderboard">
     <header class="leaderboard__head">
-      <span>演练排行</span>
+      <span>综合排行</span>
       <span class="leaderboard__meta">
-        <template v-if="bestScore">最佳 {{ bestScore }} · 排名 {{ rank }}</template>
+        <template v-if="bestScore">我的积分 {{ bestScore }} · 排名 {{ rank }}</template>
         <template v-else>暂无个人记录</template>
       </span>
     </header>
+    <p class="leaderboard__hint">五子棋胜 +3 / 负 +1 / 冠军 +10 · 打砖块每 100 分折算 1 积分</p>
     <div v-if="loading" class="leaderboard__empty">正在同步排行…</div>
     <div v-else-if="error" class="leaderboard__empty leaderboard__empty--err">{{ error }}</div>
-    <div v-else-if="entries.length === 0" class="leaderboard__empty">暂无演练记录</div>
+    <div v-else-if="entries.length === 0" class="leaderboard__empty">暂无比赛记录</div>
     <ol v-else class="leaderboard__list">
       <li v-for="entry in entries" :key="entry.userId">
         <span class="leaderboard__rank" :class="{ 'is-top': entry.rank <= 3 }">
           {{ String(entry.rank).padStart(2, '0') }}
         </span>
-        <span class="leaderboard__name">{{ entry.nickname }}</span>
-        <span class="leaderboard__score">{{ entry.score }}</span>
+        <span class="leaderboard__name">
+          {{ entry.nickname }}
+          <em v-if="(entry.championships ?? 0) > 0" class="leaderboard__crown">
+            ♛ {{ entry.championships }}
+          </em>
+        </span>
+        <span class="leaderboard__record">
+          {{ entry.wins ?? 0 }}胜{{ entry.losses ?? 0 }}负
+        </span>
+        <span class="leaderboard__score">{{ entry.points ?? entry.score }}</span>
       </li>
     </ol>
   </section>
@@ -62,6 +71,27 @@ withDefaults(
   color: var(--fm-text-muted);
   font-family: var(--fm-mono);
   font-size: 9px;
+}
+
+.leaderboard__hint {
+  margin: 0 0 8px;
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+
+.leaderboard__crown {
+  margin-left: 5px;
+  color: var(--fm-warn);
+  font-size: 8.5px;
+  font-style: normal;
+}
+
+.leaderboard__record {
+  flex: none;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8.5px;
 }
 
 .leaderboard__empty {

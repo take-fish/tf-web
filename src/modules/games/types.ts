@@ -3,6 +3,12 @@ export interface LeaderboardEntry {
   userId: string
   nickname: string
   score: number
+  points?: number
+  matches?: number
+  wins?: number
+  losses?: number
+  championships?: number
+  bestScore?: number
 }
 
 export interface LeaderboardResponse {
@@ -13,4 +19,191 @@ export interface LeaderboardResponse {
 export interface ScoreResponse {
   bestScore: number
   rank: number
+}
+
+export type GameFormat = 'BO1' | 'BO3' | 'BO5'
+export type TournamentStatus = 'INVITING' | 'RUNNING' | 'FINISHED' | 'CANCELLED'
+export type BracketType = 'TBD' | 'KNOCKOUT' | 'LEAGUE' | 'LADDER'
+export type GameStage = 'KNOCKOUT' | 'LEAGUE' | 'LADDER'
+export type MatchStatus = 'PENDING' | 'READY' | 'RUNNING' | 'FINISHED' | 'BYE'
+export type RoundStatus = 'RUNNING' | 'REST' | 'FINISHED'
+export type GameChatChannel = 'PUBLIC' | 'PLAYER_DM'
+export type GameSocketStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
+
+export interface GamePlayer {
+  userId: string
+  nickname: string
+  seed: number
+  status: string
+}
+
+export interface GameMove {
+  moveNo: number
+  userId: string
+  x: number
+  y: number
+}
+
+export interface GameRound {
+  id: string
+  gameNo: number
+  status: RoundStatus
+  blackUserId: string
+  whiteUserId: string
+  turnUserId: string | null
+  winnerUserId: string | null
+  moveCount: number
+  lastMoveAt: number
+  restUntil: number | null
+  readyUserIds: string[]
+  startedAt: number
+  finishedAt: number | null
+  moves: GameMove[]
+}
+
+export interface GameMatch {
+  id: string
+  tournamentId: string
+  roundNo: number
+  slotNo: number
+  stage: GameStage
+  status: MatchStatus
+  player1UserId: string | null
+  player1Nickname: string | null
+  player2UserId: string | null
+  player2Nickname: string | null
+  player1Score: number
+  player2Score: number
+  winnerUserId: string | null
+  nextMatchId: string | null
+  createdAt: number
+  startedAt: number | null
+  finishedAt: number | null
+  currentRound: GameRound | null
+}
+
+export interface GameTournament {
+  id: string
+  name: string
+  gameId: string
+  format: GameFormat
+  bracketType: BracketType
+  status: TournamentStatus
+  creatorUserId: string
+  creatorNickname: string
+  targetPlayers: number
+  inviteDeadline: number
+  currentRound: number
+  totalRounds: number
+  championUserId: string | null
+  championNickname: string | null
+  createdAt: number
+  startedAt: number | null
+  finishedAt: number | null
+  players: GamePlayer[]
+  matches: GameMatch[]
+}
+
+export interface GameChatMessage {
+  id: string
+  tournamentId: string
+  matchId: string | null
+  channel: GameChatChannel
+  fromUserId: string
+  fromNickname: string
+  toUserId: string | null
+  content: string
+  createdAt: number
+}
+
+export interface GameNotification {
+  id: string
+  type: 'FINAL_START' | 'CHAMPION' | string
+  tournamentId: string
+  matchId: string | null
+  title: string
+  message: string
+  createdAt: number
+  expiresAt: number
+}
+
+export interface GameWsTicket {
+  ticket: string
+  expiresIn: number
+}
+
+export interface GameOnlineUser {
+  userId: string
+  nickname: string
+}
+
+export interface GameStoneEvent {
+  type: 'stone'
+  matchId: string
+  roundId: string
+  moveNo: number
+  userId: string
+  x: number
+  y: number
+  turnUserId: string
+  moveCount: number
+  winning: boolean
+}
+
+export interface GameMatchRestEvent {
+  type: 'match_rest'
+  matchId: string
+  restUntil: number
+  player1Score: number
+  player2Score: number
+}
+
+export interface GameMatchResultEvent {
+  type: 'match_result'
+  matchId: string
+  winnerUserId: string
+  reason: string
+  player1Score: number
+  player2Score: number
+}
+
+export interface GameReadyFrame {
+  type: 'game_ready'
+  user: { userId: string; nickname: string }
+  onlineUserIds?: string[]
+  tournaments?: GameTournament[]
+  invitations?: GameTournament[]
+  activeMatches?: GameMatch[]
+}
+
+export interface GameServerFrame {
+  type: string
+  user?: { userId: string; nickname: string }
+  onlineUserIds?: string[]
+  tournaments?: GameTournament[]
+  invitations?: GameTournament[]
+  activeMatches?: GameMatch[]
+  tournament?: GameTournament
+  tournamentId?: string
+  match?: GameMatch
+  matchId?: string
+  readyUserIds?: string[]
+  message?: GameChatMessage | string
+  notification?: GameNotification
+  code?: string
+  reason?: string
+  restUntil?: number
+  player1Score?: number
+  player2Score?: number
+  winnerUserId?: string
+  roundId?: string
+  moveNo?: number
+  userId?: string
+  x?: number
+  y?: number
+  turnUserId?: string
+  moveCount?: number
+  winning?: boolean
+  serverTime?: number
+  traceId?: string
 }

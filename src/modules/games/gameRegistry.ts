@@ -44,8 +44,8 @@ export const GAMES: readonly GameDefinition[] = [
     id: 'heatmap-gomoku',
     name: '热力五子棋',
     metricTitle: '日志热力图',
-    description: '双人对战异常日志热区，采集任务待接入',
-    playable: false,
+    description: '创建赛事、邀请在线选手、对战与观战',
+    playable: true,
     span: 5,
   },
 ]
