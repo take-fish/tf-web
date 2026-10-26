@@ -263,7 +263,7 @@ onBeforeUnmount(() => {
     aria-modal="true"
     :aria-label="isDuel ? '一对一约战对局' : '演练执行窗口'"
   >
-    <div class="match-window__panel">
+    <div class="match-window__panel" :class="{ 'is-duel': isDuel }">
       <header class="match-window__head">
         <div class="match-window__title">
           <span class="match-window__mark">{{ isDuel ? 'D' : 'T' }}</span>
@@ -608,12 +608,19 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   width: min(1220px, 100%);
+  /* 固定窗口高度：聊天消息在内部滚动，不再把窗口越撑越长 */
+  height: min(760px, 92vh);
   max-height: 94vh;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--fm-accent) 18%, var(--fm-border));
   border-radius: 4px;
   background: var(--fm-panel);
   box-shadow: var(--fm-shadow);
+}
+
+/* 约战没有聊天区，保持内容自适应高度 */
+.match-window__panel.is-duel {
+  height: auto;
 }
 
 .match-window__head {
@@ -749,6 +756,7 @@ onBeforeUnmount(() => {
 
 .match-window__body {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr) 340px;
   min-height: 0;
   overflow: hidden;
@@ -1055,6 +1063,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
   border-left: 1px solid var(--fm-border);
   background: color-mix(in srgb, var(--fm-bg) 32%, transparent);
 }
@@ -1095,10 +1104,10 @@ onBeforeUnmount(() => {
 
 .match-window__messages {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
   flex-direction: column;
   gap: 8px;
-  min-height: 220px;
+  min-height: 0;
   padding: 10px 12px;
   overflow-y: auto;
 }
