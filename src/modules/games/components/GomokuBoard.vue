@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 
 import type { GameMove } from '../types'
 
 const SIZE = 15
+/** 留出双击判定窗口，避免双击放大时先落下第一颗子。 */
+const PLACE_DELAY_MS = 240
 
 /**
  * 深色代码编辑器风格的棋盘：底纹是一段稀疏的代码片段，
@@ -136,6 +138,8 @@ const props = withDefaults(
     turnUserId?: string | null
     interactive?: boolean
     disabled?: boolean
+    /** 放大窗口内使用：棋盘填满容器，格子随窗口尺寸伸缩。 */
+    fluid?: boolean
   }>(),
   {
     blackUserId: '',
@@ -144,10 +148,11 @@ const props = withDefaults(
     turnUserId: null,
     interactive: false,
     disabled: false,
+    fluid: false,
   },
 )
 
-const emit = defineEmits<{ place: [x: number, y: number] }>()
+const emit = defineEmits<{ place: [x: number, y: number]; expand: [] }>()
 
 type StoneColor = 'blue' | 'cyan'
 
@@ -193,14 +198,46 @@ function canPlace(x: number, y: number): boolean {
   return !stoneMap.value.has(`${x},${y}`)
 }
 
-function place(x: number, y: number) {
-  if (!canPlace(x, y)) return
-  emit('place', x, y)
+let placeTimer: ReturnType<typeof setTimeout> | undefined
+
+function cancelPendingPlace() {
+  if (!placeTimer) return
+  clearTimeout(placeTimer)
+  placeTimer = undefined
 }
+
+function schedulePlace(x: number, y: number) {
+  cancelPendingPlace()
+  placeTimer = setTimeout(() => {
+    placeTimer = undefined
+    emit('place', x, y)
+  }, PLACE_DELAY_MS)
+}
+
+function handleCellClick(event: MouseEvent, x: number, y: number) {
+  // 第二下点击留给 dblclick，不在放大前误落一子。
+  if (event.detail >= 2) {
+    cancelPendingPlace()
+    return
+  }
+  if (!canPlace(x, y)) return
+  schedulePlace(x, y)
+}
+
+function requestExpand() {
+  cancelPendingPlace()
+  emit('expand')
+}
+
+onBeforeUnmount(cancelPendingPlace)
 </script>
 
 <template>
-  <div class="gomoku" :class="[`is-self-${selfColor}`, { 'is-disabled': disabled }]">
+  <div
+    class="gomoku"
+    :class="[`is-self-${selfColor}`, { 'is-disabled': disabled, 'is-fluid': fluid }]"
+    @dblclick="requestExpand"
+  >
     <div class="gomoku__frame" role="grid" aria-label="15×15 代码矩阵面板">
       <div class="gomoku__header" aria-hidden="true">
         <span class="gomoku__gutter">#</span>
@@ -236,9 +273,11 @@ function place(x: number, y: number) {
               'can-place': canPlace(cell.x, row.y),
               'is-blank': !cell.token && !stoneAt(cell.key),
             }"
-            :disabled="!canPlace(cell.x, row.y)"
+            :aria-disabled="!canPlace(cell.x, row.y)"
+            :tabindex="canPlace(cell.x, row.y) ? 0 : -1"
             :aria-label="`第 ${row.y + 1} 行第 ${cell.x + 1} 列`"
-            @click="place(cell.x, row.y)"
+            @click="handleCellClick($event, cell.x, row.y)"
+            @dblclick.stop="requestExpand"
           >
             <span
               v-if="displayText(cell.token, cell.x, row.y)"
@@ -282,6 +321,43 @@ function place(x: number, y: number) {
 
 .gomoku.is-self-cyan {
   --code-self: var(--code-cyan);
+}
+
+/* 放大窗口：棋盘填满可调整尺寸的容器，字号随容器宽高伸缩。 */
+.gomoku.is-fluid {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  container-type: size;
+}
+
+.gomoku.is-fluid .gomoku__frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.gomoku.is-fluid .gomoku__header {
+  flex: none;
+  height: clamp(22px, 3.4cqh, 36px);
+  font-size: clamp(9px, 1.15cqw, 17px);
+}
+
+.gomoku.is-fluid .gomoku__row {
+  flex: 1;
+  min-height: 0;
+}
+
+.gomoku.is-fluid .gomoku__lineno {
+  font-size: clamp(9px, 1.15cqw, 17px);
+}
+
+.gomoku.is-fluid .gomoku__token {
+  padding: clamp(1px, 0.2cqw, 3px) clamp(3px, 0.5cqw, 9px);
+  font-size: clamp(9px, 1.5cqw, 22px);
 }
 
 .gomoku__header {

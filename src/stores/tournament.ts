@@ -56,6 +56,8 @@ export const useTournamentStore = defineStore('tournament', () => {
   const selfUserId = ref('')
   const selfNickname = ref('')
   const onlineUserIds = ref<string[]>([])
+  /** 比赛通道在线快照，昵称来自用户中台，优先于聊天在线列表。 */
+  const gameOnlineMembers = ref<GameOnlineUser[]>([])
   const onlineMembers = ref<GameOnlineUser[]>([])
   const tournaments = ref<GameTournament[]>([])
   const invitations = ref<GameTournament[]>([])
@@ -128,8 +130,11 @@ export const useTournamentStore = defineStore('tournament', () => {
   })
   const lobbyOnline = computed<GameOnlineUser[]>(() => {
     const merged = new Map<string, GameOnlineUser>()
-    for (const member of onlineMembers.value) {
+    for (const member of gameOnlineMembers.value) {
       merged.set(member.userId, member)
+    }
+    for (const member of onlineMembers.value) {
+      if (!merged.has(member.userId)) merged.set(member.userId, member)
     }
     for (const userId of onlineUserIds.value) {
       if (!merged.has(userId)) merged.set(userId, { userId, nickname: userId })
@@ -238,6 +243,7 @@ export const useTournamentStore = defineStore('tournament', () => {
   function applyLobbyFrame(frame: {
     user: { userId: string; nickname: string }
     onlineUserIds?: string[]
+    onlineMembers?: GameOnlineUser[]
     tournaments?: GameTournament[]
     invitations?: GameTournament[]
     duels?: GameTournament[]
@@ -246,6 +252,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     selfUserId.value = frame.user.userId
     selfNickname.value = frame.user.nickname
     onlineUserIds.value = frame.onlineUserIds ?? []
+    gameOnlineMembers.value = frame.onlineMembers ?? []
     tournaments.value = frame.tournaments ?? []
     invitations.value = frame.invitations ?? []
     duels.value = frame.duels ?? []
