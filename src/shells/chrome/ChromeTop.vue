@@ -3,7 +3,9 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { moduleByPath } from '@/modules/registry'
+import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
 import { useTournamentStore } from '@/stores/tournament'
@@ -13,12 +15,14 @@ const emit = defineEmits<{ settings: []; skins: []; tournament: [] }>()
 const route = useRoute()
 const skinStore = useSkinStore()
 const identity = useIdentityStore()
+const auth = useAuthStore()
 const tournament = useTournamentStore()
 
 const skin = computed(() => skinStore.effectiveSkin)
 const module = computed(() => moduleByPath(route.path))
 const identityLabel = computed(() => identity.state.nickname)
 const hostLabel = computed(() => identity.nodeName)
+const selfUserId = computed(() => (auth.user ? `u${auth.user.id}` : identity.state.userId))
 
 const IDE_MENUS = ['文件', '编辑', '选择', '查看', '转到', '运行', '终端', '帮助']
 const TERMINAL_MENUS = ['文件', '会话', '查看', '工具', '窗口', '帮助']
@@ -111,7 +115,12 @@ const TERMINAL_MENUS = ['文件', '会话', '查看', '工具', '窗口', '帮�
           <button class="chrome-icon-btn" title="切换仪表盘" @click="emit('skins')">
             <AppIcon name="shield" :size="14" />
           </button>
-          <span class="chrome-avatar">{{ identityLabel.slice(0, 1).toUpperCase() }}</span>
+          <UserAvatar
+            class="chrome-avatar"
+            :name="identityLabel"
+            :src="auth.user?.avatarUrl"
+            :user-id="selfUserId"
+          />
         </div>
       </div>
     </template>
@@ -159,7 +168,12 @@ const TERMINAL_MENUS = ['文件', '会话', '查看', '工具', '窗口', '帮�
           <button class="chrome-icon-btn" title="切换流水线" @click="emit('skins')">
             <AppIcon name="shield" :size="14" />
           </button>
-          <span class="chrome-avatar chrome-avatar--light">{{ identityLabel.slice(0, 1) }}</span>
+          <UserAvatar
+            class="chrome-avatar chrome-avatar--light"
+            :name="identityLabel"
+            :src="auth.user?.avatarUrl"
+            :user-id="selfUserId"
+          />
         </div>
       </div>
     </template>
@@ -188,7 +202,12 @@ const TERMINAL_MENUS = ['文件', '会话', '查看', '工具', '窗口', '帮�
           <button class="chrome-icon-btn" title="切换检索视图" @click="emit('skins')">
             <AppIcon name="shield" :size="14" />
           </button>
-          <span class="chrome-avatar">{{ identityLabel.slice(0, 1).toUpperCase() }}</span>
+          <UserAvatar
+            class="chrome-avatar"
+            :name="identityLabel"
+            :src="auth.user?.avatarUrl"
+            :user-id="selfUserId"
+          />
         </div>
       </div>
     </template>

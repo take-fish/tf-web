@@ -16,6 +16,8 @@ const api = vi.hoisted(() => ({
   register: vi.fn<(credentials: Credentials) => Promise<RegisterResponse>>(),
   fetchMe: vi.fn<() => Promise<AuthUser>>(),
   logout: vi.fn<() => Promise<void>>(),
+  uploadAvatar: vi.fn<(file: File) => Promise<AuthUser>>(),
+  removeAvatar: vi.fn<() => Promise<AuthUser>>(),
 }))
 
 vi.mock('@/modules/auth/authApi', () => api)
@@ -155,6 +157,30 @@ describe('auth store', () => {
     expect(api.fetchMe).toHaveBeenCalledTimes(1)
     expect(store.user?.nickname).toBe('新昵称')
     expect(readAuth()?.user.nickname).toBe('新昵称')
+  })
+
+  it('上传头像后刷新用户缓存并持久化版本地址', async () => {
+    const next: AuthUser = { ...USER, avatarUrl: '/api/v1/user/avatars/7?v=1' }
+    api.uploadAvatar.mockResolvedValue(next)
+    const store = seedSession()
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
+
+    await store.uploadAvatar(file)
+
+    expect(api.uploadAvatar).toHaveBeenCalledWith(file)
+    expect(store.user?.avatarUrl).toBe(next.avatarUrl)
+    expect(readAuth()?.user.avatarUrl).toBe(next.avatarUrl)
+  })
+
+  it('移除头像后回到无头像状态', async () => {
+    api.removeAvatar.mockResolvedValue({ ...USER, avatarUrl: null })
+    const store = seedSession()
+
+    await store.removeAvatar()
+
+    expect(api.removeAvatar).toHaveBeenCalledTimes(1)
+    expect(store.user?.avatarUrl).toBeNull()
+    expect(readAuth()?.user.avatarUrl).toBeNull()
   })
 
   it('收到全局会话失效事件时清空内存登录态', async () => {
