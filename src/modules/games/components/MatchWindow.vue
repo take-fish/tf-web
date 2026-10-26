@@ -29,6 +29,8 @@ const resigning = ref(false)
 let clockTimer: ReturnType<typeof setInterval> | undefined
 
 const match = computed(() => store.currentMatch)
+/** 一对一约战：只用棋盘与比分，不提供聊天与观战。 */
+const isDuel = computed(() => match.value?.kind === 'DUEL')
 const matchLoading = computed(() => store.matchLoading)
 const matchError = computed(() => store.matchError)
 const chatLoading = computed(() => store.chatLoading)
@@ -238,14 +240,22 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="match-window" role="dialog" aria-modal="true" aria-label="演练执行窗口">
+  <div
+    class="match-window"
+    role="dialog"
+    aria-modal="true"
+    :aria-label="isDuel ? '一对一约战对局' : '演练执行窗口'"
+  >
     <div class="match-window__panel">
       <header class="match-window__head">
         <div class="match-window__title">
-          <span class="match-window__mark">T</span>
+          <span class="match-window__mark">{{ isDuel ? 'D' : 'T' }}</span>
           <div>
             <div class="match-window__eyebrow">
-              {{ tournament?.name || '联调演练' }} / DRILL SESSION
+              <template v-if="isDuel">
+                {{ tournament?.name || '一对一约战' }} / DUEL SESSION
+              </template>
+              <template v-else>{{ tournament?.name || '联调演练' }} / DRILL SESSION</template>
             </div>
             <h2>
               {{ match ? `${gameLabel} · ${stateLabel}` : '正在连接执行通道…' }}
@@ -258,9 +268,23 @@ onBeforeUnmount(() => {
         <div class="match-window__head-actions">
           <span class="match-window__mode">
             <span class="match-window__dot" :class="{ 'is-live': store.status === 'online' }" />
-            {{ participant ? (myColor ? `你是${myColor}` : '参与方') : '只读查看' }}
+            {{
+              isDuel
+                ? '约战参与方'
+                : participant
+                  ? myColor
+                    ? `你是${myColor}`
+                    : '参与方'
+                  : '只读查看'
+            }}
           </span>
-          <button class="match-window__close" title="关闭执行窗口" @click="emit('close')">×</button>
+          <button
+            class="match-window__close"
+            :title="isDuel ? '关闭约战窗口' : '关闭执行窗口'"
+            @click="emit('close')"
+          >
+            ×
+          </button>
         </div>
       </header>
 
@@ -272,7 +296,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <div v-else-if="match" class="match-window__body">
+      <div v-else-if="match" class="match-window__body" :class="{ 'is-duel': isDuel }">
         <section class="match-window__game">
           <div class="match-window__scoreboard">
             <div
@@ -378,11 +402,25 @@ onBeforeUnmount(() => {
               {{ match.player1Score }} : {{ match.player2Score }}
             </span>
             <span class="match-window__result-note">
-              {{ chatClosed ? '聊天记录仅供回看' : '演练仍在进行，可继续留在公开频道' }}
+              {{
+                isDuel
+                  ? '战报仅双方可见'
+                  : chatClosed
+                    ? '聊天记录仅供回看'
+                    : '演练仍在进行，可继续留在公开频道'
+              }}
             </span>
           </div>
 
-          <div v-if="!participant && match.status !== 'FINISHED'" class="match-window__spectator">
+          <div v-if="isDuel" class="match-window__duel-note">
+            <AppIcon name="user" :size="12" />
+            一对一约战 · 不计积分 · 无聊天与观战 · 战报仅双方可见
+          </div>
+
+          <div
+            v-else-if="!participant && match.status !== 'FINISHED'"
+            class="match-window__spectator"
+          >
             <AppIcon name="user" :size="12" />
             只读查看 · 公开频道可参与讨论
           </div>
@@ -414,7 +452,7 @@ onBeforeUnmount(() => {
           </p>
         </section>
 
-        <aside class="match-window__chat">
+        <aside v-if="!isDuel" class="match-window__chat">
           <header class="match-window__chat-head">
             <div class="match-window__tabs">
               <button
@@ -638,6 +676,10 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr) 340px;
   min-height: 0;
   overflow: hidden;
+}
+
+.match-window__body.is-duel {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .match-window__game {
@@ -875,6 +917,17 @@ onBeforeUnmount(() => {
   border: 1px dashed color-mix(in srgb, var(--fm-accent) 32%, transparent);
   border-radius: 3px;
   color: var(--fm-accent);
+  font-size: 9px;
+}
+
+.match-window__duel-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px dashed color-mix(in srgb, var(--fm-warn) 34%, transparent);
+  border-radius: 3px;
+  color: var(--fm-warn);
   font-size: 9px;
 }
 

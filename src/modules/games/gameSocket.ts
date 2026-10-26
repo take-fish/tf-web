@@ -21,6 +21,9 @@ export interface GameSocketHandlers {
   onInvitation?: (tournament: GameTournament) => void
   onTournamentCancelled?: (tournamentId: string) => void
   onTournamentDeleted?: (tournamentId: string) => void
+  onDuel?: (duel: GameTournament) => void
+  onDuelInvitation?: (duel: GameTournament) => void
+  onDuelStarted?: (duel: GameTournament, match?: GameMatch) => void
   onMatch?: (match: GameMatch) => void
   onMatchReady?: (matchId: string, readyUserIds: string[]) => void
   onStone?: (event: GameStoneEvent) => void
@@ -187,6 +190,15 @@ export class GameSocketClient {
         break
       case 'tournament_deleted':
         if (frame.tournamentId) this.handlers.onTournamentDeleted?.(frame.tournamentId)
+        break
+      case 'duel_update':
+        if (frame.duel) this.handlers.onDuel?.(frame.duel)
+        break
+      case 'duel_invitation':
+        if (frame.duel) this.handlers.onDuelInvitation?.(frame.duel)
+        break
+      case 'duel_started':
+        if (frame.duel) this.handlers.onDuelStarted?.(frame.duel, frame.match)
         break
       case 'match_update':
         if (frame.match) this.handlers.onMatch?.(frame.match)

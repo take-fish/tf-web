@@ -48,7 +48,10 @@ const roster = computed<GameOnlineUser[]>(() => [selfPlayer.value, ...selectedPl
 const selectedTournament = computed<GameTournament | undefined>(() =>
   store.tournaments.find((tournament) => tournament.id === selectedTournamentId.value),
 )
-const myActiveMatches = computed(() => store.activeMatches)
+/** 约战不进入演练列表，进行中的对局只在“一对一”面板展示。 */
+const myActiveMatches = computed(() =>
+  store.activeMatches.filter((match) => match.kind !== 'DUEL'),
+)
 const connectionLabel = computed(() => {
   if (store.status === 'online') return '调度通道已连接'
   if (store.status === 'connecting') return '正在连接调度通道'
@@ -265,6 +268,18 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="lobby__head-actions">
+          <button
+            type="button"
+            class="lobby__button lobby__button--duel"
+            title="一对一约战"
+            @click="store.openDuelPanel()"
+          >
+            <AppIcon name="user" :size="12" />
+            一对一
+            <em v-if="store.duelInviteUnread > 0" class="lobby__badge">
+              {{ store.duelInviteUnread }}
+            </em>
+          </button>
           <span class="lobby__connection" :class="`is-${store.status}`">
             <span class="lobby__dot" />
             {{ connectionLabel }}
@@ -831,6 +846,29 @@ onBeforeUnmount(() => {
 .lobby__button--primary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--fm-accent) 18%, transparent);
   color: var(--fm-accent);
+}
+
+.lobby__button--duel {
+  height: 27px;
+  border-color: color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
+  color: var(--fm-accent);
+}
+
+.lobby__button--duel:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fm-accent) 12%, transparent);
+  color: var(--fm-accent);
+}
+
+.lobby__badge {
+  min-width: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--fm-err);
+  color: #fff;
+  font-size: 7.5px;
+  font-style: normal;
+  line-height: 13px;
+  text-align: center;
 }
 
 .lobby__button--danger {

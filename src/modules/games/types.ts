@@ -22,6 +22,8 @@ export interface ScoreResponse {
 }
 
 export type GameFormat = 'BO1' | 'BO3' | 'BO5'
+/** TOURNAMENT：多人演练；DUEL：一对一约战，不进入大厅、不计分、无聊天与观战。 */
+export type GameKind = 'TOURNAMENT' | 'DUEL'
 export type TournamentStatus = 'INVITING' | 'RUNNING' | 'FINISHED' | 'CANCELLED'
 export type BracketType = 'TBD' | 'KNOCKOUT' | 'LEAGUE' | 'LADDER'
 export type GameStage = 'KNOCKOUT' | 'LEAGUE' | 'LADDER'
@@ -64,6 +66,7 @@ export interface GameRound {
 export interface GameMatch {
   id: string
   tournamentId: string
+  kind: GameKind
   roundNo: number
   slotNo: number
   stage: GameStage
@@ -86,6 +89,7 @@ export interface GameTournament {
   id: string
   name: string
   gameId: string
+  kind: GameKind
   format: GameFormat
   bracketType: BracketType
   status: TournamentStatus
@@ -173,6 +177,7 @@ export interface GameReadyFrame {
   onlineUserIds?: string[]
   tournaments?: GameTournament[]
   invitations?: GameTournament[]
+  duels?: GameTournament[]
   activeMatches?: GameMatch[]
 }
 
@@ -182,7 +187,9 @@ export interface GameServerFrame {
   onlineUserIds?: string[]
   tournaments?: GameTournament[]
   invitations?: GameTournament[]
+  duels?: GameTournament[]
   activeMatches?: GameMatch[]
+  duel?: GameTournament
   tournament?: GameTournament
   tournamentId?: string
   match?: GameMatch

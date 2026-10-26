@@ -30,6 +30,7 @@ function match(
   return {
     id,
     tournamentId: 't1',
+    kind: 'TOURNAMENT',
     roundNo,
     slotNo: 1,
     stage,
@@ -63,6 +64,7 @@ function tournament(
     id: 't1',
     name: '测试赛事',
     gameId: 'heatmap-gomoku',
+    kind: 'TOURNAMENT',
     format: 'BO3',
     bracketType: 'KNOCKOUT',
     status: 'RUNNING',
