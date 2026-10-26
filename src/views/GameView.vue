@@ -193,7 +193,8 @@ function closeMatch() {
   tournamentStore.leaveWatch()
   const query = { ...route.query }
   delete query.watch
-  void router.replace({ path: route.path, query })
+  // 关闭执行窗口后固定回到演练调度台，避免停留在打开窗口前的来源页面
+  void router.replace({ path: '/games', query })
 }
 
 function selectTournament(id: string) {
