@@ -227,6 +227,24 @@ describe('约战状态', () => {
     expect(store.pendingDuelInvitations).toHaveLength(0)
     store.stop()
   })
+
+  it('打开新对局时丢弃上一场残留的 WS 错误', async () => {
+    const store = await bootStore()
+    const current = duel({ matches: [duelMatch()] })
+    fire('onReady', {
+      user: { userId: 'u1', nickname: 'Alice' },
+      duels: [current],
+    })
+    fire('onError', '比赛不存在')
+    expect(store.lastError).toBe('比赛不存在')
+    api.fetchMatch.mockResolvedValue(duelMatch())
+
+    await store.watch('m1')
+
+    expect(store.lastError).toBe('')
+    expect(store.currentMatch?.id).toBe('m1')
+    store.stop()
+  })
 })
 
 describe('约战不提供聊天', () => {

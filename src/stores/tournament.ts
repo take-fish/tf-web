@@ -524,6 +524,8 @@ export const useTournamentStore = defineStore('tournament', () => {
     currentMatch.value = null
     currentTournament.value = null
     matchError.value = ''
+    // 丢弃上一场对局残留的 WS 错误，避免它显示在新对局底部。
+    lastError.value = ''
     matchLoading.value = true
     chatMessages.value = []
     chatError.value = ''
