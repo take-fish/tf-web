@@ -2,10 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
-import { formatApiError } from '@/lib/http'
 import { useTournamentStore } from '@/stores/tournament'
 import {
-  countdown,
   formatClock,
   formatDuration,
   formatLabel,
