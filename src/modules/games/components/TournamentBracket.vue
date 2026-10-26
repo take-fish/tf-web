@@ -473,12 +473,12 @@ function open(match: GameMatch) {
 }
 
 .bracket__match.is-live {
-  border-color: color-mix(in srgb, var(--fm-ok) 55%, transparent);
-  box-shadow: inset 2px 0 0 var(--fm-ok);
+  border-color: color-mix(in srgb, var(--fm-ok) 36%, var(--fm-border));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--fm-ok) 72%, transparent);
 }
 
 .bracket__match.is-ready {
-  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--fm-accent) 30%, var(--fm-border));
 }
 
 .bracket__match.is-bye {

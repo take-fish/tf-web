@@ -28,6 +28,7 @@ const creating = ref(false)
 const createError = ref('')
 const actingId = ref('')
 const selectedTournamentId = ref('')
+const menuOpenId = ref('')
 const now = ref(Date.now())
 
 let clockTimer: ReturnType<typeof setInterval> | undefined
@@ -170,9 +171,30 @@ async function respond(tournament: GameTournament, accept: boolean) {
   }
 }
 
+function canCancel(tournament: GameTournament): boolean {
+  return tournament.status === 'INVITING' && isCreator(tournament)
+}
+
+function toggleMenu(tournamentId: string) {
+  menuOpenId.value = menuOpenId.value === tournamentId ? '' : tournamentId
+}
+
+function closeMenu() {
+  menuOpenId.value = ''
+}
+
+function onDocumentClick() {
+  closeMenu()
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') closeMenu()
+}
+
 async function cancel(tournament: GameTournament) {
   if (actingId.value) return
-  if (!window.confirm(`确认取消赛事「${tournament.name}」？`)) return
+  menuOpenId.value = ''
+  if (!window.confirm(`确认取消赛事「${tournament.name}」？取消后邀请立即失效。`)) return
   actingId.value = tournament.id
   createError.value = ''
   try {
@@ -192,11 +214,15 @@ onMounted(() => {
   clockTimer = setInterval(() => {
     now.value = Date.now()
   }, 1000)
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('keydown', onKeydown)
   void store.refreshLobby()
 })
 
 onBeforeUnmount(() => {
   if (clockTimer) clearInterval(clockTimer)
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -419,9 +445,42 @@ onBeforeUnmount(() => {
               >
                 <div class="lobby__tournament-head">
                   <b>{{ tournament.name }}</b>
-                  <span :class="`is-${tournament.status.toLowerCase()}`">
-                    {{ tournamentStatusLabel(tournament.status) }}
-                  </span>
+                  <div class="lobby__tournament-head-actions">
+                    <span
+                      class="lobby__tournament-status"
+                      :class="`is-${tournament.status.toLowerCase()}`"
+                    >
+                      {{ tournamentStatusLabel(tournament.status) }}
+                    </span>
+                    <div v-if="canCancel(tournament)" class="lobby__tournament-menu">
+                      <button
+                        type="button"
+                        class="lobby__menu-trigger"
+                        title="赛事操作"
+                        aria-label="赛事操作"
+                        :aria-expanded="menuOpenId === tournament.id"
+                        @click.stop="toggleMenu(tournament.id)"
+                      >
+                        ⋯
+                      </button>
+                      <div
+                        v-if="menuOpenId === tournament.id"
+                        class="lobby__menu"
+                        role="menu"
+                        @click.stop
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="lobby__menu-danger"
+                          :disabled="Boolean(actingId)"
+                          @click.stop="cancel(tournament)"
+                        >
+                          取消赛事
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div class="lobby__tournament-meta">
                   <span>{{ formatLabel(tournament.format) }}</span>
@@ -446,15 +505,6 @@ onBeforeUnmount(() => {
                     </button>
                     <button type="button" class="lobby__button" @click.stop="selectTournament(tournament)">
                       对阵图
-                    </button>
-                    <button
-                      v-if="tournament.status === 'INVITING' && isCreator(tournament)"
-                      type="button"
-                      class="lobby__button lobby__button--danger"
-                      :disabled="Boolean(actingId)"
-                      @click.stop="cancel(tournament)"
-                    >
-                      取消
                     </button>
                   </div>
                 </div>
@@ -495,10 +545,10 @@ onBeforeUnmount(() => {
   width: min(1280px, 100%);
   max-height: 94vh;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 26%, var(--fm-border));
-  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 18%, var(--fm-border));
+  border-radius: 4px;
   background: var(--fm-panel);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--fm-shadow);
 }
 
 .lobby__head {
@@ -521,14 +571,15 @@ onBeforeUnmount(() => {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 28%, #ffc06b, #ff7a1a 65%, #b74300);
-  color: #23160a;
-  font-size: 15px;
-  font-weight: 800;
-  box-shadow: 0 0 18px rgba(255, 122, 26, 0.3);
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
+  border-radius: 3px;
+  background: var(--fm-panel-2);
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .lobby__eyebrow {
@@ -736,8 +787,8 @@ onBeforeUnmount(() => {
 }
 
 .lobby__button--primary {
-  border-color: color-mix(in srgb, var(--fm-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--fm-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
   color: var(--fm-accent);
 }
 
@@ -1055,24 +1106,94 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.lobby__tournament-head > span {
+.lobby__tournament-head-actions {
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.lobby__tournament-status {
   padding: 1px 5px;
   border: 1px solid var(--fm-border);
   border-radius: 8px;
   color: var(--fm-text-muted);
   font-family: var(--fm-mono);
   font-size: 7px;
+  white-space: nowrap;
 }
 
-.lobby__tournament-head > span.is-running {
-  border-color: color-mix(in srgb, var(--fm-ok) 40%, transparent);
-  color: var(--fm-ok);
+.lobby__tournament-status.is-running {
+  border-color: color-mix(in srgb, var(--fm-ok) 32%, transparent);
+  color: color-mix(in srgb, var(--fm-ok) 82%, var(--fm-text-muted));
 }
 
-.lobby__tournament-head > span.is-inviting {
-  border-color: color-mix(in srgb, var(--fm-warn) 40%, transparent);
-  color: var(--fm-warn);
+.lobby__tournament-status.is-inviting {
+  border-color: color-mix(in srgb, var(--fm-warn) 30%, transparent);
+  color: color-mix(in srgb, var(--fm-warn) 82%, var(--fm-text-muted));
+}
+
+.lobby__tournament-menu {
+  position: relative;
+}
+
+.lobby__menu-trigger {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lobby__menu-trigger:hover,
+.lobby__menu-trigger[aria-expanded='true'] {
+  border-color: var(--fm-border);
+  background: var(--fm-hover);
+  color: var(--fm-text);
+}
+
+.lobby__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 12;
+  min-width: 84px;
+  padding: 3px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: var(--fm-panel-2);
+  box-shadow: var(--fm-shadow);
+}
+
+.lobby__menu-danger {
+  display: block;
+  width: 100%;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: color-mix(in srgb, var(--fm-err) 84%, var(--fm-text));
+  font-family: var(--fm-mono);
+  font-size: 8.5px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lobby__menu-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fm-err) 12%, transparent);
+}
+
+.lobby__menu-danger:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .lobby__tournament-meta {
