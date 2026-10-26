@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { fetchGroups, fetchOnline } from '@/modules/chat/chatApi'
 import { ChatSocketClient } from '@/modules/chat/chatSocket'
@@ -217,10 +218,6 @@ function leaveSmoke(): void {
   guardSocket(() => socket.leaveSmoke(), '聊天连接尚未就绪，请稍后重试')
 }
 
-function initial(name: string, fallback: string): string {
-  return (name || fallback || '?').slice(0, 1).toUpperCase()
-}
-
 onMounted(() => {
   void loadDashboard()
   void socket.connect()
@@ -373,7 +370,11 @@ onUnmounted(() => {
           <p v-if="onlineMembers.length === 0" class="home-empty">当前没有在线用户</p>
           <ul v-else class="home-user-list">
             <li v-for="member in sortedOnline" :key="member.userId" class="home-user">
-              <span class="home-user__avatar">{{ initial(member.nickname, member.userId) }}</span>
+              <UserAvatar
+                class="home-user__avatar"
+                :name="member.nickname"
+                :user-id="member.userId"
+              />
               <span class="home-user__body">
                 <b>{{ member.nickname || member.userId }}</b>
                 <span>ID {{ member.userId }} · {{ member.node }}</span>
@@ -466,7 +467,11 @@ onUnmounted(() => {
                 :key="`${member.sessionId}-${member.userId}`"
                 class="home-user"
               >
-                <span class="home-user__avatar">{{ initial(member.nickname, member.userId) }}</span>
+                <UserAvatar
+                  class="home-user__avatar"
+                  :name="member.nickname"
+                  :user-id="member.userId"
+                />
                 <span class="home-user__body">
                   <b>{{ member.nickname || member.userId }}</b>
                   <span>ID {{ member.userId }}</span>
@@ -491,9 +496,11 @@ onUnmounted(() => {
                   :disabled="pendingInviteIds.has(member.userId)"
                   @click="invite(member.userId)"
                 >
-                  <span class="home-user__avatar">{{
-                    initial(member.nickname, member.userId)
-                  }}</span>
+                  <UserAvatar
+                    class="home-user__avatar"
+                    :name="member.nickname"
+                    :user-id="member.userId"
+                  />
                   <span class="home-user__body">
                     <b>{{ member.nickname || member.userId }}</b>
                     <span>ID {{ member.userId }} · {{ member.node }}</span>

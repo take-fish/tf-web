@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { useTournamentStore } from '@/stores/tournament'
 import {
@@ -241,7 +242,11 @@ onBeforeUnmount(() => {
                   :disabled="busyWith(member.userId) || creating"
                   @click="selectOpponent(member.userId)"
                 >
-                  <span class="duel__avatar">{{ member.nickname.slice(0, 1).toUpperCase() }}</span>
+                  <UserAvatar
+                    class="duel__avatar"
+                    :name="member.nickname"
+                    :user-id="member.userId"
+                  />
                   <span class="duel__member-main">
                     <b>{{ member.nickname }}</b>
                     <em>ID {{ member.userId }}</em>

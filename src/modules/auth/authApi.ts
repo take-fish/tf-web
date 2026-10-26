@@ -1,4 +1,4 @@
-import { getJson, postJson, request } from '@/lib/http'
+import { deleteJson, getJson, postForm, postJson, request } from '@/lib/http'
 import type { AppMeta, AuthUser, Credentials, LoginResponse, RegisterResponse } from './types'
 
 const BASE = '/api/v1/user/auth'
@@ -21,4 +21,14 @@ export function logout(): Promise<void> {
 
 export function fetchMeta(): Promise<AppMeta> {
   return getJson<AppMeta>('/api/v1/user/meta')
+}
+
+export function uploadAvatar(file: File): Promise<AuthUser> {
+  const body = new FormData()
+  body.append('file', file)
+  return postForm<AuthUser>(`${BASE}/avatar`, body)
+}
+
+export function removeAvatar(): Promise<AuthUser> {
+  return deleteJson<AuthUser>(`${BASE}/avatar`)
 }

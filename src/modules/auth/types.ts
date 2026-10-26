@@ -2,6 +2,8 @@ export interface AuthUser {
   id: number
   username: string
   nickname: string
+  /** 用户中台头像地址；未设置时为 null。 */
+  avatarUrl?: string | null
   role: 'USER' | 'ADMIN' | string
   /** 多角色与细粒度权限均由用户中台下发；role 仅作单角色兼容字段。 */
   roles?: string[]
