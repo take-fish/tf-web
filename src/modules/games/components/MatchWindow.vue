@@ -496,10 +496,10 @@ onBeforeUnmount(() => {
   width: min(1220px, 100%);
   max-height: 94vh;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 28%, var(--fm-border));
-  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 18%, var(--fm-border));
+  border-radius: 4px;
   background: var(--fm-panel);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--fm-shadow);
 }
 
 .match-window__head {
@@ -523,14 +523,15 @@ onBeforeUnmount(() => {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 28%, #ffc06b, #ff7a1a 65%, #b74300);
-  color: #23160a;
-  font-size: 14px;
-  font-weight: 800;
-  box-shadow: 0 0 18px rgba(255, 122, 26, 0.32);
+  width: 30px;
+  height: 30px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
+  border-radius: 3px;
+  background: var(--fm-panel-2);
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .match-window__eyebrow {
@@ -672,16 +673,16 @@ onBeforeUnmount(() => {
 }
 
 .match-window__player.is-turn {
-  border-color: color-mix(in srgb, var(--fm-accent) 62%, transparent);
-  background: color-mix(in srgb, var(--fm-accent) 7%, transparent);
+  border-color: color-mix(in srgb, var(--fm-accent) 34%, var(--fm-border));
+  background: color-mix(in srgb, var(--fm-accent) 5%, transparent);
 }
 
 .match-window__player.is-winner {
-  border-color: color-mix(in srgb, var(--fm-ok) 55%, transparent);
+  border-color: color-mix(in srgb, var(--fm-ok) 36%, var(--fm-border));
 }
 
 .match-window__player.is-self {
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--fm-accent) 55%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--fm-accent) 40%, transparent);
 }
 
 .match-window__chip {
@@ -931,8 +932,8 @@ onBeforeUnmount(() => {
 }
 
 .match-window__tabs button.is-active {
-  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
-  background: color-mix(in srgb, var(--fm-accent) 9%, transparent);
+  border-color: color-mix(in srgb, var(--fm-accent) 30%, var(--fm-border));
+  background: color-mix(in srgb, var(--fm-accent) 7%, transparent);
   color: var(--fm-accent);
 }
 

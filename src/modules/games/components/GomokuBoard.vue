@@ -117,16 +117,12 @@ function place(x: number, y: number) {
 
 <style scoped>
 .gomoku {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid rgba(255, 146, 60, 0.22);
-  border-radius: 6px;
-  background:
-    radial-gradient(circle at 50% 38%, rgba(255, 136, 51, 0.14), transparent 62%),
-    linear-gradient(145deg, #171b20, #101318);
-  box-shadow:
-    inset 0 0 42px rgba(0, 0, 0, 0.5),
-    0 12px 32px rgba(0, 0, 0, 0.28);
+  width: min(100%, 58vh, 640px);
+  margin: 0 auto;
+  padding: 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fm-bg) 42%, var(--fm-panel));
 }
 
 .gomoku__board {
@@ -134,8 +130,8 @@ function place(x: number, y: number) {
   grid-template-columns: repeat(15, minmax(0, 1fr));
   aspect-ratio: 1;
   overflow: hidden;
-  border: 1px solid rgba(255, 178, 108, 0.18);
-  background: rgba(7, 9, 12, 0.4);
+  border: 1px solid color-mix(in srgb, var(--fm-border) 82%, transparent);
+  background: color-mix(in srgb, var(--fm-bg) 58%, transparent);
 }
 
 .gomoku__cell {
@@ -154,7 +150,7 @@ function place(x: number, y: number) {
 .gomoku__cell::after {
   position: absolute;
   content: '';
-  background: rgba(240, 175, 108, 0.24);
+  background: color-mix(in srgb, var(--fm-text-muted) 32%, transparent);
   pointer-events: none;
 }
 
@@ -177,7 +173,7 @@ function place(x: number, y: number) {
 }
 
 .gomoku__cell.can-place:hover {
-  background: rgba(255, 147, 62, 0.08);
+  background: var(--fm-hover);
 }
 
 .gomoku__cell:focus-visible {
@@ -186,56 +182,55 @@ function place(x: number, y: number) {
 }
 
 .gomoku__star {
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  background: rgba(255, 187, 128, 0.55);
+  background: color-mix(in srgb, var(--fm-text-muted) 68%, transparent);
 }
 
 .gomoku__stone {
   position: relative;
   z-index: 2;
-  width: 84%;
-  height: 84%;
+  width: 80%;
+  height: 80%;
   border-radius: 50%;
   transition:
-    box-shadow 180ms ease,
+    outline-color 140ms ease,
     transform 120ms ease;
 }
 
 .gomoku__stone.is-black {
-  background: radial-gradient(circle at 34% 28%, #6b7280 0%, #262b33 36%, #0a0c0f 100%);
+  background: radial-gradient(circle at 34% 28%, #5f6670 0%, #272b31 38%, #101216 100%);
   box-shadow:
-    inset -2px -3px 6px rgba(0, 0, 0, 0.7),
-    inset 1px 2px 4px rgba(255, 255, 255, 0.16),
-    0 2px 4px rgba(0, 0, 0, 0.55);
+    inset -1px -2px 4px rgba(0, 0, 0, 0.55),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .gomoku__stone.is-white {
-  background: radial-gradient(circle at 34% 28%, #ffffff 0%, #e7edf5 46%, #9aa7b8 100%);
+  background: radial-gradient(circle at 34% 28%, #f4f6f8 0%, #dfe4ea 48%, #aab2bd 100%);
   box-shadow:
-    inset -2px -3px 6px rgba(88, 101, 119, 0.44),
-    inset 1px 2px 4px rgba(255, 255, 255, 0.9),
-    0 2px 4px rgba(0, 0, 0, 0.45);
+    inset -1px -2px 4px rgba(88, 101, 119, 0.3),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.8),
+    0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
+/* 用描边标记最近落子，不覆盖棋子本身的明暗，避免中央高亮过曝。 */
 .gomoku__stone.is-recent {
-  box-shadow:
-    0 0 0 2px rgba(255, 136, 51, 0.3),
-    0 0 14px rgba(255, 136, 51, 0.42);
+  outline: 1px solid color-mix(in srgb, var(--fm-accent) 42%, transparent);
+  outline-offset: 1px;
 }
 
 .gomoku__stone.is-last::after {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 28%;
-  height: 28%;
+  width: 22%;
+  height: 22%;
   border-radius: 50%;
-  background: #ff7a1a;
+  background: color-mix(in srgb, var(--fm-accent) 55%, var(--fm-bg));
   content: '';
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 8px rgba(255, 122, 26, 0.9);
 }
 
 .gomoku__stone.is-ghost {
@@ -245,10 +240,17 @@ function place(x: number, y: number) {
 }
 
 .gomoku__cell.can-place:hover .is-ghost {
-  opacity: 0.32;
+  opacity: 0.2;
 }
 
 .gomoku.is-disabled .gomoku__board {
-  opacity: 0.9;
+  opacity: 0.86;
+}
+
+@media (max-width: 620px) {
+  .gomoku {
+    width: 100%;
+    padding: 6px;
+  }
 }
 </style>
