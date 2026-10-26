@@ -4,12 +4,18 @@ import { defineStore } from 'pinia'
 import { formatApiError } from '@/lib/http'
 import { fetchOnline } from '@/modules/chat/chatApi'
 import {
+  acceptDuel,
   acceptTournament,
+  cancelDuel,
   cancelTournament,
+  createDuel,
   createTournament,
+  declineDuel,
   declineTournament,
   deleteTournament,
   fetchActiveMatches,
+  fetchDuel,
+  fetchDuels,
   fetchGameNotifications,
   fetchInvitations,
   fetchMatch,
@@ -53,6 +59,7 @@ export const useTournamentStore = defineStore('tournament', () => {
   const onlineMembers = ref<GameOnlineUser[]>([])
   const tournaments = ref<GameTournament[]>([])
   const invitations = ref<GameTournament[]>([])
+  const duels = ref<GameTournament[]>([])
   const activeMatches = ref<GameMatch[]>([])
   const currentMatchId = ref<string | null>(null)
   const currentMatch = ref<GameMatch | null>(null)
@@ -71,6 +78,10 @@ export const useTournamentStore = defineStore('tournament', () => {
   const lobbyLoading = ref(false)
   const lobbyError = ref('')
   const inviteUnread = ref(0)
+  const duelPanelOpen = ref(false)
+  const duelInviteUnread = ref(0)
+  const duelError = ref('')
+  const duelStartedMatchId = ref<string | null>(null)
   const lastError = ref('')
   const notificationCursor = ref(0)
 
@@ -86,6 +97,19 @@ export const useTournamentStore = defineStore('tournament', () => {
   )
   const connected = computed(() => status.value === 'online')
   const pendingInvitationCount = computed(() => invitations.value.length)
+  const pendingDuelInvitations = computed(() =>
+    duels.value.filter(
+      (duel) =>
+        duel.status === 'INVITING' &&
+        duel.players.some(
+          (player) => player.userId === ownUserId.value && player.status === 'INVITED',
+        ),
+    ),
+  )
+  const pendingDuelInvitationCount = computed(() => pendingDuelInvitations.value.length)
+  const activeDuels = computed(() =>
+    duels.value.filter((duel) => duel.status === 'INVITING' || duel.status === 'RUNNING'),
+  )
   const isCurrentParticipant = computed(() =>
     isParticipant(currentMatch.value, ownUserId.value),
   )
@@ -141,6 +165,12 @@ export const useTournamentStore = defineStore('tournament', () => {
         )
       },
       onTournamentDeleted: (tournamentId) => removeTournamentLocally(tournamentId),
+      onDuel: (duel) => upsertDuel(duel),
+      onDuelInvitation: (duel) => upsertDuel(duel),
+      onDuelStarted: (duel, match) => {
+        upsertDuel(duel)
+        if (match) duelStartedMatchId.value = match.id
+      },
       onMatch: applyMatch,
       onMatchReady: (matchId, readyUserIds) => {
         const match = currentMatch.value
@@ -210,6 +240,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     onlineUserIds?: string[]
     tournaments?: GameTournament[]
     invitations?: GameTournament[]
+    duels?: GameTournament[]
     activeMatches?: GameMatch[]
   }) {
     selfUserId.value = frame.user.userId
@@ -217,9 +248,16 @@ export const useTournamentStore = defineStore('tournament', () => {
     onlineUserIds.value = frame.onlineUserIds ?? []
     tournaments.value = frame.tournaments ?? []
     invitations.value = frame.invitations ?? []
+    duels.value = frame.duels ?? []
     activeMatches.value = frame.activeMatches ?? []
     if (!lobbyOpen.value) {
       inviteUnread.value = Math.max(inviteUnread.value, invitations.value.length)
+    }
+    if (!duelPanelOpen.value) {
+      duelInviteUnread.value = Math.max(
+        duelInviteUnread.value,
+        pendingDuelInvitationCount.value,
+      )
     }
     if (currentMatchId.value) socket?.watchMatch(currentMatchId.value)
   }
@@ -231,10 +269,12 @@ export const useTournamentStore = defineStore('tournament', () => {
     const results = await Promise.allSettled([
       fetchTournaments(),
       fetchInvitations(),
+      fetchDuels(),
       fetchActiveMatches(),
       fetchOnline(),
     ])
-    const [tournamentResult, invitationResult, matchResult, onlineResult] = results
+    const [tournamentResult, invitationResult, duelResult, matchResult, onlineResult] =
+      results
     if (tournamentResult?.status === 'fulfilled') {
       tournaments.value = tournamentResult.value
       if (currentTournament.value) {
@@ -248,6 +288,15 @@ export const useTournamentStore = defineStore('tournament', () => {
       invitations.value = invitationResult.value
       if (!lobbyOpen.value) {
         inviteUnread.value = Math.max(inviteUnread.value, invitations.value.length)
+      }
+    }
+    if (duelResult?.status === 'fulfilled') {
+      duels.value = duelResult.value
+      if (!duelPanelOpen.value) {
+        duelInviteUnread.value = Math.max(
+          duelInviteUnread.value,
+          pendingDuelInvitationCount.value,
+        )
       }
     }
     if (matchResult?.status === 'fulfilled') {
@@ -294,6 +343,32 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
   }
 
+  /** 约战只出现在一对一面板，不进入演练大厅。 */
+  function upsertDuel(duel: GameTournament) {
+    const index = duels.value.findIndex((entry) => entry.id === duel.id)
+    const isNew = index < 0
+    if (isNew) duels.value.unshift(duel)
+    else duels.value[index] = duel
+
+    if (currentTournament.value?.id === duel.id) {
+      currentTournament.value = duel
+    }
+
+    const invited = isDuelInvitation(duel)
+    if (invited && isNew && !duelPanelOpen.value) {
+      duelInviteUnread.value += 1
+    }
+  }
+
+  function isDuelInvitation(duel: GameTournament): boolean {
+    return (
+      duel.status === 'INVITING' &&
+      duel.players.some(
+        (player) => player.userId === ownUserId.value && player.status === 'INVITED',
+      )
+    )
+  }
+
   /** 删除或收到删除广播后，从大厅、邀请与观看态中移除。 */
   function removeTournamentLocally(tournamentId: string) {
     tournaments.value = tournaments.value.filter((entry) => entry.id !== tournamentId)
@@ -333,6 +408,12 @@ export const useTournamentStore = defineStore('tournament', () => {
       if (index >= 0) tournament.matches[index] = match
       else tournament.matches.push(match)
     }
+    const duel = duels.value.find((entry) => entry.id === match.tournamentId)
+    if (duel) {
+      const index = duel.matches.findIndex((entry) => entry.id === match.id)
+      if (index >= 0) duel.matches[index] = match
+      else duel.matches.push(match)
+    }
     const activeTournament = currentTournament.value
     if (activeTournament?.id === match.tournamentId) {
       const index = activeTournament.matches.findIndex((entry) => entry.id === match.id)
@@ -371,6 +452,13 @@ export const useTournamentStore = defineStore('tournament', () => {
   async function loadChat() {
     const match = currentMatch.value
     if (!match) return
+    // 一对一约战没有聊天，不请求聊天接口。
+    if (match.kind === 'DUEL') {
+      chatMessages.value = []
+      chatError.value = ''
+      chatLoading.value = false
+      return
+    }
     chatLoading.value = true
     chatError.value = ''
     try {
@@ -399,6 +487,10 @@ export const useTournamentStore = defineStore('tournament', () => {
     const match = currentMatch.value
     const text = content.trim()
     if (!match || !text || chatSending.value) return false
+    if (match.kind === 'DUEL') {
+      chatError.value = '约战不提供聊天'
+      return false
+    }
     chatSending.value = true
     chatError.value = ''
     try {
@@ -442,17 +534,28 @@ export const useTournamentStore = defineStore('tournament', () => {
       const match = await fetchMatch(matchId)
       currentMatch.value = match
       updateActiveMatch(match)
-      const known = tournaments.value.find(
-        (tournament) => tournament.id === match.tournamentId,
-      )
-      if (known) {
-        currentTournament.value = known
+      if (match.kind === 'DUEL') {
+        const known = duels.value.find((duel) => duel.id === match.tournamentId)
+        if (known) {
+          currentTournament.value = known
+        } else {
+          const fetched = await fetchDuel(match.tournamentId)
+          currentTournament.value = fetched
+          upsertDuel(fetched)
+        }
       } else {
-        const fetched = await fetchTournament(match.tournamentId)
-        currentTournament.value = fetched
-        upsertTournament(fetched)
+        const known = tournaments.value.find(
+          (tournament) => tournament.id === match.tournamentId,
+        )
+        if (known) {
+          currentTournament.value = known
+        } else {
+          const fetched = await fetchTournament(match.tournamentId)
+          currentTournament.value = fetched
+          upsertTournament(fetched)
+        }
+        await loadChat()
       }
-      await loadChat()
     } catch (error) {
       matchError.value = formatApiError(error, '执行记录加载失败')
     } finally {
@@ -581,6 +684,79 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
   }
 
+  async function createDuelFor(
+    opponent: GameOnlineUser,
+    format: GameFormat,
+  ): Promise<GameTournament> {
+    duelError.value = ''
+    try {
+      const duel = await createDuel({
+        opponentUserId: opponent.userId,
+        opponentNickname: opponent.nickname,
+        format,
+      })
+      upsertDuel(duel)
+      return duel
+    } catch (error) {
+      duelError.value = formatApiError(error, '约战发起失败')
+      throw error
+    }
+  }
+
+  async function acceptDuelInvitation(id: string): Promise<GameTournament> {
+    duelError.value = ''
+    try {
+      const duel = await acceptDuel(id)
+      upsertDuel(duel)
+      return duel
+    } catch (error) {
+      duelError.value = formatApiError(error, '接受约战失败')
+      throw error
+    }
+  }
+
+  async function declineDuelInvitation(id: string): Promise<GameTournament> {
+    duelError.value = ''
+    try {
+      const duel = await declineDuel(id)
+      upsertDuel(duel)
+      return duel
+    } catch (error) {
+      duelError.value = formatApiError(error, '拒绝约战失败')
+      throw error
+    }
+  }
+
+  async function cancelDuelById(id: string): Promise<GameTournament> {
+    duelError.value = ''
+    try {
+      const duel = await cancelDuel(id)
+      upsertDuel(duel)
+      return duel
+    } catch (error) {
+      duelError.value = formatApiError(error, '取消约战失败')
+      throw error
+    }
+  }
+
+  function openDuelPanel() {
+    duelPanelOpen.value = true
+    duelInviteUnread.value = 0
+    duelError.value = ''
+    void refreshLobby()
+  }
+
+  function closeDuelPanel() {
+    duelPanelOpen.value = false
+    duelError.value = ''
+  }
+
+  function consumeDuelStartedMatch(): string | null {
+    const id = duelStartedMatchId.value
+    duelStartedMatchId.value = null
+    return id
+  }
+
   function consumeNotification(notification: GameNotification) {
     if (!notification || seenNotifications.has(notification.id)) return
     seenNotifications.add(notification.id)
@@ -673,7 +849,15 @@ export const useTournamentStore = defineStore('tournament', () => {
     lobbyOnline,
     tournaments,
     invitations,
+    duels,
     pendingInvitationCount,
+    pendingDuelInvitations,
+    pendingDuelInvitationCount,
+    activeDuels,
+    duelPanelOpen,
+    duelInviteUnread,
+    duelError,
+    duelStartedMatchId,
     activeMatches,
     currentMatchId,
     currentMatch,
@@ -713,6 +897,13 @@ export const useTournamentStore = defineStore('tournament', () => {
     declineInvitation,
     cancel,
     remove,
+    createDuelFor,
+    acceptDuelInvitation,
+    declineDuelInvitation,
+    cancelDuelById,
+    openDuelPanel,
+    closeDuelPanel,
+    consumeDuelStartedMatch,
     openLobby,
     closeLobby,
     dismissFinal,

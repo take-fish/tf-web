@@ -62,6 +62,10 @@ const selectedTournament = computed(() =>
   ),
 )
 const matchVisible = computed(() => Boolean(tournamentStore.currentMatchId))
+/** 约战不进入演练入口，只在“一对一”面板中展示。 */
+const myDrillMatches = computed(() =>
+  tournamentStore.activeMatches.filter((match) => match.kind !== 'DUEL'),
+)
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
@@ -304,13 +308,13 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <section v-if="tournamentStore.activeMatches.length" class="games__my-match">
+    <section v-if="myDrillMatches.length" class="games__my-match">
       <span class="games__my-match-icon">T</span>
       <div>
         <b>你有正在进行的演练</b>
         <span>
           {{
-            tournamentStore.activeMatches
+            myDrillMatches
               .map(
                 (match) =>
                   `${match.player1Nickname || match.player1UserId} vs ${match.player2Nickname || match.player2UserId}`,
@@ -322,7 +326,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="games__refresh games__connect"
-        @click="openMatch(tournamentStore.activeMatches[0]!.id)"
+        @click="openMatch(myDrillMatches[0]!.id)"
       >
         进入演练
       </button>
