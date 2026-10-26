@@ -50,10 +50,10 @@ const selectedTournament = computed<GameTournament | undefined>(() =>
 )
 const myActiveMatches = computed(() => store.activeMatches)
 const connectionLabel = computed(() => {
-  if (store.status === 'online') return '比赛大厅已连接'
-  if (store.status === 'connecting') return '正在连接比赛大厅'
-  if (store.status === 'reconnecting') return '正在重连比赛大厅'
-  return '比赛大厅离线 · 可查看与创建，操作需恢复连接'
+  if (store.status === 'online') return '调度通道已连接'
+  if (store.status === 'connecting') return '正在连接调度通道'
+  if (store.status === 'reconnecting') return '正在重连调度通道'
+  return '调度通道离线 · 可查看与创建，操作需恢复连接'
 })
 const canCreate = computed(
   () =>
@@ -142,7 +142,7 @@ async function create() {
   createError.value = ''
   try {
     const created = await store.create({
-      name: name.value.trim() || '热力五子棋',
+      name: name.value.trim() || '联调演练',
       format: format.value,
       players: roster.value,
     })
@@ -150,7 +150,7 @@ async function create() {
     name.value = ''
     selectedTournamentId.value = created.id
   } catch (error) {
-    createError.value = formatApiError(error, '赛事创建失败')
+    createError.value = formatApiError(error, '演练创建失败')
   } finally {
     creating.value = false
   }
@@ -169,6 +169,10 @@ async function respond(tournament: GameTournament, accept: boolean) {
   } finally {
     actingId.value = ''
   }
+}
+
+function canManage(tournament: GameTournament): boolean {
+  return isCreator(tournament) && tournament.status !== 'RUNNING'
 }
 
 function canCancel(tournament: GameTournament): boolean {
@@ -194,13 +198,35 @@ function onKeydown(event: KeyboardEvent) {
 async function cancel(tournament: GameTournament) {
   if (actingId.value) return
   menuOpenId.value = ''
-  if (!window.confirm(`确认取消赛事「${tournament.name}」？取消后邀请立即失效。`)) return
+  if (!window.confirm(`确认取消演练「${tournament.name}」？取消后邀请立即失效。`)) return
   actingId.value = tournament.id
   createError.value = ''
   try {
     await store.cancel(tournament.id)
   } catch (error) {
-    createError.value = formatApiError(error, '取消赛事失败')
+    createError.value = formatApiError(error, '取消演练失败')
+  } finally {
+    actingId.value = ''
+  }
+}
+
+async function remove(tournament: GameTournament) {
+  if (actingId.value) return
+  menuOpenId.value = ''
+  if (
+    !window.confirm(
+      `确认删除演练「${tournament.name}」？删除后大厅与邀请中都不再显示，数据仅从列表隐藏。`,
+    )
+  ) {
+    return
+  }
+  actingId.value = tournament.id
+  createError.value = ''
+  try {
+    await store.remove(tournament.id)
+    selectedTournamentId.value = ''
+  } catch (error) {
+    createError.value = formatApiError(error, '删除演练失败')
   } finally {
     actingId.value = ''
   }
@@ -227,15 +253,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="lobby" role="dialog" aria-modal="true" aria-label="热力五子棋赛事大厅" @click.self="emit('close')">
+  <div class="lobby" role="dialog" aria-modal="true" aria-label="演练调度台" @click.self="emit('close')">
     <section class="lobby__panel">
       <header class="lobby__head">
         <div class="lobby__title">
-          <span class="lobby__mark">五</span>
+          <span class="lobby__mark">T</span>
           <div>
-            <div class="lobby__eyebrow">CONNECT / HEATMAP GOMOKU</div>
-            <h2>热力五子棋 · 赛事大厅</h2>
-            <p>创建比赛、邀请在线选手、观战与回看</p>
+            <div class="lobby__eyebrow">OPS / DRILL SCHEDULER</div>
+            <h2>演练调度台</h2>
+            <p>创建演练、邀请在线成员、查看执行记录与回放</p>
           </div>
         </div>
         <div class="lobby__head-actions">
@@ -243,10 +269,10 @@ onBeforeUnmount(() => {
             <span class="lobby__dot" />
             {{ connectionLabel }}
           </span>
-          <button class="lobby__icon-btn" title="刷新大厅" @click="store.refreshLobby()">
+          <button class="lobby__icon-btn" title="刷新调度台" @click="store.refreshLobby()">
             <AppIcon name="refresh" :size="13" />
           </button>
-          <button class="lobby__close" title="关闭赛事大厅" @click="emit('close')">×</button>
+          <button class="lobby__close" title="关闭调度台" @click="emit('close')">×</button>
         </div>
       </header>
 
@@ -295,8 +321,8 @@ onBeforeUnmount(() => {
 
           <section v-if="myActiveMatches.length" class="lobby__card lobby__card--active">
             <div class="lobby__card-head">
-              <span>我的进行中比赛</span>
-              <em>{{ myActiveMatches.length }} 场</em>
+              <span>进行中的演练</span>
+              <em>{{ myActiveMatches.length }} 项</em>
             </div>
             <button
               v-for="match in myActiveMatches"
@@ -310,31 +336,31 @@ onBeforeUnmount(() => {
                 {{ match.player2Nickname || match.player2UserId }}
               </span>
               <em>
-                {{ match.status === 'RUNNING' ? '进行中' : '待准备' }}
-                · 进入比赛
+                {{ match.status === 'RUNNING' ? '执行中' : '待准备' }}
+                · 查看执行
               </em>
             </button>
           </section>
 
           <section class="lobby__card">
             <div class="lobby__card-head">
-              <span>创建比赛</span>
+              <span>创建演练</span>
               <em>{{ roster.length }}/{{ MAX_PLAYERS }} 人</em>
             </div>
 
             <label class="lobby__field">
-              <span>赛事名称</span>
+              <span>演练名称</span>
               <input
                 v-model="name"
                 type="text"
                 maxlength="32"
-                placeholder="热力五子棋"
+                placeholder="联调演练"
                 :disabled="creating"
               />
             </label>
 
             <div class="lobby__field">
-              <span>赛制</span>
+              <span>轮次策略</span>
               <div class="lobby__formats">
                 <button
                   v-for="option in (['BO1', 'BO3', 'BO5'] as GameFormat[])"
@@ -348,10 +374,10 @@ onBeforeUnmount(() => {
                   <em>
                     {{
                       option === 'BO1'
-                        ? '一局定胜负'
+                        ? '单次执行'
                         : option === 'BO3'
-                          ? '三局两胜 · 局间休 60 秒'
-                          : '五局三胜 · 局间休 60 秒'
+                          ? '三轮两胜 · 间隔 60 秒'
+                          : '五轮三胜 · 间隔 60 秒'
                     }}
                   </em>
                 </button>
@@ -360,8 +386,8 @@ onBeforeUnmount(() => {
 
             <div class="lobby__field">
               <div class="lobby__field-head">
-                <span>在线选手</span>
-                <em>创建者已自动加入 · 点击选择对手</em>
+                <span>在线成员</span>
+                <em>创建者已自动加入 · 点击选择成员</em>
               </div>
               <div class="lobby__roster">
                 <div class="lobby__member is-self">
@@ -389,16 +415,16 @@ onBeforeUnmount(() => {
                   <AppIcon :name="isSelected(member.userId) ? 'check' : 'plus'" :size="12" />
                 </button>
                 <div v-if="candidates.length === 0" class="lobby__empty">
-                  当前没有其他在线用户。让对方登录并打开任意页面后，再刷新大厅。
+                  当前没有其他在线成员。让对方登录并打开任意页面后，再刷新调度台。
                 </div>
               </div>
             </div>
 
             <div class="lobby__rules">
-              <p><b>2/4/8/16 人</b>：随机单败淘汰，自动生成对阵图。</p>
-              <p><b>3-5 人</b>：单循环积分赛；<b>6 人以上非 2 的幂</b>：瑞士轮 3 轮。</p>
-              <p><b>积分前三</b>：三号挑战二号，胜者再挑战一号，决出冠军。</p>
-              <p><b>观战</b>：未参赛用户可从赛事列表进入；比赛内保留公开聊天与选手私聊。</p>
+              <p><b>2/4/8/16 人</b>：分组单败推进，自动生成执行链路。</p>
+              <p><b>3-5 人</b>：循环计分；<b>6 人以上非 2 的幂</b>：三轮调度。</p>
+              <p><b>前三名</b>：第三名先对第二名，胜者再对第一名，产生最终结果。</p>
+              <p><b>回放</b>：未参与的成员可从列表进入；执行内保留公开讨论与双方私聊。</p>
             </div>
 
             <p v-if="createError || store.lobbyError" class="lobby__error">
@@ -406,7 +432,7 @@ onBeforeUnmount(() => {
             </p>
 
             <div class="lobby__create-foot">
-              <span>至少选择 1 名在线选手，最多 {{ MAX_PLAYERS }} 人。</span>
+              <span>至少选择 1 名在线成员，最多 {{ MAX_PLAYERS }} 人。</span>
               <button
                 type="button"
                 class="lobby__button lobby__button--primary lobby__button--lg"
@@ -414,7 +440,7 @@ onBeforeUnmount(() => {
                 @click="create"
               >
                 <AppIcon name="plus" :size="12" />
-                {{ creating ? '正在创建…' : `创建比赛（${roster.length} 人）` }}
+                {{ creating ? '正在创建…' : `创建演练（${roster.length} 人）` }}
               </button>
             </div>
           </section>
@@ -423,14 +449,14 @@ onBeforeUnmount(() => {
         <div class="lobby__column lobby__column--wide">
           <section class="lobby__card lobby__card--list">
             <div class="lobby__card-head">
-              <span>赛事列表</span>
+              <span>演练列表</span>
               <em>{{ store.tournaments.length }} 个 · 最近创建在前</em>
             </div>
             <div v-if="store.lobbyLoading && store.tournaments.length === 0" class="lobby__empty">
-              正在载入赛事…
+              正在载入演练…
             </div>
             <div v-else-if="store.tournaments.length === 0" class="lobby__empty">
-              还没有赛事。选择在线选手，创建第一场热力五子棋比赛。
+              暂无演练记录。选择在线成员，创建第一条联调演练。
             </div>
             <div v-else class="lobby__tournaments">
               <article
@@ -452,12 +478,12 @@ onBeforeUnmount(() => {
                     >
                       {{ tournamentStatusLabel(tournament.status) }}
                     </span>
-                    <div v-if="canCancel(tournament)" class="lobby__tournament-menu">
+                    <div v-if="canManage(tournament)" class="lobby__tournament-menu">
                       <button
                         type="button"
                         class="lobby__menu-trigger"
-                        title="赛事操作"
-                        aria-label="赛事操作"
+                        title="演练操作"
+                        aria-label="演练操作"
                         :aria-expanded="menuOpenId === tournament.id"
                         @click.stop="toggleMenu(tournament.id)"
                       >
@@ -470,13 +496,23 @@ onBeforeUnmount(() => {
                         @click.stop
                       >
                         <button
+                          v-if="canCancel(tournament)"
                           type="button"
                           role="menuitem"
                           class="lobby__menu-danger"
                           :disabled="Boolean(actingId)"
                           @click.stop="cancel(tournament)"
                         >
-                          取消赛事
+                          取消演练
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="lobby__menu-danger"
+                          :disabled="Boolean(actingId)"
+                          @click.stop="remove(tournament)"
+                        >
+                          删除记录
                         </button>
                       </div>
                     </div>
@@ -489,9 +525,9 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="lobby__tournament-foot">
                   <span>
-                    创建者 {{ tournament.creatorNickname }}
+                    发起人 {{ tournament.creatorNickname }}
                     <template v-if="tournament.championNickname">
-                      · 冠军 <b>{{ tournament.championNickname }}</b>
+                      · 结果 <b>{{ tournament.championNickname }}</b>
                     </template>
                   </span>
                   <div class="lobby__tournament-actions">
@@ -501,10 +537,10 @@ onBeforeUnmount(() => {
                       class="lobby__button lobby__button--primary"
                       @click.stop="openTournament(tournament)"
                     >
-                      {{ tournament.status === 'FINISHED' ? '回看' : '观战' }}
+                      {{ tournament.status === 'FINISHED' ? '回放' : '查看' }}
                     </button>
                     <button type="button" class="lobby__button" @click.stop="selectTournament(tournament)">
-                      对阵图
+                      执行链路
                     </button>
                   </div>
                 </div>
@@ -519,7 +555,7 @@ onBeforeUnmount(() => {
             @watch="watchMatch"
           />
           <div v-else class="lobby__placeholder">
-            选择一场赛事查看对阵图
+            选择一条演练查看执行链路
           </div>
         </div>
       </div>

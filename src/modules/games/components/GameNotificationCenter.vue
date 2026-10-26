@@ -63,16 +63,16 @@ onBeforeUnmount(() => {
           role="status"
           aria-live="polite"
         >
-          <span class="game-notify__trophy">♛</span>
+          <span class="game-notify__trophy">T</span>
           <div class="game-notify__champion-main">
-            <span class="game-notify__eyebrow">HEATMAP GOMOKU · TOURNAMENT RESULT</span>
+            <span class="game-notify__eyebrow">SYSTEM NOTICE · DRILL RESULT</span>
             <b>{{ store.championNotification.title }}</b>
             <span>{{ store.championNotification.message }}</span>
           </div>
           <button
             type="button"
             class="game-notify__banner-close"
-            aria-label="关闭冠军通报"
+            aria-label="关闭结果通报"
             @click="dismissChampion"
           >
             ×
@@ -90,20 +90,20 @@ onBeforeUnmount(() => {
         >
           <div class="game-notify__final-panel">
             <div class="game-notify__final-glow" aria-hidden="true" />
-            <span class="game-notify__final-mark">五</span>
-            <span class="game-notify__eyebrow">FINAL MATCH · LIVE NOW</span>
+            <span class="game-notify__final-mark">T</span>
+            <span class="game-notify__eyebrow">FINAL ROUND · IN PROGRESS</span>
             <h2 id="game-final-title">{{ store.finalNotification.title }}</h2>
             <p>{{ store.finalNotification.message }}</p>
             <div class="game-notify__final-actions">
               <button type="button" class="game-notify__primary" @click="watchFinal">
-                进入观战
+                查看执行
               </button>
               <button type="button" class="game-notify__ghost" @click="dismissFinal">
                 稍后
               </button>
             </div>
             <span class="game-notify__final-hint">
-              所有在线用户都会收到这条通知 · 点击进入公开观战房间
+              所有在线用户都会收到这条通知 · 点击查看公开执行记录
             </span>
           </div>
         </div>

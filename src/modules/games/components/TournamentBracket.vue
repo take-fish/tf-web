@@ -29,10 +29,10 @@ const isLeague = computed(() =>
   props.tournament.matches.some((match) => match.stage === 'LEAGUE'),
 )
 const modeLabel = computed(() => {
-  if (props.tournament.bracketType === 'KNOCKOUT') return '随机单败淘汰'
-  if (props.tournament.bracketType === 'LADDER') return '积分排位 + 阶梯决赛'
-  if (props.tournament.bracketType === 'LEAGUE') return '积分排位赛'
-  return '等待开赛'
+  if (props.tournament.bracketType === 'KNOCKOUT') return '分组推进'
+  if (props.tournament.bracketType === 'LADDER') return '循环计分 + 收尾轮'
+  if (props.tournament.bracketType === 'LEAGUE') return '循环计分'
+  return '等待开始'
 })
 const acceptedPlayers = computed(() =>
   props.tournament.players.filter((player) => player.status === 'ACCEPTED'),
@@ -55,19 +55,19 @@ function isSelf(userId: string | null): boolean {
 }
 
 function stateText(match: GameMatch): string {
-  if (match.status === 'RUNNING' && match.currentRound?.status === 'REST') return '休息中'
+  if (match.status === 'RUNNING' && match.currentRound?.status === 'REST') return '间隔中'
   return matchStatusLabel(match.status)
 }
 
 function actionText(match: GameMatch): string {
   if (!canWatchMatch(match)) return ''
-  if (match.status === 'FINISHED') return '回看棋局'
+  if (match.status === 'FINISHED') return '回放'
   if (match.status === 'READY') {
     return isSelf(match.player1UserId) || isSelf(match.player2UserId)
       ? '进入准备'
-      : '进入观战'
+      : '查看执行'
   }
-  return '进入观战'
+  return '查看执行'
 }
 
 function open(match: GameMatch) {
@@ -95,14 +95,14 @@ function open(match: GameMatch) {
         </p>
       </div>
       <div v-if="tournament.championUserId" class="bracket__champion">
-        <span>冠军</span>
+        <span>结果</span>
         <b>{{ tournament.championNickname || tournament.championUserId }}</b>
       </div>
     </header>
 
     <div v-if="tournament.status === 'INVITING'" class="bracket__inviting">
       <span class="bracket__pulse" />
-      等待选手响应邀请 · 5 分钟未响应视为拒绝
+      等待成员响应邀请 · 5 分钟未响应视为拒绝
       <div class="bracket__players">
         <span
           v-for="player in tournament.players"
@@ -117,18 +117,18 @@ function open(match: GameMatch) {
     </div>
 
     <div v-else-if="groups.length === 0" class="bracket__empty">
-      暂无对阵信息
+      暂无执行信息
     </div>
 
     <div v-else class="bracket__content">
       <div v-if="isLeague && standings.length" class="bracket__standings">
         <div class="bracket__section-label">
-          积分赛排名
-          <em>前三名进入阶梯决赛</em>
+          循环计分排名
+          <em>前三名进入收尾轮</em>
         </div>
         <div class="bracket__standing-row is-head">
           <span>#</span>
-          <span>选手</span>
+          <span>成员</span>
           <span>胜场</span>
           <span>积分</span>
         </div>

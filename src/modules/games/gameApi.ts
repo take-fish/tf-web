@@ -1,4 +1,4 @@
-import { getJson, postJson, request } from '@/lib/http'
+import { deleteJson, getJson, postJson, request } from '@/lib/http'
 import type {
   GameChatChannel,
   GameChatMessage,
@@ -80,6 +80,13 @@ export function cancelTournament(id: string): Promise<GameTournament> {
   return request<GameTournament>(
     `/api/v1/game/tournaments/${encodeURIComponent(id)}/cancel`,
     { method: 'POST' },
+  )
+}
+
+/** 软删除：记录不再出现在大厅、邀请与详情中。 */
+export function deleteTournament(id: string): Promise<{ id: string; deleted: boolean }> {
+  return deleteJson<{ id: string; deleted: boolean }>(
+    `/api/v1/game/tournaments/${encodeURIComponent(id)}`,
   )
 }
 

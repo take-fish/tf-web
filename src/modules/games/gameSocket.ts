@@ -20,6 +20,7 @@ export interface GameSocketHandlers {
   onTournament?: (tournament: GameTournament) => void
   onInvitation?: (tournament: GameTournament) => void
   onTournamentCancelled?: (tournamentId: string) => void
+  onTournamentDeleted?: (tournamentId: string) => void
   onMatch?: (match: GameMatch) => void
   onMatchReady?: (matchId: string, readyUserIds: string[]) => void
   onStone?: (event: GameStoneEvent) => void
@@ -39,7 +40,7 @@ function socketUrl(ticket: string): string {
 }
 
 function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : '比赛通道建立失败'
+  return error instanceof Error ? error.message : '调度通道建立失败'
 }
 
 export class GameSocketClient {
@@ -184,6 +185,9 @@ export class GameSocketClient {
       case 'tournament_cancelled':
         if (frame.tournamentId) this.handlers.onTournamentCancelled?.(frame.tournamentId)
         break
+      case 'tournament_deleted':
+        if (frame.tournamentId) this.handlers.onTournamentDeleted?.(frame.tournamentId)
+        break
       case 'match_update':
         if (frame.match) this.handlers.onMatch?.(frame.match)
         break
@@ -252,7 +256,7 @@ export class GameSocketClient {
         break
       case 'error':
         this.handlers.onError?.(
-          typeof frame.message === 'string' && frame.message ? frame.message : '比赛通道异常',
+          typeof frame.message === 'string' && frame.message ? frame.message : '调度通道异常',
           frame.code,
         )
         break
