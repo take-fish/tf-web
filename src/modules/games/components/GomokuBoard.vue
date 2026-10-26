@@ -267,9 +267,9 @@ function place(x: number, y: number) {
   --code-token: color-mix(in srgb, var(--fm-text-muted) 62%, transparent);
   --code-line: color-mix(in srgb, var(--fm-border) 62%, transparent);
 
-  width: min(100%, 58vh, 640px);
+  width: min(100%, 68vh, 820px);
   margin: 0 auto;
-  padding: 6px 8px 8px;
+  padding: 8px 10px 10px;
   border: 1px solid var(--fm-border);
   border-radius: 3px;
   background: color-mix(in srgb, var(--fm-bg) 78%, #090c10);
@@ -286,11 +286,11 @@ function place(x: number, y: number) {
 
 .gomoku__header {
   display: grid;
-  grid-template-columns: 26px repeat(15, minmax(0, 1fr));
+  grid-template-columns: 30px repeat(15, minmax(0, 1fr));
   align-items: center;
-  height: 18px;
+  height: 22px;
   color: var(--fm-text-muted);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .gomoku__gutter {
@@ -312,8 +312,9 @@ function place(x: number, y: number) {
 
 .gomoku__row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: stretch;
+  min-height: 17px;
   border-radius: 2px;
   transition: background-color 140ms ease;
 }
@@ -327,9 +328,9 @@ function place(x: number, y: number) {
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
-  padding-right: 7px;
+  padding-right: 8px;
   color: var(--fm-text-muted);
-  font-size: 8px;
+  font-size: 9px;
   opacity: 0.55;
   transition: color 140ms ease, opacity 140ms ease;
 }
@@ -408,10 +409,10 @@ function place(x: number, y: number) {
 .gomoku__token {
   position: relative;
   z-index: 1;
-  padding: 1px 2px;
+  padding: 1px 3px;
   border-radius: 2px;
   color: var(--code-token);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.1px;
   line-height: 1;
   transition:
@@ -464,31 +465,32 @@ function place(x: number, y: number) {
 @media (max-width: 620px) {
   .gomoku {
     width: 100%;
-    padding: 4px 6px 6px;
+    padding: 5px 7px 7px;
   }
 
   .gomoku__header {
-    grid-template-columns: 22px repeat(15, minmax(0, 1fr));
-    height: 15px;
-    font-size: 7px;
+    grid-template-columns: 24px repeat(15, minmax(0, 1fr));
+    height: 18px;
+    font-size: 8px;
   }
 
   .gomoku__gutter,
   .gomoku__lineno {
-    padding-right: 5px;
+    padding-right: 6px;
   }
 
   .gomoku__row {
-    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-columns: 24px minmax(0, 1fr);
+    min-height: 15px;
   }
 
   .gomoku__lineno {
-    font-size: 7px;
+    font-size: 8px;
   }
 
   .gomoku__token {
     padding: 0 1px;
-    font-size: 7px;
+    font-size: 8px;
   }
 }
 </style>

@@ -561,14 +561,14 @@ onBeforeUnmount(() => {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   border: 1px solid color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
   border-radius: 3px;
   background: var(--fm-panel-2);
   color: var(--fm-accent);
   font-family: var(--fm-mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -576,7 +576,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: var(--fm-text-muted);
   font-family: var(--fm-mono);
-  font-size: 8px;
+  font-size: 7.5px;
   letter-spacing: 0.1em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -586,9 +586,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   color: var(--fm-text);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -685,9 +685,9 @@ onBeforeUnmount(() => {
 .match-window__game {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 14px 16px 16px;
+  padding: 10px 16px 14px;
   overflow-y: auto;
 }
 
@@ -701,9 +701,9 @@ onBeforeUnmount(() => {
 .match-window__player {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;
-  padding: 7px 9px;
+  padding: 5px 8px;
   border: 1px solid var(--fm-border);
   border-radius: 3px;
   background: color-mix(in srgb, var(--fm-bg) 45%, transparent);
@@ -731,13 +731,13 @@ onBeforeUnmount(() => {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 24px;
-  height: 24px;
+  width: 21px;
+  height: 21px;
   border: 1px solid var(--fm-border);
   border-radius: 50%;
   color: var(--fm-text-muted);
   font-family: var(--fm-mono);
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .match-window__chip.is-black {
@@ -763,7 +763,7 @@ onBeforeUnmount(() => {
 .match-window__player-main b {
   overflow: hidden;
   color: var(--fm-text);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -778,7 +778,7 @@ onBeforeUnmount(() => {
   flex: none;
   color: var(--fm-accent);
   font-family: var(--fm-mono);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -804,8 +804,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 30px;
-  padding: 5px 9px;
+  min-height: 27px;
+  padding: 4px 8px;
   border: 1px solid var(--fm-border);
   border-radius: 3px;
   background: color-mix(in srgb, var(--fm-bg) 30%, transparent);
@@ -814,7 +814,7 @@ onBeforeUnmount(() => {
 .match-window__hint {
   flex: 1;
   color: var(--fm-text-dim);
-  font-size: 9.5px;
+  font-size: 9px;
 }
 
 .match-window__hint b {
@@ -924,11 +924,11 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 8px;
+  padding: 4px 8px;
   border: 1px dashed color-mix(in srgb, var(--fm-warn) 34%, transparent);
   border-radius: 3px;
   color: var(--fm-warn);
-  font-size: 9px;
+  font-size: 8.5px;
 }
 
 .match-window__footer {
