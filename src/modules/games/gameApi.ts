@@ -90,6 +90,46 @@ export function deleteTournament(id: string): Promise<{ id: string; deleted: boo
   )
 }
 
+export async function fetchDuels(limit = 20): Promise<GameTournament[]> {
+  const data = await getJson<{ duels: GameTournament[] }>(
+    `/api/v1/game/duels?limit=${limit}`,
+  )
+  return data.duels ?? []
+}
+
+export function fetchDuel(id: string): Promise<GameTournament> {
+  return getJson<GameTournament>(`/api/v1/game/duels/${encodeURIComponent(id)}`)
+}
+
+export function createDuel(payload: {
+  opponentUserId: string
+  opponentNickname: string
+  format: GameFormat
+}): Promise<GameTournament> {
+  return postJson<GameTournament>('/api/v1/game/duels', payload)
+}
+
+export function acceptDuel(id: string): Promise<GameTournament> {
+  return request<GameTournament>(
+    `/api/v1/game/duels/${encodeURIComponent(id)}/accept`,
+    { method: 'POST' },
+  )
+}
+
+export function declineDuel(id: string): Promise<GameTournament> {
+  return request<GameTournament>(
+    `/api/v1/game/duels/${encodeURIComponent(id)}/decline`,
+    { method: 'POST' },
+  )
+}
+
+export function cancelDuel(id: string): Promise<GameTournament> {
+  return request<GameTournament>(
+    `/api/v1/game/duels/${encodeURIComponent(id)}/cancel`,
+    { method: 'POST' },
+  )
+}
+
 export async function fetchActiveMatches(): Promise<GameMatch[]> {
   const data = await getJson<{ matches: GameMatch[] }>('/api/v1/game/matches/active')
   return data.matches ?? []

@@ -4,6 +4,7 @@ import { RouterView, useRoute } from 'vue-router'
 
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import SkinSwitcher from '@/components/SkinSwitcher.vue'
+import DuelPanel from '@/modules/games/components/DuelPanel.vue'
 import GameNotificationCenter from '@/modules/games/components/GameNotificationCenter.vue'
 import TournamentLobby from '@/modules/games/components/TournamentLobby.vue'
 import { moduleByPath } from '@/modules/registry'
@@ -163,6 +164,7 @@ function openSkins() {
     <SkinSwitcher v-if="skinsOpen" @close="skinsOpen = false" />
     <SettingsPanel v-if="settingsOpen" @close="settingsOpen = false" />
     <TournamentLobby v-if="tournament.lobbyOpen" @close="tournament.closeLobby()" />
+    <DuelPanel v-if="tournament.duelPanelOpen" @close="tournament.closeDuelPanel()" />
     <GameNotificationCenter />
   </div>
 </template>
