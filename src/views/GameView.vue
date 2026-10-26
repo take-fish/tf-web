@@ -161,7 +161,7 @@ async function onGameFinish(score: number) {
     })
     bestScore.value = result.bestScore
     myRank.value = result.rank
-    showNotice(`演练记录已提交：${score} 分 · 综合第 ${result.rank} 名`)
+    showNotice(`采样记录已提交：${score} · 综合排名 ${result.rank}`)
     await loadLeaderboard()
   } catch (error) {
     showNotice(formatApiError(error, '排行服务暂不可用'))
@@ -259,14 +259,14 @@ onBeforeUnmount(() => {
       <div class="games__toolbar">
         <span class="games__pill games__pill--live">
           <span class="games__live-dot" :class="{ 'is-online': tournamentStore.connected }" />
-          {{ tournamentStore.connected ? '比赛大厅在线' : '比赛大厅离线' }}
+          {{ tournamentStore.connected ? '调度通道在线' : '调度通道离线' }}
         </span>
         <span class="games__pill">集群: fishmatrix-prod</span>
         <span class="games__pill">实例: dev-node-01</span>
         <span class="games__updated">刷新 {{ updatedLabel }}</span>
         <button class="games__connect" @click="openLobby">
           <AppIcon name="plus" :size="12" />
-          连接
+          调度台
           <em v-if="tournamentStore.pendingInvitationCount > 0">
             {{ tournamentStore.pendingInvitationCount }}
           </em>
@@ -293,7 +293,7 @@ onBeforeUnmount(() => {
             (showBreakout && game.id === 'qps-breakout') ||
             (tournamentStore.lobbyOpen && game.id === 'heatmap-gomoku')
           "
-          :action-label="game.id === 'heatmap-gomoku' ? '进入比赛' : '启动演练'"
+          :action-label="game.id === 'heatmap-gomoku' ? '进入演练' : '启动采样'"
           @launch="launchGame(game.id)"
         >
           <MetricChart
@@ -305,9 +305,9 @@ onBeforeUnmount(() => {
     </div>
 
     <section v-if="tournamentStore.activeMatches.length" class="games__my-match">
-      <span class="games__my-match-icon">五</span>
+      <span class="games__my-match-icon">T</span>
       <div>
-        <b>你有正在进行的比赛</b>
+        <b>你有正在进行的演练</b>
         <span>
           {{
             tournamentStore.activeMatches
@@ -324,44 +324,44 @@ onBeforeUnmount(() => {
         class="games__refresh games__connect"
         @click="openMatch(tournamentStore.activeMatches[0]!.id)"
       >
-        进入比赛
+        进入演练
       </button>
     </section>
 
     <section class="games__tourneys">
       <header class="games__tourneys-head">
         <div class="games__tourneys-title">
-          <span class="games__tourneys-mark">五</span>
+          <span class="games__tourneys-mark">T</span>
           <div>
-            <b>热力五子棋赛事</b>
-            <span>创建比赛 · 邀请在线选手 · 淘汰赛/积分赛 · 观战与回放</span>
+            <b>联调演练调度</b>
+            <span>创建演练 · 邀请在线成员 · 轮次策略 · 查看与回放</span>
           </div>
         </div>
         <div class="games__tourneys-actions">
           <span class="games__tourneys-count">
-            {{ tournamentStore.tournaments.length }} 个赛事
+            {{ tournamentStore.tournaments.length }} 个演练
             <template v-if="tournamentStore.pendingInvitationCount > 0">
               · {{ tournamentStore.pendingInvitationCount }} 个邀请待处理
             </template>
           </span>
           <button type="button" class="games__refresh" @click="tournamentStore.refreshLobby()">
             <AppIcon name="refresh" :size="12" />
-            刷新赛事
+            刷新演练
           </button>
           <button type="button" class="games__connect" @click="openLobby">
             <AppIcon name="plus" :size="12" />
-            连接
+            调度台
           </button>
         </div>
       </header>
 
       <div v-if="tournamentStore.lobbyLoading && tournamentStore.tournaments.length === 0" class="games__tourneys-empty">
-        正在载入赛事…
+        正在载入演练…
       </div>
       <div v-else-if="tournamentStore.tournaments.length === 0" class="games__tourneys-empty">
-        <p>还没有五子棋赛事。点击“连接”选择在线选手，创建 BO1 / BO3 / BO5 比赛。</p>
-        <p>2/4/8/16 人自动生成淘汰赛；其他人数先积分排位，再进行阶梯决赛。</p>
-        <button type="button" class="games__connect" @click="openLobby">创建第一场比赛</button>
+        <p>还没有联调演练。点击“调度台”选择在线成员，按 BO1 / BO3 / BO5 轮次策略创建。</p>
+        <p>2/4/8/16 人自动生成分组推进；其他人数先循环计分，再进行收尾轮。</p>
+        <button type="button" class="games__connect" @click="openLobby">创建第一场演练</button>
       </div>
       <template v-else>
         <div class="games__tournament-tabs">

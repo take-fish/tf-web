@@ -75,7 +75,7 @@ function place(x: number, y: number) {
 
 <template>
   <div class="gomoku" :class="{ 'is-disabled': disabled }">
-    <div class="gomoku__board" role="grid" aria-label="15×15 五子棋棋盘">
+    <div class="gomoku__board" role="grid" aria-label="15×15 矩阵面板">
       <button
         v-for="cell in cells"
         :key="cell.key"
