@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
 import { ApiError, formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/chat'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
 import { ASCII_ARTS, findAsciiArt } from '@/modules/chat/asciiArt'
@@ -55,6 +57,8 @@ interface TerminalApi {
 }
 
 const auth = useAuthStore()
+const chatStore = useChatStore()
+const { selectedGroupId: currentGroupId } = storeToRefs(chatStore)
 const router = useRouter()
 const identity = useIdentityStore()
 const skinStore = useSkinStore()
@@ -64,7 +68,6 @@ const members = ref<OnlineMember[]>([])
 const online = ref<OnlineMember[]>([])
 const unread = ref<UnreadSummary>({ groups: {}, dms: {}, total: 0 })
 const status = ref<ChatStatus>('connecting')
-const currentGroupId = ref('dev-group')
 const dmPeer = ref<OnlineMember | null>(null)
 const sideOpen = ref(skinStore.effectiveSkin !== 'terminal')
 const readyUser = ref<ChatUser | null>(null)
@@ -511,8 +514,7 @@ async function bootstrap() {
     lines.push('[WARN] 会话索引同步失败，请检查网关连接。')
   }
   await refreshUnread()
-  const preferred = groups.value.find((group) => group.id === 'dev-group') ?? groups.value[0]
-  if (preferred) currentGroupId.value = preferred.id
+  chatStore.restoreGroup(groups.value.map((group) => group.id))
   socket?.join(currentGroupId.value)
   lines.push(`[INFO] session index loaded: ${groups.value.length} groups`)
   lines.push(`[INFO] joined /opt/chat/group/${currentGroupId.value}`)
@@ -539,7 +541,7 @@ async function switchGroup(groupId: string, term: TerminalApi) {
     term.writeLines([`[INFO] already in /opt/chat/group/${groupId}`], 'dim')
     return
   }
-  currentGroupId.value = groupId
+  chatStore.setGroup(groupId)
   currentSeq.value = 0
   clearGallery()
   socket?.join(groupId)
