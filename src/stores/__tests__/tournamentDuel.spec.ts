@@ -245,6 +245,35 @@ describe('约战状态', () => {
     expect(store.currentMatch?.id).toBe('m1')
     store.stop()
   })
+
+  it('在线成员优先展示比赛通道下发的用户中台名号', async () => {
+    const store = await bootStore()
+    fire('onReady', {
+      user: { userId: 'u1', nickname: 'Alice' },
+      onlineUserIds: ['u1', 'u2'],
+      onlineMembers: [
+        { userId: 'u1', nickname: 'Alice' },
+        { userId: 'u2', nickname: '良一情' },
+      ],
+    })
+    api.fetchOnline.mockResolvedValue([
+      {
+        groupId: null,
+        userId: 'u2',
+        nickname: 'u2',
+        node: 'test',
+        joinedAt: 0,
+      },
+    ])
+
+    await store.refreshLobby()
+
+    expect(store.lobbyOnline).toEqual([
+      { userId: 'u1', nickname: 'Alice' },
+      { userId: 'u2', nickname: '良一情' },
+    ])
+    store.stop()
+  })
 })
 
 describe('约战不提供聊天', () => {

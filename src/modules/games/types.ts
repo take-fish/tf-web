@@ -175,6 +175,7 @@ export interface GameReadyFrame {
   type: 'game_ready'
   user: { userId: string; nickname: string }
   onlineUserIds?: string[]
+  onlineMembers?: GameOnlineUser[]
   tournaments?: GameTournament[]
   invitations?: GameTournament[]
   duels?: GameTournament[]
@@ -185,6 +186,7 @@ export interface GameServerFrame {
   type: string
   user?: { userId: string; nickname: string }
   onlineUserIds?: string[]
+  onlineMembers?: GameOnlineUser[]
   tournaments?: GameTournament[]
   invitations?: GameTournament[]
   duels?: GameTournament[]
