@@ -462,13 +462,15 @@ onBeforeUnmount(() => {
 .games__logo {
   display: inline-grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: linear-gradient(160deg, #ff9830, #f46800);
-  color: #23160a;
-  font-size: 16px;
-  font-weight: 800;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 36%, var(--fm-border));
+  border-radius: 3px;
+  background: var(--fm-panel-2);
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .games__eyebrow {
@@ -581,24 +583,24 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 26%, var(--fm-border));
   border-radius: 3px;
-  background:
-    linear-gradient(100deg, color-mix(in srgb, var(--fm-accent) 10%, transparent), transparent 65%),
-    var(--fm-panel);
+  background: var(--fm-panel);
 }
 
 .games__my-match-icon {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 28%, #ffd08a, #ff7a1a 62%, #a93c00);
-  color: #23160a;
-  font-size: 12px;
-  font-weight: 800;
+  width: 24px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 36%, var(--fm-border));
+  border-radius: 3px;
+  background: var(--fm-panel-2);
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .games__my-match > div {
@@ -649,13 +651,15 @@ onBeforeUnmount(() => {
 .games__tourneys-mark {
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  background: linear-gradient(160deg, #ff9830, #f46800);
-  color: #23160a;
-  font-size: 12px;
-  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 32%, var(--fm-border));
+  border-radius: 3px;
+  background: var(--fm-panel-2);
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .games__tourneys-title > div {
