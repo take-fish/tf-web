@@ -699,13 +699,15 @@ onBeforeUnmount(() => {
 }
 
 .match-window__chip.is-black {
-  background: #111418;
-  color: #d9dee7;
+  border-color: color-mix(in srgb, #6f9fec 45%, var(--fm-border));
+  background: color-mix(in srgb, #6f9fec 12%, transparent);
+  color: #9dbcf2;
 }
 
 .match-window__chip.is-white {
-  background: #edf1f6;
-  color: #222831;
+  border-color: color-mix(in srgb, #48bfae 45%, var(--fm-border));
+  background: color-mix(in srgb, #48bfae 12%, transparent);
+  color: #7ad5c8;
 }
 
 .match-window__player-main {

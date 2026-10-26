@@ -410,7 +410,7 @@ onBeforeUnmount(() => {
                   <span class="lobby__avatar">{{ member.nickname.slice(0, 1).toUpperCase() }}</span>
                   <span class="lobby__member-main">
                     <b>{{ member.nickname }}</b>
-                    <em>{{ member.userId }}</em>
+                    <em>@{{ member.userId }}</em>
                   </span>
                   <AppIcon :name="isSelected(member.userId) ? 'check' : 'plus'" :size="12" />
                 </button>
