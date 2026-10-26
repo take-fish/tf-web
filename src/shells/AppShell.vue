@@ -4,11 +4,14 @@ import { RouterView, useRoute } from 'vue-router'
 
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import SkinSwitcher from '@/components/SkinSwitcher.vue'
+import GameNotificationCenter from '@/modules/games/components/GameNotificationCenter.vue'
+import TournamentLobby from '@/modules/games/components/TournamentLobby.vue'
 import { moduleByPath } from '@/modules/registry'
 import { documentTitle } from '@/skins/state'
 import { useIdentityStore } from '@/stores/identity'
 import { useSettingsStore } from '@/stores/settings'
 import { useSkinStore } from '@/stores/skin'
+import { useTournamentStore } from '@/stores/tournament'
 import BossScreen from '@/shells/BossScreen.vue'
 import ChromeSide from '@/shells/chrome/ChromeSide.vue'
 import ChromeStatus from '@/shells/chrome/ChromeStatus.vue'
@@ -19,6 +22,7 @@ const route = useRoute()
 const skinStore = useSkinStore()
 const settings = useSettingsStore()
 const identity = useIdentityStore()
+const tournament = useTournamentStore()
 
 const settingsOpen = ref(false)
 const skinsOpen = ref(false)
@@ -109,10 +113,12 @@ onMounted(() => {
   window.addEventListener('keydown', onKeydown, true)
   document.documentElement.addEventListener('pointerleave', onDocumentPointerLeave)
   document.documentElement.addEventListener('pointerenter', onDocumentPointerEnter)
+  tournament.start()
 })
 
 onBeforeUnmount(() => {
   clearLeaveTimer()
+  tournament.stop()
   window.removeEventListener('keydown', onKeydown, true)
   document.documentElement.removeEventListener('pointerleave', onDocumentPointerLeave)
   document.documentElement.removeEventListener('pointerenter', onDocumentPointerEnter)
@@ -136,7 +142,11 @@ function openSkins() {
       :inert="skinStore.bossActive"
       :aria-hidden="skinStore.bossActive ? 'true' : undefined"
     >
-      <ChromeTop @settings="openSettings" @skins="openSkins" />
+      <ChromeTop
+        @settings="openSettings"
+        @skins="openSkins"
+        @tournament="tournament.openLobby()"
+      />
       <div class="fm-workarea">
         <ChromeSide />
         <section class="fm-main">
@@ -152,5 +162,7 @@ function openSkins() {
     <BossScreen v-if="skinStore.bossActive" />
     <SkinSwitcher v-if="skinsOpen" @close="skinsOpen = false" />
     <SettingsPanel v-if="settingsOpen" @close="settingsOpen = false" />
+    <TournamentLobby v-if="tournament.lobbyOpen" @close="tournament.closeLobby()" />
+    <GameNotificationCenter />
   </div>
 </template>

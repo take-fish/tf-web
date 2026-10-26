@@ -6,12 +6,14 @@ import AppIcon from '@/components/AppIcon.vue'
 import { moduleByPath } from '@/modules/registry'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
+import { useTournamentStore } from '@/stores/tournament'
 
-const emit = defineEmits<{ settings: []; skins: [] }>()
+const emit = defineEmits<{ settings: []; skins: []; tournament: [] }>()
 
 const route = useRoute()
 const skinStore = useSkinStore()
 const identity = useIdentityStore()
+const tournament = useTournamentStore()
 
 const skin = computed(() => skinStore.effectiveSkin)
 const module = computed(() => moduleByPath(route.path))
@@ -80,7 +82,19 @@ const TERMINAL_MENUS = ['文件', '会话', '查看', '工具', '窗口', '帮�
           <span class="is-active">仪表盘</span>
           <span>探索</span>
           <span>告警</span>
-          <span>连接</span>
+          <button
+            type="button"
+            class="grafana-nav__action"
+            :class="{ 'has-invite': tournament.pendingInvitationCount > 0 }"
+            title="连接：进入热力五子棋赛事大厅"
+            @click="emit('tournament')"
+          >
+            <span class="grafana-nav__dot" :class="{ 'is-online': tournament.connected }" />
+            连接
+            <em v-if="tournament.pendingInvitationCount > 0">
+              {{ tournament.pendingInvitationCount > 9 ? '9+' : tournament.pendingInvitationCount }}
+            </em>
+          </button>
           <span>管理</span>
         </nav>
         <div class="grafana-crumbs">
