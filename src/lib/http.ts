@@ -75,7 +75,7 @@ function isAuthEntry(path: string): boolean {
   return path.startsWith('/api/v1/user/auth/login') || path.startsWith('/api/v1/user/auth/register')
 }
 
-async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+function buildHeaders(init: RequestInit): Headers {
   const headers = new Headers(init.headers)
   const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData
   if (init.body !== undefined && !isForm && !headers.has('Content-Type')) {
@@ -85,6 +85,11 @@ async function authFetch(path: string, init: RequestInit = {}): Promise<Response
     const token = getAuthToken()
     if (token) headers.set('Authorization', `Bearer ${token}`)
   }
+  return headers
+}
+
+async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = buildHeaders(init)
 
   const response = await fetch(path, { ...init, headers })
   if (!response.ok) {
@@ -103,6 +108,24 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   const response = await authFetch(path, init)
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/**
+ * 页面正在销毁时使用的请求。`keepalive` 让浏览器在页面卸载后继续把请求发完，
+ * 这是"关标签页丢数据"的正解。
+ *
+ * 不用 `navigator.sendBeacon`：beacon 无法携带 `Authorization` 头，网关会直接返回 401，
+ * 而本项目身份走 Bearer token 而不是 Cookie。
+ *
+ * 限制：keepalive 请求体上限约 64KB，只用于进度上报这类小体量数据。
+ */
+export function keepaliveRequest(path: string, init: RequestInit = {}): boolean {
+  try {
+    void fetch(path, { ...init, headers: buildHeaders(init), keepalive: true })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
