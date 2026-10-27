@@ -1,4 +1,12 @@
-import { deleteJson, getJson, keepaliveRequest, postForm, postJson, putJson, request } from '@/lib/http'
+import {
+  deleteJson,
+  getJson,
+  keepaliveRequest,
+  postForm,
+  postJson,
+  putJson,
+  request,
+} from '@/lib/http'
 import type {
   AccessRequest,
   Annotation,
@@ -15,6 +23,7 @@ import type {
   Shelf,
   ShelfDetail,
   ShareLink,
+  UserStats,
 } from './types'
 
 function query(params: Record<string, string | number | null | undefined>): string {
@@ -27,13 +36,15 @@ function query(params: Record<string, string | number | null | undefined>): stri
   return text ? `?${text}` : ''
 }
 
-export async function fetchBooks(params: {
-  scope?: LibraryScope
-  categoryId?: number | null
-  q?: string
-  page?: number
-  size?: number
-} = {}): Promise<BookPage> {
+export async function fetchBooks(
+  params: {
+    scope?: LibraryScope
+    categoryId?: number | null
+    q?: string
+    page?: number
+    size?: number
+  } = {},
+): Promise<BookPage> {
   const scope = params.scope === 'private' ? 'private' : 'public'
   const data = await getJson<BookPage>(
     `/api/v1/reader/books${query({
@@ -133,9 +144,7 @@ export function saveProgressKeepalive(
 }
 
 export async function fetchBookmarks(bookId: number): Promise<Bookmark[]> {
-  const data = await getJson<{ bookmarks: Bookmark[] }>(
-    `/api/v1/reader/books/${bookId}/bookmarks`,
-  )
+  const data = await getJson<{ bookmarks: Bookmark[] }>(`/api/v1/reader/books/${bookId}/bookmarks`)
   return data.bookmarks ?? []
 }
 
@@ -226,15 +235,11 @@ export function requestAccess(
 }
 
 export async function fetchMyAccessRequests(): Promise<AccessRequest[]> {
-  const data = await getJson<{ requests: AccessRequest[] }>(
-    '/api/v1/reader/access-requests/mine',
-  )
+  const data = await getJson<{ requests: AccessRequest[] }>('/api/v1/reader/access-requests/mine')
   return data.requests ?? []
 }
 
-export async function fetchReceivedAccessRequests(
-  status?: string,
-): Promise<AccessRequest[]> {
+export async function fetchReceivedAccessRequests(status?: string): Promise<AccessRequest[]> {
   const data = await getJson<{ requests: AccessRequest[] }>(
     `/api/v1/reader/access-requests/received${query({ status })}`,
   )
@@ -245,10 +250,7 @@ export function approveAccessRequest(requestId: number): Promise<AccessRequest> 
   return postJson<AccessRequest>(`/api/v1/reader/access-requests/${requestId}/approve`, {})
 }
 
-export function rejectAccessRequest(
-  requestId: number,
-  message = '',
-): Promise<AccessRequest> {
+export function rejectAccessRequest(requestId: number, message = ''): Promise<AccessRequest> {
   return postJson<AccessRequest>(`/api/v1/reader/access-requests/${requestId}/reject`, {
     message,
   })
@@ -260,4 +262,17 @@ export function revokeAccessRequest(requestId: number): Promise<AccessRequest> {
 
 export function cancelAccessRequest(requestId: number): Promise<AccessRequest> {
   return postJson<AccessRequest>(`/api/v1/reader/access-requests/${requestId}/cancel`, {})
+}
+
+/** 当前用户的经验值、等级与阅读统计。 */
+export function fetchMyStats(): Promise<UserStats> {
+  return getJson<UserStats>('/api/v1/reader/me/stats')
+}
+
+/**
+ * 阅读心跳。服务端用两次心跳的时间差算真实阅读时长，所以这里只上报"正在读哪本书"，
+ * 不上报读了多久。由阅读器在页面可见时每分钟调用一次。
+ */
+export function sendReadingHeartbeat(bookId: number): Promise<UserStats> {
+  return postJson<UserStats>('/api/v1/reader/me/reading-heartbeat', { bookId })
 }
