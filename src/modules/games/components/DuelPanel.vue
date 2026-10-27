@@ -6,6 +6,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { useTournamentStore } from '@/stores/tournament'
+import { ARENA_SCRIPTS, scriptShortLabel } from '../lib/arenaScripts'
 import {
   countdown,
   formatClock,
@@ -13,7 +14,13 @@ import {
   matchStatusLabel,
   playerName,
 } from '../lib/gameFormat'
-import type { GameFormat, GameMatch, GamePlayer, GameTournament } from '../types'
+import type {
+  ArenaGameId,
+  GameFormat,
+  GameMatch,
+  GamePlayer,
+  GameTournament,
+} from '../types'
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -23,6 +30,7 @@ const route = useRoute()
 
 const selectedOpponentId = ref('')
 const format = ref<GameFormat>('BO1')
+const script = ref<ArenaGameId>('heatmap-gomoku')
 const creating = ref(false)
 const actingId = ref('')
 const localError = ref('')
@@ -125,8 +133,8 @@ async function propose() {
   localError.value = ''
   feedback.value = ''
   try {
-    await store.createDuelFor(selectedOpponent.value, format.value)
-    feedback.value = `已向 ${selectedOpponent.value.nickname} 发出 ${format.value} 约战邀请`
+    await store.createDuelFor(selectedOpponent.value, format.value, script.value)
+    feedback.value = `已向 ${selectedOpponent.value.nickname} 发出 ${scriptShortLabel(script.value)} · ${format.value} 约战邀请`
     selectedOpponentId.value = ''
   } catch (error) {
     localError.value = formatApiError(error, '约战发起失败')
@@ -265,6 +273,24 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="duel__field">
+              <span>演练剧本</span>
+              <div class="duel__scripts">
+                <button
+                  v-for="option in ARENA_SCRIPTS"
+                  :key="option.id"
+                  type="button"
+                  class="duel__script"
+                  :class="{ 'is-active': script === option.id }"
+                  @click="script = option.id"
+                >
+                  <span class="duel__script-tag">{{ option.tag }}</span>
+                  <b>{{ option.shortName }}</b>
+                  <em>{{ option.duration }}</em>
+                </button>
+              </div>
+            </div>
+
+            <div class="duel__field">
               <span>赛制</span>
               <div class="duel__formats">
                 <button
@@ -317,7 +343,10 @@ onBeforeUnmount(() => {
               class="duel__invite"
             >
               <div class="duel__invite-main">
-                <b>{{ opponentLabel(duel) }} 向你发起 {{ duel.format }} 约战</b>
+                <b>
+                  {{ opponentLabel(duel) }} 向你发起 {{ scriptShortLabel(duel.gameId) }}
+                  · {{ duel.format }} 约战
+                </b>
                 <em :class="{ 'is-expired': invitationExpired(duel) }">
                   <template v-if="invitationExpired(duel)">邀请已超时</template>
                   <template v-else>剩余 {{ invitationRemaining(duel) }}</template>
@@ -368,6 +397,7 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
                 <div class="duel__record-meta">
+                  <span>{{ scriptShortLabel(duel.gameId) }}</span>
                   <span>{{ formatLabel(duel.format) }}</span>
                   <span>{{ scoreLine(duel) }}</span>
                   <span>{{ formatClock(duel.createdAt) }}</span>
@@ -703,6 +733,59 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   color: var(--fm-warn);
   font-size: 7px;
+}
+
+.duel__scripts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.duel__script {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.duel__script:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+}
+
+.duel__script b {
+  color: var(--fm-text-dim);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.duel__script em {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 7px;
+  font-style: normal;
+}
+
+.duel__script-tag {
+  align-self: flex-start;
+  color: color-mix(in srgb, var(--fm-accent) 62%, var(--fm-text-muted));
+  font-family: var(--fm-mono);
+  font-size: 6.5px;
+  letter-spacing: 0.08em;
+}
+
+.duel__script.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
+}
+
+.duel__script.is-active b {
+  color: var(--fm-accent);
 }
 
 .duel__formats {

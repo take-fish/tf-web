@@ -1,8 +1,17 @@
 import { ApiError } from '@/lib/http'
 import { fetchGameWsTicket } from './gameApi'
 import type {
+  ExerciseInput,
+  ExerciseState,
+  GameArenaAction,
+  GameArenaFinishedEvent,
+  GameArenaStateEvent,
   GameChatChannel,
   GameChatMessage,
+  GameExerciseFinishedEvent,
+  GameExerciseRoomsEvent,
+  GameExerciseRoomEvent,
+  GameExerciseStateEvent,
   GameMatch,
   GameMatchRestEvent,
   GameMatchResultEvent,
@@ -29,6 +38,12 @@ export interface GameSocketHandlers {
   onStone?: (event: GameStoneEvent) => void
   onMatchRest?: (event: GameMatchRestEvent) => void
   onMatchResult?: (event: GameMatchResultEvent) => void
+  onArenaState?: (event: GameArenaStateEvent) => void
+  onArenaFinished?: (event: GameArenaFinishedEvent) => void
+  onExerciseState?: (event: GameExerciseStateEvent) => void
+  onExerciseFinished?: (event: GameExerciseFinishedEvent) => void
+  onExerciseRoom?: (event: GameExerciseRoomEvent) => void
+  onExerciseRooms?: (event: GameExerciseRoomsEvent) => void
   onChat?: (message: GameChatMessage) => void
   onNotification?: (notification: GameNotification) => void
   onError?: (message: string, code?: string) => void
@@ -56,6 +71,9 @@ export class GameSocketClient {
   private manuallyClosed = false
   private authFailed = false
   private connectAttempt = 0
+  private actionSeq = 0
+  private exerciseRoomId: string | null = null
+  private exerciseSeq = 0
 
   constructor(private readonly handlers: GameSocketHandlers) {}
 
@@ -99,6 +117,63 @@ export class GameSocketClient {
 
   resign(matchId: string): boolean {
     return this.send({ type: 'resign', matchId })
+  }
+
+  /** 页面淘汰高顺位选手指定首局剧本，服务端会校验选图权。 */
+  chooseGame(matchId: string, gameId: string): boolean {
+    return this.send({ type: 'choose_game', matchId, gameId })
+  }
+
+  /** 竞技场动作：动作 ID 用于服务端幂等，重复提交不会重复扣资源。 */
+  sendArenaAction(matchId: string, action: GameArenaAction): boolean {
+    const actionId = `${Date.now().toString(36)}-${(this.actionSeq += 1).toString(36)}`
+    return this.send({
+      type: 'arena_action',
+      matchId,
+      action: action.action,
+      target: action.target,
+      skill: action.skill,
+      cell: action.cell,
+      actionId,
+    })
+  }
+
+  /** 休闲巡检房间：加入后记录房间 ID，断线重连会自动重新加入。 */
+  joinExercise(roomId: string): boolean {
+    this.exerciseRoomId = roomId
+    return this.send({ type: 'exercise_join', roomId })
+  }
+
+  leaveExercise(roomId?: string): boolean {
+    const key = roomId ?? this.exerciseRoomId
+    if (!roomId || roomId === this.exerciseRoomId) this.exerciseRoomId = null
+    if (!key) return false
+    return this.send({ type: 'exercise_leave', roomId: key })
+  }
+
+  readyExercise(roomId: string): boolean {
+    return this.send({ type: 'exercise_ready', roomId })
+  }
+
+  refreshExerciseRooms(): boolean {
+    return this.send({ type: 'exercise_rooms' })
+  }
+
+  /** 输入只上报意图；同一房间的 inputSeq 单调递增，便于服务端排查丢帧。 */
+  sendExerciseInput(roomId: string, input: ExerciseInput): boolean {
+    const inputSeq = (this.exerciseSeq += 1)
+    return this.send({
+      type: 'exercise_input',
+      roomId,
+      inputSeq,
+      moveX: input.moveX,
+      moveY: input.moveY,
+      aim: input.aim,
+      fire: input.fire,
+      skill: input.skill ?? null,
+      skillX: input.skillX ?? null,
+      skillY: input.skillY ?? null,
+    })
   }
 
   sendChat(payload: {
@@ -149,6 +224,9 @@ export class GameSocketClient {
       this.startHeartbeat()
       if (this.watchingMatchId) {
         this.send({ type: 'watch_match', matchId: this.watchingMatchId })
+      }
+      if (this.exerciseRoomId) {
+        this.send({ type: 'exercise_join', roomId: this.exerciseRoomId })
       }
     }
 
@@ -254,6 +332,62 @@ export class GameSocketClient {
             player2Score: frame.player2Score ?? 0,
           })
         }
+        break
+      case 'arena_state':
+      case 'arena_finished':
+        if (frame.matchId && frame.roundId && frame.state) {
+          const event = {
+            type: frame.type === 'arena_finished' ? 'arena_finished' : 'arena_state',
+            matchId: frame.matchId,
+            roundId: frame.roundId,
+            gameId: frame.gameId ?? frame.state.gameId,
+            seq: frame.seq ?? frame.state.seq,
+            serverTime: frame.serverTime ?? frame.state.serverTime,
+            state: frame.state,
+          } as GameArenaStateEvent | GameArenaFinishedEvent
+          if (event.type === 'arena_finished') {
+            this.handlers.onArenaFinished?.(event)
+          } else {
+            this.handlers.onArenaState?.(event)
+          }
+        }
+        break
+      case 'exercise_state':
+        if (frame.roomId && frame.state && frame.state.gameId === 'cluster-patrol-arena') {
+          this.handlers.onExerciseState?.({
+            type: 'exercise_state',
+            roomId: frame.roomId,
+            roomCode: frame.roomCode ?? '',
+            mode: frame.mode ?? (frame.state as ExerciseState).mode,
+            matchId: frame.matchId ?? null,
+            seq: frame.seq ?? frame.state.seq,
+            serverTime: frame.serverTime ?? frame.state.serverTime,
+            you: frame.you ?? null,
+            state: frame.state as ExerciseState,
+          })
+        }
+        break
+      case 'exercise_finished':
+        if (frame.roomId) {
+          this.handlers.onExerciseFinished?.({
+            type: 'exercise_finished',
+            roomId: frame.roomId,
+            roomCode: frame.roomCode ?? '',
+            mode: frame.mode ?? 'FFA',
+            matchId: frame.matchId ?? null,
+            winnerUserId: frame.winnerUserId ?? null,
+            winnerTeam: frame.winnerTeam ?? null,
+            reason: frame.reason ?? '巡检结束',
+            standings: frame.standings ?? [],
+            state: frame.state as ExerciseState | undefined,
+          })
+        }
+        break
+      case 'exercise_room':
+        if (frame.room) this.handlers.onExerciseRoom?.(frame as GameExerciseRoomEvent)
+        break
+      case 'exercise_rooms':
+        this.handlers.onExerciseRooms?.(frame as GameExerciseRoomsEvent)
         break
       case 'game_chat':
         if (frame.message && typeof frame.message !== 'string') {

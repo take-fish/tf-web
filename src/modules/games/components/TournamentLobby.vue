@@ -7,6 +7,7 @@ import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import { useTournamentStore } from '@/stores/tournament'
+import { scriptDefaultName, scriptShortLabel } from '../lib/arenaScripts'
 import {
   countdown,
   formatClock,
@@ -148,9 +149,10 @@ async function create() {
   createError.value = ''
   try {
     const created = await store.create({
-      name: name.value.trim() || '联调演练',
+      name: name.value.trim() || scriptDefaultName('random'),
       format: format.value,
       players: roster.value,
+      gameId: 'random',
     })
     selectedIds.value = []
     name.value = ''
@@ -309,7 +311,8 @@ onBeforeUnmount(() => {
               <div class="lobby__invite-main">
                 <b>{{ invitation.name }}</b>
                 <span>
-                  {{ invitation.creatorNickname }} 邀请你 · {{ formatLabel(invitation.format) }}
+                  {{ invitation.creatorNickname }} 邀请你 · {{ scriptShortLabel(invitation.gameId) }}
+                  · {{ formatLabel(invitation.format) }}
                 </span>
                 <em :class="{ 'is-expired': isInvitationExpired(invitation) }">
                   <template v-if="isInvitationExpired(invitation)">邀请已超时</template>
@@ -372,10 +375,24 @@ onBeforeUnmount(() => {
                 v-model="name"
                 type="text"
                 maxlength="32"
-                placeholder="联调演练"
+                :placeholder="scriptDefaultName('random')"
                 :disabled="creating"
               />
             </label>
+
+            <div class="lobby__field">
+              <div class="lobby__field-head">
+                <span>比赛剧本</span>
+                <em>每场比赛由系统随机抽取</em>
+              </div>
+              <div class="lobby__draw">
+                <span class="lobby__script-tag">RANDOM</span>
+                <div>
+                  <b>系统随机演练</b>
+                  <em>热点对弈 / 热点排查 / 拓扑攻防 / 集群巡检，每局开赛前抽签</em>
+                </div>
+              </div>
+            </div>
 
             <div class="lobby__field">
               <span>轮次策略</span>
@@ -448,9 +465,10 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="lobby__rules">
-              <p><b>2/4/8/16 人</b>：分组单败推进，自动生成执行链路。</p>
-              <p><b>3-5 人</b>：循环计分；<b>6 人以上非 2 的幂</b>：三轮调度。</p>
-              <p><b>前三名</b>：第三名先对第二名，胜者再对第一名，产生最终结果。</p>
+              <p><b>2/4/8/16 人</b>：随机单败淘汰，自动生成执行链路。</p>
+              <p><b>3-5 人</b>：循环排位；<b>6 人以上非 2 的幂</b>：瑞士轮排位。</p>
+              <p><b>前四</b>进入页面淘汰：三打四、胜者打二、决赛打一。</p>
+              <p><b>首局选图</b>：三号、二号、一号各自拥有对应场次的首局选图权；其余小局系统随机。</p>
               <p><b>回放</b>：未参与的成员可从列表进入；执行内保留公开讨论与双方私聊。</p>
             </div>
 
@@ -546,6 +564,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="lobby__tournament-meta">
+                  <span>{{ scriptShortLabel(tournament.gameId) }}</span>
                   <span>{{ formatLabel(tournament.format) }}</span>
                   <span>{{ playerCount(tournament) }}/{{ tournament.targetPlayers }} 人</span>
                   <span>{{ formatClock(tournament.createdAt) }}</span>
@@ -554,7 +573,10 @@ onBeforeUnmount(() => {
                   <span>
                     发起人 {{ tournament.creatorNickname }}
                     <template v-if="tournament.championNickname">
-                      · 结果 <b>{{ tournament.championNickname }}</b>
+                      · 冠军 <b>{{ tournament.championNickname }}</b>
+                    </template>
+                    <template v-if="tournament.runnerUpNickname">
+                      · 亚军 {{ tournament.runnerUpNickname }}
                     </template>
                   </span>
                   <div class="lobby__tournament-actions">
@@ -968,6 +990,92 @@ onBeforeUnmount(() => {
 
 .lobby__field input:focus {
   border-color: var(--fm-accent);
+}
+
+.lobby__draw {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 32%, var(--fm-border));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fm-accent) 6%, transparent);
+}
+
+.lobby__draw > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lobby__draw b {
+  color: var(--fm-accent);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.lobby__draw em {
+  color: var(--fm-text-muted);
+  font-size: 7.5px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.lobby__scripts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.lobby__script {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lobby__script:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+}
+
+.lobby__script b {
+  color: var(--fm-text-dim);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.lobby__script em {
+  color: var(--fm-text-muted);
+  font-size: 7.5px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.lobby__script-tag {
+  align-self: flex-start;
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 26%, transparent);
+  border-radius: 2px;
+  color: color-mix(in srgb, var(--fm-accent) 72%, var(--fm-text-muted));
+  font-family: var(--fm-mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+
+.lobby__script.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
+}
+
+.lobby__script.is-active b {
+  color: var(--fm-accent);
 }
 
 .lobby__formats {

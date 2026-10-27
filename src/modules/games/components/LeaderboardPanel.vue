@@ -6,43 +6,44 @@ withDefaults(
     entries: LeaderboardEntry[]
     loading?: boolean
     error?: string
-    bestScore?: number
-    rank?: number
   }>(),
-  { loading: false, error: '', bestScore: 0, rank: 0 },
+  { loading: false, error: '' },
 )
 </script>
 
 <template>
   <section class="leaderboard">
     <header class="leaderboard__head">
-      <span>综合排行</span>
-      <span class="leaderboard__meta">
-        <template v-if="bestScore">我的积分 {{ bestScore }} · 排名 {{ rank }}</template>
-        <template v-else>暂无个人记录</template>
-      </span>
+      <span>冠军榜</span>
+      <span class="leaderboard__meta">冠军 30 分 · 亚军 10 分</span>
     </header>
-    <p class="leaderboard__hint">演练成功 +3 / 参与 +1 / 结果确认 +10 · 采样每 100 分折算 1 积分</p>
+    <p class="leaderboard__hint">赛事只认输赢，对局内得分不计入总积分。</p>
     <div v-if="loading" class="leaderboard__empty">正在同步排行…</div>
     <div v-else-if="error" class="leaderboard__empty leaderboard__empty--err">{{ error }}</div>
-    <div v-else-if="entries.length === 0" class="leaderboard__empty">暂无演练记录</div>
-    <ol v-else class="leaderboard__list">
-      <li v-for="entry in entries" :key="entry.userId">
-        <span class="leaderboard__rank" :class="{ 'is-top': entry.rank <= 3 }">
-          {{ String(entry.rank).padStart(2, '0') }}
-        </span>
-        <span class="leaderboard__name">
-          {{ entry.nickname }}
-          <em v-if="(entry.championships ?? 0) > 0" class="leaderboard__crown">
-            T {{ entry.championships }}
-          </em>
-        </span>
-        <span class="leaderboard__record">
-          {{ entry.wins ?? 0 }}胜{{ entry.losses ?? 0 }}负
-        </span>
-        <span class="leaderboard__score">{{ entry.points ?? entry.score }}</span>
-      </li>
-    </ol>
+    <div v-else-if="entries.length === 0" class="leaderboard__empty">暂无冠军记录</div>
+    <template v-else>
+      <div class="leaderboard__columns" aria-hidden="true">
+        <span>#</span>
+        <span>名号 / ID</span>
+        <span>冠军</span>
+        <span>亚军</span>
+        <span>总积分</span>
+      </div>
+      <ol class="leaderboard__list">
+        <li v-for="entry in entries" :key="entry.userId">
+          <span class="leaderboard__rank" :class="{ 'is-top': entry.rank <= 3 }">
+            {{ String(entry.rank).padStart(2, '0') }}
+          </span>
+          <span class="leaderboard__name">
+            <strong>{{ entry.nickname }}</strong>
+            <em>{{ entry.userId }}</em>
+          </span>
+          <span class="leaderboard__count leaderboard__count--gold">{{ entry.championships }}</span>
+          <span class="leaderboard__count">{{ entry.runnerUps }}</span>
+          <span class="leaderboard__score">{{ entry.points }}</span>
+        </li>
+      </ol>
+    </template>
   </section>
 </template>
 
@@ -80,18 +81,44 @@ withDefaults(
   line-height: 1.5;
 }
 
-.leaderboard__crown {
-  margin-left: 5px;
-  color: var(--fm-warn);
-  font-size: 8.5px;
-  font-style: normal;
-}
-
-.leaderboard__record {
-  flex: none;
+.leaderboard__columns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 4px;
   color: var(--fm-text-muted);
   font-family: var(--fm-mono);
-  font-size: 8.5px;
+  font-size: 8px;
+}
+
+.leaderboard__columns > span:first-child {
+  width: 22px;
+}
+
+.leaderboard__columns > span:nth-child(2) {
+  flex: 1;
+}
+
+.leaderboard__columns > span:nth-child(n + 3) {
+  width: 38px;
+  text-align: right;
+}
+
+.leaderboard__columns > span:last-child {
+  width: 52px;
+}
+
+.leaderboard__count {
+  flex: none;
+  width: 38px;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+  text-align: right;
+}
+
+.leaderboard__count--gold {
+  color: var(--fm-warn);
 }
 
 .leaderboard__empty {
@@ -134,16 +161,38 @@ withDefaults(
 }
 
 .leaderboard__name {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-width: 0;
   overflow: hidden;
   color: var(--fm-text-dim);
+}
+
+.leaderboard__name strong {
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard__name em {
+  overflow: hidden;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+  font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .leaderboard__score {
+  flex: none;
+  width: 52px;
   color: var(--fm-accent);
   font-family: var(--fm-mono);
   font-size: 10px;
+  text-align: right;
 }
 </style>
