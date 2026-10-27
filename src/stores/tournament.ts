@@ -34,6 +34,7 @@ import { GameSocketClient } from '@/modules/games/gameSocket'
 import { findWatchableMatch, isParticipant, otherPlayerId } from '@/modules/games/lib/gameFormat'
 import type {
   ArenaGameId,
+  BlindLayout,
   ExerciseInput,
   ExerciseMode,
   ExerciseResult,
@@ -42,6 +43,7 @@ import type {
   GameArenaAction,
   GameArenaFinishedEvent,
   GameArenaStateEvent,
+  GameBlindActionEvent,
   GameChatChannel,
   GameChatMessage,
   GameExerciseFinishedEvent,
@@ -54,7 +56,9 @@ import type {
   GameSocketStatus,
   GameStoneEvent,
   GameTournament,
-  TournamentGameId,
+  SelectableGameId,
+  TournamentPoolGameId,
+  TournamentType,
 } from '@/modules/games/types'
 import { useAuthStore } from './auth'
 
@@ -87,6 +91,7 @@ export const useTournamentStore = defineStore('tournament', () => {
   const matchLoading = ref(false)
   const matchError = ref('')
   const lastResult = ref<GameMatchResultEvent | null>(null)
+  const lastBlindAction = ref<GameBlindActionEvent | null>(null)
   const chatMessages = ref<GameChatMessage[]>([])
   const chatLoading = ref(false)
   const chatError = ref('')
@@ -95,7 +100,11 @@ export const useTournamentStore = defineStore('tournament', () => {
   const finalNotification = ref<GameNotification | null>(null)
   const championNotification = ref<GameNotification | null>(null)
   const lobbyOpen = ref(false)
-  /** 调度台当前选中的演练剧本，从卡片入口打开时预设。 */
+  /** 调度台创建模式：顶部入口默认 S赛，游戏卡片进入则为锦标赛。 */
+  const lobbyMode = ref<TournamentType>('SERIES')
+  /** 从游戏卡片/剧本卡片进入时预选的锦标赛剧本。 */
+  const lobbyPreferredGameId = ref<TournamentPoolGameId | ''>('')
+  /** 调度台最近进入的竞技场剧本，用于首页卡片高亮。 */
   const lobbyScript = ref<ArenaGameId>('heatmap-gomoku')
   const lobbyLoading = ref(false)
   const lobbyError = ref('')
@@ -225,6 +234,9 @@ export const useTournamentStore = defineStore('tournament', () => {
         }
       },
       onStone: applyStone,
+      onBlindAction: (event) => {
+        lastBlindAction.value = event
+      },
       onMatchRest: (event) => {
         const match = currentMatch.value
         if (!match || match.id !== event.matchId) return
@@ -699,6 +711,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     if (currentMatchId.value === match.id) {
       // 详情接口可能比最后一帧广播更早落库，保留本地更新的快照避免画面回退。
       const previous = currentMatch.value?.currentRound
+      const previousRoundId = previous?.id
       const next = match.currentRound
       if (
         previous &&
@@ -711,6 +724,7 @@ export const useTournamentStore = defineStore('tournament', () => {
         next.endsAt = previous.endsAt ?? next.endsAt
       }
       currentMatch.value = match
+      if (previousRoundId !== match.currentRound?.id) lastBlindAction.value = null
       matchError.value = ''
     }
     const tournament = tournaments.value.find(
@@ -844,6 +858,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     chatError.value = ''
     chatLoading.value = false
     lastResult.value = null
+    lastBlindAction.value = null
     socket?.watchMatch(matchId)
     try {
       const match = await fetchMatch(matchId)
@@ -901,6 +916,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     chatMessages.value = []
     chatError.value = ''
     lastResult.value = null
+    lastBlindAction.value = null
   }
 
   function ready() {
@@ -919,6 +935,28 @@ export const useTournamentStore = defineStore('tournament', () => {
     if (!id) return false
     if (!socket?.placeStone(id, x, y)) {
       lastError.value = '落子通道未连接，请稍后重试'
+      return false
+    }
+    lastError.value = ''
+    return true
+  }
+
+  function revealPiece(x: number, y: number) {
+    const id = currentMatchId.value
+    if (!id) return false
+    if (!socket?.revealPiece(id, x, y)) {
+      lastError.value = '翻棋通道未连接，请稍后重试'
+      return false
+    }
+    lastError.value = ''
+    return true
+  }
+
+  function movePiece(fromX: number, fromY: number, toX: number, toY: number) {
+    const id = currentMatchId.value
+    if (!id) return false
+    if (!socket?.movePiece(id, fromX, fromY, toX, toY)) {
+      lastError.value = '走子通道未连接，请稍后重试'
       return false
     }
     lastError.value = ''
@@ -963,7 +1001,9 @@ export const useTournamentStore = defineStore('tournament', () => {
     name: string
     format: GameFormat
     players: GameOnlineUser[]
-    gameId: TournamentGameId
+    gameId?: SelectableGameId
+    blindLayout?: BlindLayout
+    gamePool?: TournamentPoolGameId[]
   }): Promise<GameTournament> {
     lobbyError.value = ''
     try {
@@ -1026,7 +1066,8 @@ export const useTournamentStore = defineStore('tournament', () => {
   async function createDuelFor(
     opponent: GameOnlineUser,
     format: GameFormat,
-    gameId: ArenaGameId = 'heatmap-gomoku',
+    gameId: SelectableGameId = 'heatmap-gomoku',
+    blindLayout?: BlindLayout,
   ): Promise<GameTournament> {
     duelError.value = ''
     try {
@@ -1034,7 +1075,8 @@ export const useTournamentStore = defineStore('tournament', () => {
         opponentUserId: opponent.userId,
         opponentNickname: opponent.nickname,
         format,
-        gameId,
+        ...(gameId ? { gameId } : {}),
+        ...(blindLayout ? { blindLayout } : {}),
       })
       upsertDuel(duel)
       return duel
@@ -1147,8 +1189,16 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
   }
 
-  function openLobby(script?: ArenaGameId) {
-    if (script) lobbyScript.value = script
+  /** 指定剧本进入 = 锦标赛专精；不指定 = 顶部入口的 S赛综合抽签。 */
+  function openLobby(gameId?: TournamentPoolGameId) {
+    if (gameId) {
+      lobbyMode.value = 'CHAMPIONSHIP'
+      lobbyPreferredGameId.value = gameId
+      if (gameId !== 'blind-xiangqi') lobbyScript.value = gameId
+    } else {
+      lobbyMode.value = 'SERIES'
+      lobbyPreferredGameId.value = ''
+    }
     lobbyOpen.value = true
     inviteUnread.value = 0
     void refreshLobby()
@@ -1156,6 +1206,8 @@ export const useTournamentStore = defineStore('tournament', () => {
 
   function closeLobby() {
     lobbyOpen.value = false
+    lobbyMode.value = 'SERIES'
+    lobbyPreferredGameId.value = ''
   }
 
   function dismissFinal() {
@@ -1211,6 +1263,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     matchLoading,
     matchError,
     lastResult,
+    lastBlindAction,
     chatMessages,
     chatLoading,
     chatError,
@@ -1219,6 +1272,8 @@ export const useTournamentStore = defineStore('tournament', () => {
     finalNotification,
     championNotification,
     lobbyOpen,
+    lobbyMode,
+    lobbyPreferredGameId,
     lobbyScript,
     lobbyLoading,
     lobbyError,
@@ -1245,6 +1300,8 @@ export const useTournamentStore = defineStore('tournament', () => {
     leaveWatch,
     ready,
     placeStone,
+    revealPiece,
+    movePiece,
     resign,
     sendArenaAction,
     chooseGame,

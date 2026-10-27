@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { useTournamentStore } from '@/stores/tournament'
 import { ARENA_SCRIPTS, isArenaScript, scriptLabel, scriptShortLabel } from '../lib/arenaScripts'
+import { pieceLabel } from '../lib/blindXiangqi'
 import {
   formatClock,
   formatDuration,
@@ -22,6 +23,7 @@ import type {
 } from '../types'
 import ArenaHeatmap from './ArenaHeatmap.vue'
 import ArenaTopology from './ArenaTopology.vue'
+import BlindXiangqiBoard from './BlindXiangqiBoard.vue'
 import ExerciseArena from './ExerciseArena.vue'
 import GomokuBoard from './GomokuBoard.vue'
 
@@ -59,6 +61,29 @@ const tournament = computed(() => store.currentTournament)
 const round = computed<GameRound | null>(() => store.currentRound)
 const selfId = computed(() => store.ownUserId)
 const participant = computed(() => isParticipant(match.value, selfId.value))
+const isBlind = computed(
+  () =>
+    match.value?.gameId === 'blind-xiangqi' ||
+    Boolean(round.value?.firstUserId && round.value?.blindBoard?.length),
+)
+const firstSideUserId = computed(() => {
+  if (!round.value) return ''
+  return isBlind.value
+    ? round.value.firstUserId ?? round.value.blackUserId ?? ''
+    : round.value.blackUserId
+})
+const secondSideUserId = computed(() => {
+  if (!round.value) return ''
+  return isBlind.value
+    ? round.value.secondUserId ?? round.value.whiteUserId ?? ''
+    : round.value.whiteUserId
+})
+const firstSideName = computed(() =>
+  firstSideUserId.value ? nicknameFor(firstSideUserId.value) : '待定',
+)
+const secondSideName = computed(() =>
+  secondSideUserId.value ? nicknameFor(secondSideUserId.value) : '待定',
+)
 const gameId = computed(
   () => round.value?.gameId || match.value?.gameId || 'heatmap-gomoku',
 )
@@ -99,6 +124,11 @@ const playerNames = computed<Record<string, string>>(() => {
 const isBlack = computed(() => Boolean(round.value && round.value.blackUserId === selfId.value))
 const myColor = computed(() => {
   if (!participant.value || !round.value) return ''
+  if (isBlind.value) {
+    if (firstSideUserId.value === selfId.value) return '红方'
+    if (secondSideUserId.value === selfId.value) return '黑方'
+    return ''
+  }
   if (!arenaMode.value) return isBlack.value ? '先手' : '后手'
   if (gameId.value === 'topology-arena') {
     return round.value.attackerUserId === selfId.value ? '故障注入方' : '稳态保障方'
@@ -172,8 +202,9 @@ const maxGames = computed(() => {
   return format === 'BO5' ? 5 : format === 'BO3' ? 3 : 1
 })
 const gameLabel = computed(() => {
-  if (round.value) return `第 ${round.value.gameNo} / ${maxGames.value} 阶段`
-  return maxGames.value > 1 ? `BO${maxGames.value}` : 'BO1'
+  if (!round.value) return maxGames.value > 1 ? `BO${maxGames.value}` : 'BO1'
+  if (isBlind.value) return `第 ${round.value.gameNo} 局`
+  return `第 ${round.value.gameNo} / ${maxGames.value} 阶段`
 })
 const stateLabel = computed(() => {
   if (!match.value) return ''
@@ -195,6 +226,27 @@ const winnerName = computed(() => {
 const resultReason = computed(
   () => arenaState.value?.finishReason || store.lastResult?.reason || '',
 )
+const blindActionText = computed(() => {
+  const event = store.lastBlindAction
+  const value = match.value
+  if (!isBlind.value || !event || !value || event.matchId !== value.id) return ''
+  const actor = nicknameFor(event.userId)
+  if (event.action === 'REVEAL') {
+    return `${actor} 翻开了 ${pieceLabel(event.pieceColor, event.pieceType)}`
+  }
+  const moved = pieceLabel(event.pieceColor, event.pieceType)
+  const captured =
+    event.capturedPieceType && event.capturedPieceColor
+      ? `，吃掉 ${pieceLabel(event.capturedPieceColor, event.capturedPieceType)}`
+      : ''
+  const result =
+    event.result === 'WIN'
+      ? ' · 将帅被吃'
+      : event.result === 'DRAW'
+        ? ' · 将帅见面'
+        : ''
+  return `${actor} 移动 ${moved}${captured}${result}`
+})
 const chatClosed = computed(
   () =>
     tournament.value?.status === 'FINISHED' || tournament.value?.status === 'CANCELLED',
@@ -215,7 +267,11 @@ const chatPlaceholder = computed(() => {
 })
 const readyState = computed(() => {
   if (!match.value) return ''
-  if (match.value.status === 'READY') return '双方确认就绪后开始执行，随机分配先手'
+  if (match.value.status === 'READY') {
+    return isBlind.value
+      ? '双方确认就绪后开始，随机分配红黑'
+      : '双方确认就绪后开始执行，随机分配先手'
+  }
   if (round.value?.status === 'REST') {
     return readyUserIds.value.length
       ? `已就绪：${readyUserIds.value.map(nicknameFor).join('、')}`
@@ -255,6 +311,11 @@ function nicknameFor(userId: string | null): string {
 
 function colorFor(userId: string | null): string {
   if (!userId || !round.value) return ''
+  if (isBlind.value) {
+    if (firstSideUserId.value === userId) return '红'
+    if (secondSideUserId.value === userId) return '黑'
+    return ''
+  }
   if (gameId.value === 'topology-arena') {
     return round.value.attackerUserId === userId ? '攻' : '守'
   }
@@ -269,6 +330,18 @@ function colorFor(userId: string | null): string {
   }
   if (round.value.blackUserId === userId) return 'A'
   if (round.value.whiteUserId === userId) return 'B'
+  return ''
+}
+
+function chipClass(userId: string | null): string {
+  if (!userId || !round.value) return ''
+  if (isBlind.value) {
+    if (firstSideUserId.value === userId) return 'is-red'
+    if (secondSideUserId.value === userId) return 'is-black-side'
+    return ''
+  }
+  if (round.value.blackUserId === userId) return 'is-black'
+  if (round.value.whiteUserId === userId) return 'is-white'
   return ''
 }
 
@@ -340,6 +413,18 @@ function onKeydown(event: KeyboardEvent) {
   closeBoardWindow()
 }
 
+function reveal(x: number, y: number) {
+  if (!boardInteractive.value) return
+  actionError.value = ''
+  if (!store.revealPiece(x, y)) actionError.value = store.lastError
+}
+
+function move(fromX: number, fromY: number, toX: number, toY: number) {
+  if (!boardInteractive.value) return
+  actionError.value = ''
+  if (!store.movePiece(fromX, fromY, toX, toY)) actionError.value = store.lastError
+}
+
 function resign() {
   if (!participant.value || resigning.value) return
   if (!window.confirm('确认终止本轮？本轮将判定为失败。')) return
@@ -400,13 +485,16 @@ onBeforeUnmount(() => {
     <div class="match-window__panel" :class="{ 'is-duel': isDuel }">
       <header class="match-window__head">
         <div class="match-window__title">
-          <span class="match-window__mark">{{ isDuel ? 'D' : 'T' }}</span>
+          <span class="match-window__mark">{{ isDuel ? 'D' : isBlind ? 'B' : 'T' }}</span>
           <div>
             <div class="match-window__eyebrow">
               <template v-if="isDuel">
                 {{ tournament?.name || '一对一约战' }} / DUEL SESSION
               </template>
-              <template v-else>{{ tournament?.name || '联调演练' }} / DRILL SESSION</template>
+              <template v-else>
+                {{ tournament?.name || (isBlind ? '盲棋推演' : '联调演练') }} /
+                {{ isBlind ? 'BLIND SESSION' : 'DRILL SESSION' }}
+              </template>
             </div>
             <h2>
               {{ match ? `${gameLabel} · ${stateLabel}` : '正在连接执行通道…' }}
@@ -458,7 +546,7 @@ onBeforeUnmount(() => {
                 'is-self': match.player1UserId === selfId,
               }"
             >
-              <span class="match-window__chip" :class="{ 'is-black': round?.blackUserId === match.player1UserId }">
+              <span class="match-window__chip" :class="chipClass(match.player1UserId)">
                 {{ colorFor(match.player1UserId) || '·' }}
               </span>
               <div class="match-window__player-main">
@@ -486,7 +574,7 @@ onBeforeUnmount(() => {
                 <b>{{ playerName(match.player2UserId, match.player2Nickname) }}</b>
                 <span v-if="hasReady(match.player2UserId)" class="match-window__ready">已就绪</span>
               </div>
-              <span class="match-window__chip" :class="{ 'is-white': round?.whiteUserId === match.player2UserId }">
+              <span class="match-window__chip" :class="chipClass(match.player2UserId)">
                 {{ colorFor(match.player2UserId) || '·' }}
               </span>
             </div>
@@ -623,8 +711,21 @@ onBeforeUnmount(() => {
             只读查看 · 公开频道可参与讨论
           </div>
 
+          <BlindXiangqiBoard
+            v-if="isBlind"
+            :pieces="round?.blindBoard ?? []"
+            :moves="round?.moves ?? []"
+            :self-user-id="selfId"
+            :first-user-id="round?.firstUserId ?? round?.blackUserId ?? ''"
+            :second-user-id="round?.secondUserId ?? round?.whiteUserId ?? ''"
+            :turn-user-id="round?.turnUserId ?? null"
+            :interactive="boardInteractive"
+            :disabled="match.status !== 'RUNNING' || round?.status !== 'RUNNING'"
+            @reveal="reveal"
+            @move="move"
+          />
           <ArenaTopology
-            v-if="topologyState"
+            v-else-if="topologyState"
             :state="topologyState"
             :self-user-id="selfId"
             :player-names="playerNames"
@@ -662,17 +763,27 @@ onBeforeUnmount(() => {
             @expand="openBoardWindow"
           />
 
+          <p v-if="isBlind && blindActionText" class="match-window__blind-action">
+            {{ blindActionText }}
+          </p>
+
           <div class="match-window__footer">
-            <template v-if="arenaMode">
+            <template v-if="isBlind">
+              <span>{{ firstSideName }} 红方 · {{ secondSideName }} 黑方</span>
+              <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
+              <span v-if="round">{{ gameLabel }}</span>
+              <span v-if="match.status === 'RUNNING' && round">
+                提交倒计时 {{ formatDuration(moveSeconds) }}
+              </span>
+            </template>
+            <template v-else-if="arenaMode">
               <span>{{ scriptLabel(gameId) }}</span>
               <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
               <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
               <span v-if="arenaState">剩余 {{ formatDuration(arenaRemaining) }}</span>
             </template>
             <template v-else>
-              <span>
-                {{ blackName }} 先手 · {{ whiteName }} 后手
-              </span>
+              <span>{{ blackName }} 先手 · {{ whiteName }} 后手</span>
               <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
               <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
               <span v-if="match.status === 'RUNNING' && round">
@@ -753,7 +864,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      v-if="boardExpanded && !arenaMode"
+      v-if="boardExpanded && !arenaMode && !isBlind"
       class="board-window"
       role="dialog"
       aria-modal="true"
@@ -1052,6 +1163,18 @@ onBeforeUnmount(() => {
   color: #7ad5c8;
 }
 
+.match-window__chip.is-red {
+  border-color: color-mix(in srgb, #e06666 55%, var(--fm-border));
+  background: color-mix(in srgb, #e06666 12%, transparent);
+  color: #f08a8a;
+}
+
+.match-window__chip.is-black-side {
+  border-color: color-mix(in srgb, #d0d6e0 45%, var(--fm-border));
+  background: color-mix(in srgb, #d0d6e0 10%, transparent);
+  color: #d0d6e0;
+}
+
 .match-window__player-main {
   display: flex;
   flex: 1;
@@ -1298,6 +1421,16 @@ onBeforeUnmount(() => {
   border-radius: 3px;
   color: var(--fm-warn);
   font-size: 8.5px;
+}
+
+.match-window__blind-action {
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 24%, var(--fm-border));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fm-accent) 4%, transparent);
+  color: var(--fm-text-dim);
+  font-size: 9px;
 }
 
 .match-window__footer {

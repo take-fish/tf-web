@@ -6,16 +6,18 @@ import AppIcon from '@/components/AppIcon.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { useTournamentStore } from '@/stores/tournament'
-import { ARENA_SCRIPTS, scriptShortLabel } from '../lib/arenaScripts'
+import { ARENA_SCRIPTS } from '../lib/arenaScripts'
 import {
   countdown,
   formatClock,
   formatLabel,
   matchStatusLabel,
+  modeShortLabel,
   playerName,
 } from '../lib/gameFormat'
 import type {
   ArenaGameId,
+  BlindLayout,
   GameFormat,
   GameMatch,
   GamePlayer,
@@ -24,13 +26,35 @@ import type {
 
 const emit = defineEmits<{ close: [] }>()
 
+/** 约战可选全部实时剧本，并保留盲棋固定玩法。 */
+const DUEL_GAMES: Array<{
+  id: ArenaGameId | 'blind-xiangqi'
+  label: string
+  hint: string
+  tag: string
+}> = [
+  ...ARENA_SCRIPTS.map((script) => ({
+    id: script.id,
+    label: script.shortName,
+    hint: script.duration,
+    tag: script.tag,
+  })),
+  { id: 'blind-xiangqi', label: '盲棋', hint: '翻棋 / 盲吃', tag: 'BLIND' },
+]
+const BLIND_LAYOUTS: Array<{ id: BlindLayout; label: string; hint: string }> = [
+  { id: 'STANDARD_SHUFFLE', label: '标准点位', hint: '标准开局点位随机洗牌' },
+  { id: 'FULL_RANDOM', label: '全盘随机', hint: '32 枚随机散布全盘' },
+  { id: 'HALF_RANDOM', label: '半场随机', hint: '红黑各自半场散布' },
+]
+
 const store = useTournamentStore()
 const router = useRouter()
 const route = useRoute()
 
 const selectedOpponentId = ref('')
+const gameId = ref<ArenaGameId | 'blind-xiangqi'>('heatmap-gomoku')
+const blindLayout = ref<BlindLayout>('STANDARD_SHUFFLE')
 const format = ref<GameFormat>('BO1')
-const script = ref<ArenaGameId>('heatmap-gomoku')
 const creating = ref(false)
 const actingId = ref('')
 const localError = ref('')
@@ -117,8 +141,12 @@ function opponentLabel(duel: GameTournament): string {
   return playerName(opponent?.userId ?? null, opponent?.nickname ?? null)
 }
 
-function busyWith(userId: string): boolean {
-  return store.activeDuels.some((duel) => opponentOf(duel)?.userId === userId)
+function busyWith(userId: string, game: string): boolean {
+  return store.activeDuels.some(
+    (duel) =>
+      (duel.gameId ?? 'heatmap-gomoku') === game &&
+      opponentOf(duel)?.userId === userId,
+  )
 }
 
 function selectOpponent(userId: string) {
@@ -133,8 +161,15 @@ async function propose() {
   localError.value = ''
   feedback.value = ''
   try {
-    await store.createDuelFor(selectedOpponent.value, format.value, script.value)
-    feedback.value = `已向 ${selectedOpponent.value.nickname} 发出 ${scriptShortLabel(script.value)} · ${format.value} 约战邀请`
+    await store.createDuelFor(
+      selectedOpponent.value,
+      format.value,
+      gameId.value,
+      gameId.value === 'blind-xiangqi' ? blindLayout.value : undefined,
+    )
+    feedback.value =
+      `已向 ${selectedOpponent.value.nickname} 发出 ` +
+      `${modeShortLabel(gameId.value)} ${format.value} 约战邀请`
     selectedOpponentId.value = ''
   } catch (error) {
     localError.value = formatApiError(error, '约战发起失败')
@@ -247,7 +282,7 @@ onBeforeUnmount(() => {
                   type="button"
                   class="duel__member"
                   :class="{ 'is-selected': selectedOpponentId === member.userId }"
-                  :disabled="busyWith(member.userId) || creating"
+                  :disabled="busyWith(member.userId, gameId) || creating"
                   @click="selectOpponent(member.userId)"
                 >
                   <UserAvatar
@@ -259,7 +294,9 @@ onBeforeUnmount(() => {
                     <b>{{ member.nickname }}</b>
                     <em>ID {{ member.userId }}</em>
                   </span>
-                  <span v-if="busyWith(member.userId)" class="duel__member-tag">约战中</span>
+                  <span v-if="busyWith(member.userId, gameId)" class="duel__member-tag">
+                    该游戏约战中
+                  </span>
                   <AppIcon
                     v-else
                     :name="selectedOpponentId === member.userId ? 'check' : 'plus'"
@@ -276,16 +313,33 @@ onBeforeUnmount(() => {
               <span>演练剧本</span>
               <div class="duel__scripts">
                 <button
-                  v-for="option in ARENA_SCRIPTS"
+                  v-for="option in DUEL_GAMES"
                   :key="option.id"
                   type="button"
                   class="duel__script"
-                  :class="{ 'is-active': script === option.id }"
-                  @click="script = option.id"
+                  :class="{ 'is-active': gameId === option.id }"
+                  @click="gameId = option.id"
                 >
                   <span class="duel__script-tag">{{ option.tag }}</span>
-                  <b>{{ option.shortName }}</b>
-                  <em>{{ option.duration }}</em>
+                  <b>{{ option.label }}</b>
+                  <em>{{ option.hint }}</em>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="gameId === 'blind-xiangqi'" class="duel__field">
+              <span>开局摆法</span>
+              <div class="duel__layouts">
+                <button
+                  v-for="option in BLIND_LAYOUTS"
+                  :key="option.id"
+                  type="button"
+                  class="duel__format"
+                  :class="{ 'is-active': blindLayout === option.id }"
+                  @click="blindLayout = option.id"
+                >
+                  <b>{{ option.label }}</b>
+                  <em>{{ option.hint }}</em>
                 </button>
               </div>
             </div>
@@ -323,7 +377,7 @@ onBeforeUnmount(() => {
                 creating
                   ? '正在发出邀请…'
                   : selectedOpponent
-                    ? `向 ${selectedOpponent.nickname} 发起 ${format}`
+                    ? `向 ${selectedOpponent.nickname} 发起 ${modeShortLabel(gameId)} ${format}`
                     : '选择一名在线成员'
               }}
             </button>
@@ -344,8 +398,8 @@ onBeforeUnmount(() => {
             >
               <div class="duel__invite-main">
                 <b>
-                  {{ opponentLabel(duel) }} 向你发起 {{ scriptShortLabel(duel.gameId) }}
-                  · {{ duel.format }} 约战
+                  {{ opponentLabel(duel) }} 向你发起
+                  {{ modeShortLabel(duel.gameId, duel.blindLayout) }} {{ duel.format }} 约战
                 </b>
                 <em :class="{ 'is-expired': invitationExpired(duel) }">
                   <template v-if="invitationExpired(duel)">邀请已超时</template>
@@ -397,7 +451,7 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
                 <div class="duel__record-meta">
-                  <span>{{ scriptShortLabel(duel.gameId) }}</span>
+                  <span>{{ modeShortLabel(duel.gameId, duel.blindLayout) }}</span>
                   <span>{{ formatLabel(duel.format) }}</span>
                   <span>{{ scoreLine(duel) }}</span>
                   <span>{{ formatClock(duel.createdAt) }}</span>
@@ -794,6 +848,18 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
+.duel__games {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.duel__layouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
 .duel__format {
   display: flex;
   flex-direction: column;
@@ -1030,6 +1096,12 @@ onBeforeUnmount(() => {
   }
 
   .duel__body {
+    grid-template-columns: 1fr;
+  }
+
+  .duel__formats,
+  .duel__games,
+  .duel__layouts {
     grid-template-columns: 1fr;
   }
 

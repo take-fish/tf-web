@@ -5,6 +5,7 @@ import { scriptShortLabel } from '../lib/arenaScripts'
 import {
   canWatchMatch,
   formatLabel,
+  gameLabel,
   groupMatches,
   leagueStandings,
   matchRoundLabel,
@@ -99,6 +100,7 @@ function open(match: GameMatch) {
           </span>
         </div>
         <p class="bracket__meta">
+          {{ gameLabel(tournament.gameId, tournament.blindLayout) }} ·
           {{ formatLabel(tournament.format) }} · {{ modeLabel }} ·
           {{ acceptedPlayers.length }}/{{ tournament.targetPlayers }} 人
           <template v-if="tournament.currentRound > 0">

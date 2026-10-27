@@ -1,5 +1,6 @@
 import { deleteJson, getJson, postJson, request } from '@/lib/http'
 import type {
+  BlindLayout,
   ExerciseMode,
   ExerciseResult,
   ExerciseRoom,
@@ -14,6 +15,7 @@ import type {
   LeaderboardEntry,
   LeaderboardResponse,
   ScoreResponse,
+  SelectableGameId,
 } from './types'
 
 export async function fetchLeaderboard(
@@ -61,7 +63,10 @@ export function createTournament(payload: {
   name: string
   format: GameFormat
   players: GameOnlineUser[]
-  gameId?: string
+  gameId?: SelectableGameId
+  blindLayout?: BlindLayout
+  /** S赛启用池；不传表示启用全部 1v1 剧本。 */
+  gamePool?: string[]
 }): Promise<GameTournament> {
   return postJson<GameTournament>('/api/v1/game/tournaments', payload)
 }
@@ -109,7 +114,8 @@ export function createDuel(payload: {
   opponentUserId: string
   opponentNickname: string
   format: GameFormat
-  gameId?: string
+  gameId?: SelectableGameId
+  blindLayout?: BlindLayout
 }): Promise<GameTournament> {
   return postJson<GameTournament>('/api/v1/game/duels', payload)
 }

@@ -5,11 +5,76 @@ import type {
   MatchStatus,
   TournamentStatus,
 } from '../types'
+import { scriptLabel, scriptShortLabel } from './arenaScripts'
 
 export function formatLabel(format: GameFormat): string {
   if (format === 'BO5') return 'BO5 · 五轮三胜'
   if (format === 'BO3') return 'BO3 · 三轮两胜'
   return 'BO1 · 单次执行'
+}
+
+export function gameName(gameId: string | null | undefined): string {
+  if (gameId === 'blind-xiangqi') return '盲棋'
+  if (gameId === 'heatmap-gomoku') return '五子棋'
+  return gameId || '五子棋'
+}
+
+export function blindLayoutLabel(layout: string | null | undefined): string {
+  switch (layout) {
+    case 'STANDARD_SHUFFLE':
+      return '标准点位洗牌'
+    case 'FULL_RANDOM':
+      return '全盘随机'
+    case 'HALF_RANDOM':
+      return '各自半场随机'
+    default:
+      return ''
+  }
+}
+
+/** 例如：盲棋 · 全盘随机；五子棋不带摆法。 */
+export function gameLabel(
+  gameId: string | null | undefined,
+  blindLayout?: string | null,
+): string {
+  const name = gameName(gameId)
+  const layout = blindLayoutLabel(blindLayout)
+  return layout ? `${name} · ${layout}` : name
+}
+
+/** 同时兼容盲棋、五子棋与竞技场/随机剧本的统一展示名。 */
+export function modeLabel(
+  gameId: string | null | undefined,
+  blindLayout?: string | null,
+): string {
+  if (gameId === 'blind-xiangqi' || gameId === 'heatmap-gomoku') {
+    return gameLabel(gameId, blindLayout)
+  }
+  return scriptLabel(gameId)
+}
+
+export function modeShortLabel(
+  gameId: string | null | undefined,
+  blindLayout?: string | null,
+): string {
+  if (gameId === 'blind-xiangqi' || gameId === 'heatmap-gomoku') {
+    return gameLabel(gameId, blindLayout)
+  }
+  return scriptShortLabel(gameId)
+}
+
+/** S赛按启用池逐场抽签；其余赛事为单一剧本的锦标赛。 */
+export function tournamentTypeLabel(gameId: string | null | undefined): string {
+  return gameId === 'random' ? 'S赛' : '锦标赛'
+}
+
+/** 列表行里的类型与剧本摘要。 */
+export function tournamentModeSummary(tournament: GameTournament): string {
+  if (tournament.gameId === 'random') {
+    const count = tournament.gamePool?.length ?? 0
+    return count > 0 ? `S赛 · 启用 ${count} 项` : 'S赛'
+  }
+  return `锦标赛 · ${modeShortLabel(tournament.gameId, tournament.blindLayout)}`
 }
 
 export function tournamentStatusLabel(status: TournamentStatus): string {

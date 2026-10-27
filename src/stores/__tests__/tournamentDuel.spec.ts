@@ -5,6 +5,7 @@ import { writeAuth } from '@/lib/authToken'
 import type { AuthUser } from '@/modules/auth/types'
 import type {
   GameArenaStateEvent,
+  GameBlindActionEvent,
   GameMatch,
   GameRound,
   GameTournament,
@@ -34,6 +35,8 @@ const { socketState, MockGameSocketClient } = vi.hoisted(() => {
     leaveMatch = vi.fn<() => boolean>(() => true)
     ready = vi.fn<() => boolean>(() => true)
     placeStone = vi.fn<() => boolean>(() => true)
+    revealPiece = vi.fn<() => boolean>(() => true)
+    movePiece = vi.fn<() => boolean>(() => true)
     resign = vi.fn<() => boolean>(() => true)
     sendArenaAction = vi.fn<() => boolean>(() => true)
     chooseGame = vi.fn<() => boolean>(() => true)
@@ -288,6 +291,59 @@ describe('约战状态', () => {
     })
     expect(result.id).toBe('d1')
     expect(store.duels.map((entry) => entry.id)).toEqual(['d1'])
+    store.stop()
+  })
+
+  it('发起盲棋约战会带上 gameId 与 blindLayout', async () => {
+    const store = await bootStore()
+    api.createDuel.mockResolvedValue(
+      duel({ gameId: 'blind-xiangqi', blindLayout: 'FULL_RANDOM' }),
+    )
+
+    const result = await store.createDuelFor(
+      { userId: 'u2', nickname: 'Bob' },
+      'BO1',
+      'blind-xiangqi',
+      'FULL_RANDOM',
+    )
+
+    expect(api.createDuel).toHaveBeenCalledWith({
+      opponentUserId: 'u2',
+      opponentNickname: 'Bob',
+      format: 'BO1',
+      gameId: 'blind-xiangqi',
+      blindLayout: 'FULL_RANDOM',
+    })
+    expect(result.gameId).toBe('blind-xiangqi')
+    expect(result.blindLayout).toBe('FULL_RANDOM')
+    store.stop()
+  })
+
+  it('盲棋动作帧会写入 lastBlindAction', async () => {
+    const store = await bootStore()
+    const event: GameBlindActionEvent = {
+      type: 'blind_action',
+      matchId: 'm1',
+      roundId: 'r1',
+      moveNo: 1,
+      userId: 'u1',
+      action: 'REVEAL',
+      fromX: null,
+      fromY: null,
+      toX: 4,
+      toY: 5,
+      pieceType: 'CANNON',
+      pieceColor: 'RED',
+      capturedPieceType: null,
+      capturedPieceColor: null,
+      turnUserId: 'u2',
+      moveCount: 1,
+      result: null,
+    }
+
+    fire('onBlindAction', event)
+
+    expect(store.lastBlindAction).toEqual(event)
     store.stop()
   })
 

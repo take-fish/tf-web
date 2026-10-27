@@ -16,7 +16,9 @@ import { GAMES } from '@/modules/games/gameRegistry'
 import { ARENA_SCRIPTS } from '@/modules/games/lib/arenaScripts'
 import {
   formatLabel,
+  modeShortLabel,
   tournamentStatusLabel,
+  tournamentTypeLabel,
 } from '@/modules/games/lib/gameFormat'
 import {
   diskOption,
@@ -112,6 +114,7 @@ const chartOptions = computed<Record<string, EChartsCoreOption>>(() => ({
   'topology-minesweeper': topologyOption(light.value),
   'qps-breakout': qpsOption(labels.value, qpsValues.value, light.value),
   'heatmap-gomoku': heatmapOption(heatmapData.value, light.value),
+  'blind-xiangqi': heatmapOption(heatmapData.value, light.value),
 }))
 
 const updatedLabel = computed(() =>
@@ -123,6 +126,7 @@ function panelHeight(gameId: string): number {
   if (gameId === 'ring-2048') return 158
   if (gameId === 'topology-minesweeper') return 184
   if (gameId === 'qps-breakout') return 176
+  if (gameId === 'blind-xiangqi') return 184
   return 184
 }
 
@@ -169,6 +173,10 @@ function launchGame(gameId: string) {
     tournamentStore.openLobby(game.scriptId)
     return
   }
+  if (gameId === 'blind-xiangqi') {
+    tournamentStore.openLobby('blind-xiangqi')
+    return
+  }
   if (gameId === 'qps-breakout') showBreakout.value = true
 }
 
@@ -183,6 +191,16 @@ function launchScript(scriptId: ArenaGameId) {
 
 function openLobby() {
   tournamentStore.openLobby()
+}
+
+/** 游戏卡片/剧本卡片进入调度台时，对应锦标赛剧本高亮。 */
+function championshipSelected(gameId: string | undefined): boolean {
+  return (
+    tournamentStore.lobbyOpen &&
+    tournamentStore.lobbyMode === 'CHAMPIONSHIP' &&
+    Boolean(gameId) &&
+    tournamentStore.lobbyPreferredGameId === gameId
+  )
 }
 
 function openMatch(matchId: string) {
@@ -221,6 +239,13 @@ watch(
     selectedTournamentId.value = preferred?.id ?? ''
   },
   { deep: true, immediate: true },
+)
+
+watch(
+  () => tournamentStore.lastResult,
+  (result) => {
+    if (result) void loadLeaderboard()
+  },
 )
 
 watch(
@@ -294,7 +319,7 @@ onBeforeUnmount(() => {
           'is-active':
             script.id === 'cluster-patrol-arena'
               ? tournamentStore.exerciseOpen
-              : tournamentStore.lobbyOpen && tournamentStore.lobbyScript === script.id,
+              : championshipSelected(script.id),
         }"
         @click="launchScript(script.id)"
       >
@@ -320,11 +345,17 @@ onBeforeUnmount(() => {
           :playable="game.playable"
           :active="
             (showBreakout && game.id === 'qps-breakout') ||
-            (tournamentStore.lobbyOpen &&
-              Boolean(game.scriptId) &&
-              tournamentStore.lobbyScript === game.scriptId)
+            championshipSelected(
+              game.id === 'blind-xiangqi' ? 'blind-xiangqi' : game.scriptId,
+            )
           "
-          :action-label="game.id === 'qps-breakout' ? '启动采样' : '进入演练'"
+          :action-label="
+            game.id === 'heatmap-gomoku'
+              ? '进入演练'
+              : game.id === 'blind-xiangqi'
+                ? '进入盲棋'
+                : '启动采样'
+          "
           @launch="launchGame(game.id)"
         >
           <MetricChart
@@ -344,7 +375,9 @@ onBeforeUnmount(() => {
             myDrillMatches
               .map(
                 (match) =>
-                  `${match.player1Nickname || match.player1UserId} vs ${match.player2Nickname || match.player2UserId}`,
+                  `${modeShortLabel(match.gameId, match.blindLayout)} · ` +
+                  `${match.player1Nickname || match.player1UserId} vs ` +
+                  `${match.player2Nickname || match.player2UserId}`,
               )
               .join(' · ')
           }}
@@ -365,7 +398,7 @@ onBeforeUnmount(() => {
           <span class="games__tourneys-mark">T</span>
           <div>
             <b>联调演练调度</b>
-            <span>创建演练 · 邀请在线成员 · 轮次策略 · 查看与回放</span>
+            <span>S赛随机抽签 · 锦标赛剧本专精 · 邀请在线成员 · 查看与回放</span>
           </div>
         </div>
         <div class="games__tourneys-actions">
@@ -390,7 +423,10 @@ onBeforeUnmount(() => {
         正在载入演练…
       </div>
       <div v-else-if="tournamentStore.tournaments.length === 0" class="games__tourneys-empty">
-        <p>还没有联调演练。点击“调度台”选择在线成员，按 BO1 / BO3 / BO5 轮次策略创建。</p>
+        <p>
+          还没有联调演练。点击“调度台”选择 S赛或锦标赛、邀请在线成员，按 BO1 / BO3 / BO5
+          轮次策略创建。
+        </p>
         <p>2/4/8/16 人随机单败；其他人数先循环/瑞士排位，前四进入页面淘汰（三打四、胜者打二、决赛打一）。</p>
         <button type="button" class="games__connect" @click="openLobby">创建第一场演练</button>
       </div>
@@ -405,6 +441,12 @@ onBeforeUnmount(() => {
             @click="selectTournament(tournament.id)"
           >
             <span class="games__tournament-name">{{ tournament.name }}</span>
+            <span
+              class="games__tournament-type"
+              :class="{ 'is-series': tournament.gameId === 'random' }"
+            >
+              {{ tournamentTypeLabel(tournament.gameId) }}
+            </span>
             <em>{{ tournamentStatusLabel(tournament.status) }}</em>
             <span>{{ formatLabel(tournament.format).split(' · ')[0] }}</span>
             <span>{{ tournament.players.filter((player) => player.status === 'ACCEPTED').length }}/{{ tournament.targetPlayers }}</span>
@@ -775,6 +817,21 @@ onBeforeUnmount(() => {
 
 .games__tournament-name {
   font-weight: 600;
+}
+
+.games__tournament-type {
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 32%, transparent);
+  border-radius: 2px;
+  color: color-mix(in srgb, var(--fm-accent) 78%, var(--fm-text-muted));
+  font-family: var(--fm-mono);
+  font-size: 7.5px;
+  white-space: nowrap;
+}
+
+.games__tournament-type.is-series {
+  border-color: color-mix(in srgb, var(--fm-ok) 32%, transparent);
+  color: color-mix(in srgb, var(--fm-ok) 82%, var(--fm-text-muted));
 }
 
 .games__tournament-tab em {

@@ -74,6 +74,33 @@ withDefaults(
   font-size: 9px;
 }
 
+.leaderboard__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+.leaderboard__tabs button {
+  padding: 3px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  cursor: pointer;
+}
+
+.leaderboard__tabs button:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+  color: var(--fm-text-dim);
+}
+
+.leaderboard__tabs button.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
+  color: var(--fm-accent);
+}
+
 .leaderboard__hint {
   margin: 0 0 8px;
   color: var(--fm-text-muted);

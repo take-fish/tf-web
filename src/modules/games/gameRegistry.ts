@@ -43,7 +43,7 @@ export const GAMES: readonly GameDefinition[] = [
     metricTitle: 'QPS 柱状图',
     description: '削峰填谷演练，压降异常流量峰值',
     playable: true,
-    span: 7,
+    span: 4,
   },
   {
     id: 'heatmap-gomoku',
@@ -53,5 +53,13 @@ export const GAMES: readonly GameDefinition[] = [
     playable: true,
     span: 5,
     scriptId: 'heatmap-gomoku',
+  },
+  {
+    id: 'blind-xiangqi',
+    name: '盲棋',
+    metricTitle: '暗棋盘面',
+    description: '中国象棋暗棋：翻棋、盲吃与将帅见面',
+    playable: true,
+    span: 4,
   },
 ]

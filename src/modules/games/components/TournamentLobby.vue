@@ -7,24 +7,54 @@ import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import { useTournamentStore } from '@/stores/tournament'
-import { scriptDefaultName, scriptShortLabel } from '../lib/arenaScripts'
 import {
   countdown,
   formatClock,
   formatLabel,
+  modeShortLabel,
+  tournamentModeSummary,
   tournamentStatusLabel,
+  tournamentTypeLabel,
 } from '../lib/gameFormat'
-import type { GameFormat, GameMatch, GameOnlineUser, GameTournament } from '../types'
+import {
+  TOURNAMENT_GAMES,
+  defaultSeriesPool,
+  defaultTournamentName,
+  isTournamentPoolGame,
+  toggleSeriesPool,
+} from '../lib/tournamentGames'
+import type {
+  BlindLayout,
+  GameFormat,
+  GameMatch,
+  GameOnlineUser,
+  GameTournament,
+  SelectableGameId,
+  TournamentPoolGameId,
+  TournamentType,
+} from '../types'
 import TournamentBracket from './TournamentBracket.vue'
 
 const emit = defineEmits<{ close: [] }>()
 
 const MAX_PLAYERS = 16
+const BLIND_LAYOUTS: Array<{ id: BlindLayout; label: string; hint: string }> = [
+  { id: 'STANDARD_SHUFFLE', label: '标准点位', hint: '标准开局点位随机洗牌' },
+  { id: 'FULL_RANDOM', label: '全盘随机', hint: '32 枚随机散布全盘' },
+  { id: 'HALF_RANDOM', label: '半场随机', hint: '红黑各自半场散布' },
+]
+
 const store = useTournamentStore()
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+const tournamentType = ref<TournamentType>('SERIES')
+/** S赛启用池：默认全部 1v1 剧本，创建时可取消勾选，至少保留一个。 */
+const seriesPool = ref<TournamentPoolGameId[]>(defaultSeriesPool())
+/** 锦标赛固定剧本。 */
+const championshipGame = ref<TournamentPoolGameId>('heatmap-gomoku')
+const blindLayout = ref<BlindLayout>('STANDARD_SHUFFLE')
 const format = ref<GameFormat>('BO1')
 const name = ref('')
 const selectedIds = ref<string[]>([])
@@ -69,6 +99,32 @@ const canCreate = computed(
     roster.value.length >= 2 &&
     roster.value.length <= MAX_PLAYERS,
 )
+const selectedGameId = computed<SelectableGameId>(() =>
+  tournamentType.value === 'SERIES' ? 'random' : championshipGame.value,
+)
+/** 盲棋参与时才需要选择开局摆法。 */
+const blindInPlay = computed(() =>
+  tournamentType.value === 'SERIES'
+    ? seriesPool.value.includes('blind-xiangqi')
+    : championshipGame.value === 'blind-xiangqi',
+)
+const defaultName = computed(() =>
+  defaultTournamentName(tournamentType.value, selectedGameId.value),
+)
+
+function toggleSeriesGame(gameId: TournamentPoolGameId) {
+  seriesPool.value = toggleSeriesPool(seriesPool.value, gameId)
+}
+
+/** 游戏卡片/剧本卡片进入时预选锦标赛剧本；顶部调度台按钮保持 S赛。 */
+function applyEntryMode() {
+  if (store.lobbyMode === 'CHAMPIONSHIP' && isTournamentPoolGame(store.lobbyPreferredGameId)) {
+    tournamentType.value = 'CHAMPIONSHIP'
+    championshipGame.value = store.lobbyPreferredGameId
+    return
+  }
+  tournamentType.value = 'SERIES'
+}
 
 watch(
   candidates,
@@ -93,6 +149,11 @@ watch(
     selectedTournamentId.value = preferred?.id ?? ''
   },
   { deep: true, immediate: true },
+)
+
+watch(
+  () => [store.lobbyMode, store.lobbyPreferredGameId] as const,
+  () => applyEntryMode(),
 )
 
 function toggle(userId: string) {
@@ -149,10 +210,12 @@ async function create() {
   createError.value = ''
   try {
     const created = await store.create({
-      name: name.value.trim() || scriptDefaultName('random'),
+      name: name.value.trim() || defaultName.value,
       format: format.value,
       players: roster.value,
-      gameId: 'random',
+      gameId: selectedGameId.value,
+      ...(tournamentType.value === 'SERIES' ? { gamePool: [...seriesPool.value] } : {}),
+      ...(blindInPlay.value ? { blindLayout: blindLayout.value } : {}),
     })
     selectedIds.value = []
     name.value = ''
@@ -245,6 +308,7 @@ function isCreator(tournament: GameTournament): boolean {
 }
 
 onMounted(() => {
+  applyEntryMode()
   clockTimer = setInterval(() => {
     now.value = Date.now()
   }, 1000)
@@ -311,8 +375,9 @@ onBeforeUnmount(() => {
               <div class="lobby__invite-main">
                 <b>{{ invitation.name }}</b>
                 <span>
-                  {{ invitation.creatorNickname }} 邀请你 · {{ scriptShortLabel(invitation.gameId) }}
-                  · {{ formatLabel(invitation.format) }}
+                  {{ invitation.creatorNickname }} 邀请你 ·
+                  {{ modeShortLabel(invitation.gameId, invitation.blindLayout) }} ·
+                  {{ formatLabel(invitation.format) }}
                 </span>
                 <em :class="{ 'is-expired': isInvitationExpired(invitation) }">
                   <template v-if="isInvitationExpired(invitation)">邀请已超时</template>
@@ -375,22 +440,100 @@ onBeforeUnmount(() => {
                 v-model="name"
                 type="text"
                 maxlength="32"
-                :placeholder="scriptDefaultName('random')"
+                :placeholder="defaultName"
                 :disabled="creating"
               />
             </label>
 
             <div class="lobby__field">
               <div class="lobby__field-head">
-                <span>比赛剧本</span>
-                <em>每场比赛由系统随机抽取</em>
+                <span>赛事类型</span>
+                <em>S赛多剧本综合抽签 · 锦标赛单一剧本专精</em>
               </div>
-              <div class="lobby__draw">
-                <span class="lobby__script-tag">RANDOM</span>
-                <div>
-                  <b>系统随机演练</b>
-                  <em>热点对弈 / 热点排查 / 拓扑攻防 / 集群巡检，每局开赛前抽签</em>
-                </div>
+              <div class="lobby__games">
+                <button
+                  type="button"
+                  class="lobby__format"
+                  :class="{ 'is-active': tournamentType === 'SERIES' }"
+                  @click="tournamentType = 'SERIES'"
+                >
+                  <b>S赛</b>
+                  <em>综合赛 · 每场开赛前从启用池随机抽选</em>
+                </button>
+                <button
+                  type="button"
+                  class="lobby__format"
+                  :class="{ 'is-active': tournamentType === 'CHAMPIONSHIP' }"
+                  @click="tournamentType = 'CHAMPIONSHIP'"
+                >
+                  <b>锦标赛</b>
+                  <em>专精赛 · 选定一个剧本贯穿全程</em>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="tournamentType === 'SERIES'" class="lobby__field">
+              <div class="lobby__field-head">
+                <span>启用剧本</span>
+                <em>
+                  已启用 {{ seriesPool.length }}/{{ TOURNAMENT_GAMES.length }} · 至少保留 1 个
+                </em>
+              </div>
+              <div class="lobby__pool">
+                <button
+                  v-for="option in TOURNAMENT_GAMES"
+                  :key="option.id"
+                  type="button"
+                  class="lobby__pool-item"
+                  :class="{ 'is-active': seriesPool.includes(option.id) }"
+                  :aria-pressed="seriesPool.includes(option.id)"
+                  @click="toggleSeriesGame(option.id)"
+                >
+                  <span class="lobby__pool-check">
+                    <AppIcon
+                      :name="seriesPool.includes(option.id) ? 'check' : 'plus'"
+                      :size="10"
+                    />
+                  </span>
+                  <span class="lobby__pool-main">
+                    <b>{{ option.shortName }}</b>
+                    <em>{{ option.description }}</em>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="lobby__field">
+              <span>比赛剧本</span>
+              <div class="lobby__games">
+                <button
+                  v-for="option in TOURNAMENT_GAMES"
+                  :key="option.id"
+                  type="button"
+                  class="lobby__format"
+                  :class="{ 'is-active': championshipGame === option.id }"
+                  @click="championshipGame = option.id"
+                >
+                  <b>{{ option.shortName }}</b>
+                  <em>{{ option.description }}</em>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="blindInPlay" class="lobby__field">
+              <span>开局摆法</span>
+              <div class="lobby__layouts">
+                <button
+                  v-for="option in BLIND_LAYOUTS"
+                  :key="option.id"
+                  type="button"
+                  class="lobby__format"
+                  :class="{ 'is-active': blindLayout === option.id }"
+                  @click="blindLayout = option.id"
+                >
+                  <b>{{ option.label }}</b>
+                  <em>{{ option.hint }}</em>
+                </button>
               </div>
             </div>
 
@@ -465,11 +608,18 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="lobby__rules">
+              <p>
+                <b>S赛</b>：每场对局开赛前从启用池随机抽选剧本；
+                <b>锦标赛</b>：全程使用选定剧本。
+              </p>
               <p><b>2/4/8/16 人</b>：随机单败淘汰，自动生成执行链路。</p>
               <p><b>3-5 人</b>：循环排位；<b>6 人以上非 2 的幂</b>：瑞士轮排位。</p>
               <p><b>前四</b>进入页面淘汰：三打四、胜者打二、决赛打一。</p>
               <p><b>首局选图</b>：三号、二号、一号各自拥有对应场次的首局选图权；其余小局系统随机。</p>
               <p><b>回放</b>：未参与的成员可从列表进入；执行内保留公开讨论与双方私聊。</p>
+              <p v-if="blindInPlay">
+                <b>盲棋</b>：翻棋或走子；反面棋可盲吃；将帅见面记和并进下一局。
+              </p>
             </div>
 
             <p v-if="createError || store.lobbyError" class="lobby__error">
@@ -518,6 +668,12 @@ onBeforeUnmount(() => {
                   <b>{{ tournament.name }}</b>
                   <div class="lobby__tournament-head-actions">
                     <span
+                      class="lobby__mode-tag"
+                      :class="{ 'is-series': tournament.gameId === 'random' }"
+                    >
+                      {{ tournamentTypeLabel(tournament.gameId) }}
+                    </span>
+                    <span
                       class="lobby__tournament-status"
                       :class="`is-${tournament.status.toLowerCase()}`"
                     >
@@ -564,7 +720,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="lobby__tournament-meta">
-                  <span>{{ scriptShortLabel(tournament.gameId) }}</span>
+                  <span>{{ tournamentModeSummary(tournament) }}</span>
                   <span>{{ formatLabel(tournament.format) }}</span>
                   <span>{{ playerCount(tournament) }}/{{ tournament.targetPlayers }} 人</span>
                   <span>{{ formatClock(tournament.createdAt) }}</span>
@@ -1084,6 +1240,103 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
+.lobby__games {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.lobby__pool {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.lobby__pool-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 7px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lobby__pool-item:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+}
+
+.lobby__pool-item.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
+}
+
+.lobby__pool-check {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  color: var(--fm-text-muted);
+}
+
+.lobby__pool-item.is-active .lobby__pool-check {
+  border-color: color-mix(in srgb, var(--fm-accent) 55%, transparent);
+  color: var(--fm-accent);
+}
+
+.lobby__pool-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.lobby__pool-main b {
+  color: var(--fm-text-dim);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.lobby__pool-item.is-active .lobby__pool-main b {
+  color: var(--fm-accent);
+}
+
+.lobby__pool-main em {
+  overflow: hidden;
+  color: var(--fm-text-muted);
+  font-size: 7.5px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby__mode-tag {
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 32%, transparent);
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--fm-accent) 78%, var(--fm-text-muted));
+  font-family: var(--fm-mono);
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+.lobby__mode-tag.is-series {
+  border-color: color-mix(in srgb, var(--fm-ok) 32%, transparent);
+  color: color-mix(in srgb, var(--fm-ok) 82%, var(--fm-text-muted));
+}
+
+.lobby__layouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
 .lobby__format {
   display: flex;
   flex-direction: column;
@@ -1464,7 +1717,10 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  .lobby__formats {
+  .lobby__formats,
+  .lobby__games,
+  .lobby__layouts,
+  .lobby__pool {
     grid-template-columns: 1fr;
   }
 

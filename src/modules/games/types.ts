@@ -26,6 +26,10 @@ export type ArenaGameId =
   | 'cluster-patrol-arena'
 /** 赛事开赛前只能选“系统随机”；具体小局由服务端抽签。 */
 export type TournamentGameId = ArenaGameId | 'random'
+/** S赛启用池与锦标赛可选剧本：五个 1v1 游戏，与后端 ArenaGames.TOURNAMENT_POOL 对齐。 */
+export type TournamentPoolGameId = ArenaGameId | 'blind-xiangqi'
+/** S赛：综合随机抽选；锦标赛：单一剧本专精。 */
+export type TournamentType = 'SERIES' | 'CHAMPIONSHIP'
 /** TOURNAMENT：多人演练；DUEL：一对一约战，不进入大厅、不计分、无聊天与观战。 */
 export type GameKind = 'TOURNAMENT' | 'DUEL'
 export type TournamentStatus = 'INVITING' | 'RUNNING' | 'FINISHED' | 'CANCELLED'
@@ -43,11 +47,43 @@ export interface GamePlayer {
   status: string
 }
 
+export type GameId = 'heatmap-gomoku' | 'blind-xiangqi'
+export type LeaderboardGameId = 'overall' | 'heatmap-gomoku' | 'blind-xiangqi'
+/** 赛事默认 random，可显式固定盲棋；约战可选任意剧本。 */
+export type SelectableGameId = GameId | TournamentGameId
+
+export type BlindLayout = 'STANDARD_SHUFFLE' | 'FULL_RANDOM' | 'HALF_RANDOM'
+export type BlindPieceColor = 'RED' | 'BLACK'
+export type BlindPieceType =
+  | 'GENERAL'
+  | 'ADVISOR'
+  | 'ELEPHANT'
+  | 'HORSE'
+  | 'CHARIOT'
+  | 'CANNON'
+  | 'SOLDIER'
+
+/** 盲棋公开棋盘格：反面棋只暴露坐标，翻开后才下发颜色与兵种。 */
+export interface BlindPieceView {
+  x: number
+  y: number
+  revealed: boolean
+  color: BlindPieceColor | null
+  pieceType: BlindPieceType | null
+}
+
 export interface GameMove {
   moveNo: number
   userId: string
   x: number
   y: number
+  action?: 'PLACE' | 'REVEAL' | 'MOVE'
+  fromX?: number | null
+  fromY?: number | null
+  pieceType?: BlindPieceType | null
+  pieceColor?: BlindPieceColor | null
+  capturedPieceType?: BlindPieceType | null
+  capturedPieceColor?: BlindPieceColor | null
 }
 
 export interface ArenaEvent {
@@ -311,6 +347,11 @@ export interface GameRound {
   seq: number
   state: ArenaStateView | null
   moves: GameMove[]
+  /** 盲棋公开棋盘；五子棋为空。 */
+  blindBoard?: BlindPieceView[]
+  /** 盲棋 firstUserId 为红方，secondUserId 为黑方。 */
+  firstUserId?: string
+  secondUserId?: string
 }
 
 export interface GameMatch {
@@ -336,6 +377,7 @@ export interface GameMatch {
   startedAt: number | null
   finishedAt: number | null
   currentRound: GameRound | null
+  blindLayout?: BlindLayout | null
 }
 
 export interface GameTournament {
@@ -361,6 +403,9 @@ export interface GameTournament {
   finishedAt: number | null
   players: GamePlayer[]
   matches: GameMatch[]
+  blindLayout?: BlindLayout | null
+  /** S赛启用的剧本池；锦标赛与约战为空。 */
+  gamePool?: string[]
 }
 
 export interface GameChatMessage {
@@ -407,6 +452,26 @@ export interface GameStoneEvent {
   turnUserId: string
   moveCount: number
   winning: boolean
+}
+
+export interface GameBlindActionEvent {
+  type: 'blind_action'
+  matchId: string
+  roundId: string
+  moveNo: number
+  userId: string
+  action: 'REVEAL' | 'MOVE'
+  fromX: number | null
+  fromY: number | null
+  toX: number
+  toY: number
+  pieceType: BlindPieceType
+  pieceColor: BlindPieceColor
+  capturedPieceType: BlindPieceType | null
+  capturedPieceColor: BlindPieceColor | null
+  turnUserId: string
+  moveCount: number
+  result: 'WIN' | 'DRAW' | null
 }
 
 export interface GameMatchRestEvent {
@@ -521,6 +586,16 @@ export interface GameServerFrame {
   userId?: string
   x?: number
   y?: number
+  action?: 'REVEAL' | 'MOVE'
+  fromX?: number | null
+  fromY?: number | null
+  toX?: number
+  toY?: number
+  pieceType?: BlindPieceType
+  pieceColor?: BlindPieceColor
+  capturedPieceType?: BlindPieceType | null
+  capturedPieceColor?: BlindPieceColor | null
+  result?: 'WIN' | 'DRAW' | null
   turnUserId?: string
   moveCount?: number
   winning?: boolean

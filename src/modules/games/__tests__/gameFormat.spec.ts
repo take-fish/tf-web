@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  blindLayoutLabel,
   canWatchMatch,
   countdown,
   findWatchableMatch,
   formatDuration,
   formatLabel,
+  gameLabel,
+  gameName,
   groupMatches,
   leagueStandings,
   matchRoundLabel,
   matchStatusLabel,
+  tournamentModeSummary,
   tournamentStatusLabel,
+  tournamentTypeLabel,
 } from '../lib/gameFormat'
 import type {
   GameFormat,
@@ -98,6 +103,30 @@ describe('gameFormat 标签', () => {
     expect(tournamentStatusLabel('INVITING')).toBe('邀请中')
     expect(tournamentStatusLabel('FINISHED')).toBe('已结束')
     expect(matchStatusLabel('BYE')).toBe('轮空')
+  })
+
+  it('识别五子棋、盲棋与盲棋摆法', () => {
+    expect(gameName('heatmap-gomoku')).toBe('五子棋')
+    expect(gameName('blind-xiangqi')).toBe('盲棋')
+    expect(blindLayoutLabel('STANDARD_SHUFFLE')).toBe('标准点位洗牌')
+    expect(blindLayoutLabel('FULL_RANDOM')).toBe('全盘随机')
+    expect(blindLayoutLabel('HALF_RANDOM')).toBe('各自半场随机')
+    expect(gameLabel('blind-xiangqi', 'HALF_RANDOM')).toBe('盲棋 · 各自半场随机')
+    expect(gameLabel('heatmap-gomoku')).toBe('五子棋')
+  })
+
+  it('S赛与锦标赛使用不同类型徽标与摘要', () => {
+    expect(tournamentTypeLabel('random')).toBe('S赛')
+    expect(tournamentTypeLabel('topology-arena')).toBe('锦标赛')
+    expect(tournamentModeSummary(tournament({
+      gameId: 'random',
+      gamePool: ['heatmap-gomoku', 'blind-xiangqi'],
+    }))).toBe('S赛 · 启用 2 项')
+    expect(tournamentModeSummary(tournament({ gameId: 'random' }))).toBe('S赛')
+    expect(tournamentModeSummary(tournament({
+      gameId: 'blind-xiangqi',
+      blindLayout: 'FULL_RANDOM',
+    }))).toBe('锦标赛 · 盲棋 · 全盘随机')
   })
 
   it('淘汰赛轮次按总轮数换算', () => {
