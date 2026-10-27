@@ -2072,6 +2072,28 @@ kbd {
   gap: 5px;
 }
 
+.settings-row--avatar {
+  min-height: 52px;
+}
+
+.settings-avatar {
+  gap: 10px;
+}
+
+.settings-avatar__preview {
+  border: 1px solid var(--fm-border);
+  background: var(--fm-accent-soft);
+  color: var(--fm-accent);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.settings-avatar__error {
+  margin: -2px 0 8px;
+  color: #e08a8a;
+  font-size: 11px;
+}
+
 .settings-row code {
   color: var(--fm-text-dim);
   font-size: 10px;

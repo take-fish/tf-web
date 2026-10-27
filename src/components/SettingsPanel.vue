@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
+import { formatApiError } from '@/lib/http'
 import type { ReaderTemplateId } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
@@ -19,6 +21,10 @@ const identity = useIdentityStore()
 const skinStore = useSkinStore()
 const nickname = ref(identity.state.nickname)
 const loggingOut = ref(false)
+const avatarInput = ref<HTMLInputElement | null>(null)
+const avatarBusy = ref(false)
+const avatarError = ref('')
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
 const accountName = computed(() => auth.user?.username ?? '')
 const accountNickname = computed(() => auth.user?.nickname ?? '')
@@ -39,6 +45,39 @@ function saveNickname() {
 
 function onNicknameKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') saveNickname()
+}
+
+async function onAvatarChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || avatarBusy.value) return
+  avatarError.value = ''
+  if (file.size > MAX_AVATAR_BYTES) {
+    avatarError.value = '头像不能超过 2MB'
+    return
+  }
+  avatarBusy.value = true
+  try {
+    await auth.uploadAvatar(file)
+  } catch (error) {
+    avatarError.value = formatApiError(error, '头像上传失败')
+  } finally {
+    avatarBusy.value = false
+  }
+}
+
+async function onRemoveAvatar() {
+  if (avatarBusy.value) return
+  avatarError.value = ''
+  avatarBusy.value = true
+  try {
+    await auth.removeAvatar()
+  } catch (error) {
+    avatarError.value = formatApiError(error, '移除头像失败')
+  } finally {
+    avatarBusy.value = false
+  }
 }
 
 function onToggleAutoBoss(event: Event) {
@@ -101,6 +140,43 @@ async function onLogout() {
       <div class="settings-body">
         <section class="settings-section">
           <h3>身份</h3>
+          <div class="settings-row settings-row--avatar">
+            <span>头像</span>
+            <span class="settings-inline settings-avatar">
+              <UserAvatar
+                class="settings-avatar__preview"
+                :name="accountNickname || nickname"
+                :src="auth.user?.avatarUrl"
+                :user-id="auth.user ? `u${auth.user.id}` : identity.state.userId"
+                :size="40"
+              />
+              <button
+                type="button"
+                class="ghost-button"
+                :disabled="avatarBusy || !auth.user"
+                @click="avatarInput?.click()"
+              >
+                {{ avatarBusy ? '处理中…' : auth.user?.avatarUrl ? '更换头像' : '上传头像' }}
+              </button>
+              <button
+                v-if="auth.user?.avatarUrl"
+                type="button"
+                class="ghost-button"
+                :disabled="avatarBusy"
+                @click="onRemoveAvatar"
+              >
+                移除
+              </button>
+              <input
+                ref="avatarInput"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                hidden
+                @change="onAvatarChange"
+              />
+            </span>
+          </div>
+          <p v-if="avatarError" class="settings-avatar__error">{{ avatarError }}</p>
           <div class="settings-row">
             <span>当前账号</span>
             <code v-if="accountName">@{{ accountName }} · {{ accountRole }}</code>

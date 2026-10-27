@@ -5,6 +5,7 @@ import type {
   MatchStatus,
   TournamentStatus,
 } from '../types'
+import { scriptLabel, scriptShortLabel } from './arenaScripts'
 
 export function formatLabel(format: GameFormat): string {
   if (format === 'BO5') return 'BO5 · 五轮三胜'
@@ -39,6 +40,27 @@ export function gameLabel(
   const name = gameName(gameId)
   const layout = blindLayoutLabel(blindLayout)
   return layout ? `${name} · ${layout}` : name
+}
+
+/** 同时兼容盲棋、五子棋与竞技场/随机剧本的统一展示名。 */
+export function modeLabel(
+  gameId: string | null | undefined,
+  blindLayout?: string | null,
+): string {
+  if (gameId === 'blind-xiangqi' || gameId === 'heatmap-gomoku') {
+    return gameLabel(gameId, blindLayout)
+  }
+  return scriptLabel(gameId)
+}
+
+export function modeShortLabel(
+  gameId: string | null | undefined,
+  blindLayout?: string | null,
+): string {
+  if (gameId === 'blind-xiangqi' || gameId === 'heatmap-gomoku') {
+    return gameLabel(gameId, blindLayout)
+  }
+  return scriptShortLabel(gameId)
 }
 
 export function tournamentStatusLabel(status: TournamentStatus): string {
@@ -116,7 +138,26 @@ function knockoutRoundLabel(tournament: GameTournament, roundNo: number): string
 export function matchRoundLabel(tournament: GameTournament, match: GameMatch): string {
   if (match.stage === 'LEAGUE') return `循环计分 · 第 ${match.roundNo} 轮`
   if (match.stage === 'LADDER') {
-    return match.roundNo >= tournament.totalRounds ? '收尾轮 · 最终轮' : '收尾轮 · 挑战'
+    // 旧版阶梯决赛固定两场：三号挑战二号，胜者再挑战一号。
+    const remaining = tournament.totalRounds - match.roundNo
+    if (remaining <= 0) return '收尾轮 · 决赛'
+    if (remaining === 1) return '收尾轮 · 半决赛'
+    return `收尾轮 · 第 ${match.roundNo} 轮`
+  }
+  if (match.stage === 'PAGE_PLAYOFF') {
+    // 前四页面淘汰：三打四、胜者打二、决赛打一；三号/二号/一号分别拥有首局选图权。
+    const remaining = tournament.totalRounds - match.roundNo
+    const qualifierCount = Math.min(
+      4,
+      tournament.players.filter((player) => player.status === 'ACCEPTED').length,
+    )
+    if (remaining <= 0) return '页面淘汰 · 决赛（一号选图）'
+    if (remaining === 1) {
+      return qualifierCount < 4
+        ? '页面淘汰 · 三打二（三号选图）'
+        : '页面淘汰 · 胜者打二（二号选图）'
+    }
+    return '页面淘汰 · 三打四（三号选图）'
   }
   return knockoutRoundLabel(tournament, match.roundNo)
 }
@@ -180,7 +221,7 @@ export interface StandingRow {
   played: number
 }
 
-/** 与后端一致：积分赛每胜 +3，轮空按胜场计；按积分、胜场、种子排序。 */
+/** 与后端一致：积分赛只认胜场；同胜场按种子顺位排序。 */
 export function leagueStandings(tournament: GameTournament): StandingRow[] {
   const rows = new Map<string, StandingRow>()
   for (const player of tournament.players) {
@@ -215,8 +256,7 @@ export function leagueStandings(tournament: GameTournament): StandingRow[] {
     }
   }
   return [...rows.values()].sort(
-    (left, right) =>
-      right.points - left.points || right.wins - left.wins || left.seed - right.seed,
+    (left, right) => right.wins - left.wins || left.seed - right.seed,
   )
 }
 

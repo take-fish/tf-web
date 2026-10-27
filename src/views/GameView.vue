@@ -5,19 +5,18 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import { formatApiError } from '@/lib/http'
 import BreakoutCanvas from '@/modules/games/components/BreakoutCanvas.vue'
+import ExerciseLobby from '@/modules/games/components/ExerciseLobby.vue'
 import GamePanel from '@/modules/games/components/GamePanel.vue'
 import LeaderboardPanel from '@/modules/games/components/LeaderboardPanel.vue'
 import MatchWindow from '@/modules/games/components/MatchWindow.vue'
 import MetricChart from '@/modules/games/components/MetricChart.vue'
 import TournamentBracket from '@/modules/games/components/TournamentBracket.vue'
-import {
-  fetchLeaderboard,
-  fetchOverallLeaderboard,
-  submitScore,
-} from '@/modules/games/gameApi'
+import { fetchOverallLeaderboard, submitScore } from '@/modules/games/gameApi'
 import { GAMES } from '@/modules/games/gameRegistry'
+import { ARENA_SCRIPTS } from '@/modules/games/lib/arenaScripts'
 import {
   formatLabel,
+  modeShortLabel,
   tournamentStatusLabel,
 } from '@/modules/games/lib/gameFormat'
 import {
@@ -28,10 +27,7 @@ import {
   topologyOption,
 } from '@/modules/games/lib/chartOptions'
 import type { EChartsCoreOption } from 'echarts/core'
-import type {
-  LeaderboardEntry,
-  LeaderboardGameId,
-} from '@/modules/games/types'
+import type { ArenaGameId, LeaderboardEntry } from '@/modules/games/types'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
@@ -54,18 +50,9 @@ const updatedAt = ref(new Date())
 const showBreakout = ref(false)
 const notice = ref('')
 
-const LEADERBOARD_OPTIONS: Array<{ id: LeaderboardGameId; label: string }> = [
-  { id: 'overall', label: '综合' },
-  { id: 'heatmap-gomoku', label: '五子棋' },
-  { id: 'blind-xiangqi', label: '盲棋' },
-]
-
 const leaderboard = ref<LeaderboardEntry[]>([])
 const leaderboardLoading = ref(false)
 const leaderboardError = ref('')
-const leaderboardGameId = ref<LeaderboardGameId>('overall')
-const bestScore = ref(0)
-const myRank = ref(0)
 const selectedTournamentId = ref('')
 
 const playableCount = computed(() => GAMES.filter((game) => game.playable).length)
@@ -151,52 +138,28 @@ function showNotice(message: string) {
 }
 
 async function loadLeaderboard() {
-  const requested = leaderboardGameId.value
   leaderboardLoading.value = true
   leaderboardError.value = ''
   try {
-    const entries =
-      requested === 'overall'
-        ? await fetchOverallLeaderboard(10)
-        : await fetchLeaderboard(requested, 10)
-    if (leaderboardGameId.value !== requested) return
-    leaderboard.value = entries
-    const own = entries.find((entry) => entry.userId === identity.state.userId)
-    if (own) {
-      bestScore.value = own.points ?? own.score
-      myRank.value = own.rank
-    } else {
-      bestScore.value = 0
-      myRank.value = 0
-    }
+    // 冠军榜只由赛事冠亚军结算，采样小游戏不再写入总积分。
+    leaderboard.value = await fetchOverallLeaderboard(10)
   } catch (error) {
-    if (leaderboardGameId.value === requested) {
-      leaderboardError.value = formatApiError(error, '排行服务暂不可用')
-    }
+    leaderboardError.value = formatApiError(error, '排行服务暂不可用')
   } finally {
-    if (leaderboardGameId.value === requested) leaderboardLoading.value = false
+    leaderboardLoading.value = false
   }
-}
-
-function selectLeaderboard(gameId: LeaderboardGameId) {
-  leaderboardGameId.value = gameId
-  bestScore.value = 0
-  myRank.value = 0
-  void loadLeaderboard()
 }
 
 async function onGameFinish(score: number) {
   if (!score) return
   try {
-    const result = await submitScore({
+    await submitScore({
       gameId: 'qps-breakout',
       userId: identity.state.userId,
       nickname: identity.state.nickname,
       score,
     })
-    bestScore.value = result.bestScore
-    myRank.value = result.rank
-    showNotice(`采样记录已提交：${score} · 综合排名 ${result.rank}`)
+    showNotice(`采样记录已提交：${score} · 不计入冠军榜`)
     await loadLeaderboard()
   } catch (error) {
     showNotice(formatApiError(error, '排行服务暂不可用'))
@@ -204,15 +167,25 @@ async function onGameFinish(score: number) {
 }
 
 function launchGame(gameId: string) {
-  if (gameId === 'heatmap-gomoku') {
-    tournamentStore.openLobby()
+  const game = GAMES.find((entry) => entry.id === gameId)
+  if (game?.scriptId) {
+    tournamentStore.openLobby(game.scriptId)
     return
   }
   if (gameId === 'blind-xiangqi') {
     tournamentStore.openLobby('blind-xiangqi')
     return
   }
-  showBreakout.value = true
+  if (gameId === 'qps-breakout') showBreakout.value = true
+}
+
+function launchScript(scriptId: ArenaGameId) {
+  if (scriptId === 'cluster-patrol-arena') {
+    tournamentStore.closeLobby()
+    tournamentStore.openExerciseLobby()
+    return
+  }
+  tournamentStore.openLobby(scriptId)
 }
 
 function openLobby() {
@@ -228,7 +201,8 @@ function closeMatch() {
   tournamentStore.leaveWatch()
   const query = { ...route.query }
   delete query.watch
-  void router.replace({ path: route.path, query })
+  // 关闭执行窗口后固定回到演练调度台，避免停留在打开窗口前的来源页面
+  void router.replace({ path: '/games', query })
 }
 
 function selectTournament(id: string) {
@@ -324,6 +298,29 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
+    <section class="games__scripts" aria-label="演练剧本">
+      <button
+        v-for="script in ARENA_SCRIPTS"
+        :key="script.id"
+        type="button"
+        class="games__script"
+        :class="{
+          'is-active':
+            script.id === 'cluster-patrol-arena'
+              ? tournamentStore.exerciseOpen
+              : tournamentStore.lobbyOpen && tournamentStore.lobbyScript === script.id,
+        }"
+        @click="launchScript(script.id)"
+      >
+        <span class="games__script-tag">{{ script.tag }}</span>
+        <span class="games__script-main">
+          <b>{{ script.name }}</b>
+          <em>{{ script.description }}</em>
+        </span>
+        <span class="games__script-duration">{{ script.duration }}</span>
+      </button>
+    </section>
+
     <div class="games__grid">
       <div
         v-for="game in GAMES"
@@ -338,9 +335,10 @@ onBeforeUnmount(() => {
           :active="
             (showBreakout && game.id === 'qps-breakout') ||
             (tournamentStore.lobbyOpen &&
-              (tournamentStore.lobbyPreferredGameId
-                ? game.id === tournamentStore.lobbyPreferredGameId
-                : game.id === 'heatmap-gomoku'))
+              (game.id === 'blind-xiangqi'
+                ? tournamentStore.lobbyPreferredGameId === 'blind-xiangqi'
+                : Boolean(game.scriptId) &&
+                  tournamentStore.lobbyScript === game.scriptId))
           "
           :action-label="
             game.id === 'heatmap-gomoku'
@@ -368,7 +366,7 @@ onBeforeUnmount(() => {
             myDrillMatches
               .map(
                 (match) =>
-                  `${match.gameId === 'blind-xiangqi' ? '盲棋 · ' : ''}` +
+                  `${modeShortLabel(match.gameId, match.blindLayout)} · ` +
                   `${match.player1Nickname || match.player1UserId} vs ` +
                   `${match.player2Nickname || match.player2UserId}`,
               )
@@ -391,7 +389,7 @@ onBeforeUnmount(() => {
           <span class="games__tourneys-mark">T</span>
           <div>
             <b>联调演练调度</b>
-            <span>创建五子棋/盲棋演练 · 邀请在线成员 · 轮次策略 · 查看与回放</span>
+            <span>随机剧本赛事 · 邀请在线成员 · 轮次策略 · 查看与回放</span>
           </div>
         </div>
         <div class="games__tourneys-actions">
@@ -417,7 +415,7 @@ onBeforeUnmount(() => {
       </div>
       <div v-else-if="tournamentStore.tournaments.length === 0" class="games__tourneys-empty">
         <p>还没有联调演练。点击“调度台”选择在线成员，按 BO1 / BO3 / BO5 轮次策略创建。</p>
-        <p>2/4/8/16 人自动生成分组推进；其他人数先循环计分，再进行收尾轮。</p>
+        <p>2/4/8/16 人随机单败；其他人数先循环/瑞士排位，前四进入页面淘汰（三打四、胜者打二、决赛打一）。</p>
         <button type="button" class="games__connect" @click="openLobby">创建第一场演练</button>
       </div>
       <template v-else>
@@ -451,11 +449,6 @@ onBeforeUnmount(() => {
           :entries="leaderboard"
           :loading="leaderboardLoading"
           :error="leaderboardError"
-          :best-score="bestScore"
-          :rank="myRank"
-          :game-id="leaderboardGameId"
-          :game-options="LEADERBOARD_OPTIONS"
-          @change="selectLeaderboard"
         />
       </section>
       <section class="games__bottom-panel games__tasks">
@@ -488,6 +481,8 @@ onBeforeUnmount(() => {
         <BreakoutCanvas @finish="onGameFinish" @exit="showBreakout = false" />
       </div>
     </div>
+
+    <ExerciseLobby v-if="tournamentStore.exerciseOpen" />
 
     <MatchWindow v-if="matchVisible" @close="closeMatch" />
 
@@ -813,6 +808,75 @@ onBeforeUnmount(() => {
   color: var(--fm-text-muted);
   font-size: 8px;
   font-style: normal;
+}
+
+.games__scripts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.games__script {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: var(--fm-panel);
+  color: var(--fm-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.games__script:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 48%, transparent);
+}
+
+.games__script.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 9%, transparent);
+}
+
+.games__script-tag {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 30%, transparent);
+  border-radius: 2px;
+  color: color-mix(in srgb, var(--fm-accent) 76%, var(--fm-text-muted));
+  font-family: var(--fm-mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+
+.games__script-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.games__script-main b {
+  color: var(--fm-text);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.games__script-main em {
+  overflow: hidden;
+  color: var(--fm-text-muted);
+  font-size: 8px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.games__script-duration {
+  flex: none;
+  color: var(--fm-text-dim);
+  font-family: var(--fm-mono);
+  font-size: 8px;
 }
 
 .games__grid {
