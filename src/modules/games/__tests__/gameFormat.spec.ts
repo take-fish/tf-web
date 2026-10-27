@@ -33,6 +33,7 @@ function match(
   return {
     id,
     tournamentId: 't1',
+    gameId: 'heatmap-gomoku',
     kind: 'TOURNAMENT',
     roundNo,
     slotNo: 1,
@@ -46,6 +47,8 @@ function match(
     player2Score: 0,
     winnerUserId: null,
     nextMatchId: null,
+    firstGameId: null,
+    gameChooserUserId: null,
     createdAt: 0,
     startedAt: null,
     finishedAt: null,
@@ -79,6 +82,8 @@ function tournament(
     totalRounds: 2,
     championUserId: null,
     championNickname: null,
+    runnerUpUserId: null,
+    runnerUpNickname: null,
     createdAt: 0,
     startedAt: 0,
     finishedAt: null,
@@ -116,10 +121,45 @@ describe('gameFormat 标签', () => {
     expect(matchRoundLabel(t, match('m4', 4, 'KNOCKOUT'))).toBe('最终轮')
   })
 
-  it('阶梯决赛区分挑战赛与巅峰战', () => {
+  it('阶梯决赛区分半决赛与决赛', () => {
     const t = tournament({ totalRounds: 5 })
-    expect(matchRoundLabel(t, match('m1', 4, 'LADDER'))).toBe('收尾轮 · 挑战')
-    expect(matchRoundLabel(t, match('m2', 5, 'LADDER'))).toBe('收尾轮 · 最终轮')
+    expect(matchRoundLabel(t, match('m1', 4, 'LADDER'))).toBe('收尾轮 · 半决赛')
+    expect(matchRoundLabel(t, match('m2', 5, 'LADDER'))).toBe('收尾轮 · 决赛')
+  })
+
+  it('页面淘汰标注三打四、胜者打二与决赛选图权', () => {
+    const players: GamePlayer[] = [
+      { userId: 'u1', nickname: 'Alice', seed: 1, status: 'ACCEPTED' },
+      { userId: 'u2', nickname: 'Bob', seed: 2, status: 'ACCEPTED' },
+      { userId: 'u3', nickname: 'Carol', seed: 3, status: 'ACCEPTED' },
+      { userId: 'u4', nickname: 'Dave', seed: 4, status: 'ACCEPTED' },
+    ]
+    const four = tournament({
+      totalRounds: 5,
+      bracketType: 'PAGE_PLAYOFF',
+      players,
+    })
+    expect(matchRoundLabel(four, match('m1', 3, 'PAGE_PLAYOFF'))).toBe(
+      '页面淘汰 · 三打四（三号选图）',
+    )
+    expect(matchRoundLabel(four, match('m2', 4, 'PAGE_PLAYOFF'))).toBe(
+      '页面淘汰 · 胜者打二（二号选图）',
+    )
+    expect(matchRoundLabel(four, match('m3', 5, 'PAGE_PLAYOFF'))).toBe(
+      '页面淘汰 · 决赛（一号选图）',
+    )
+
+    // 仅三人时先三打二，再由胜者挑战一号。
+    expect(matchRoundLabel(four, match('m4', 4, 'PAGE_PLAYOFF'))).toBe(
+      '页面淘汰 · 胜者打二（二号选图）',
+    )
+    const three = tournament({ totalRounds: 4, bracketType: 'PAGE_PLAYOFF' })
+    expect(matchRoundLabel(three, match('m5', 3, 'PAGE_PLAYOFF'))).toBe(
+      '页面淘汰 · 三打二（三号选图）',
+    )
+    expect(matchRoundLabel(three, match('m6', 4, 'PAGE_PLAYOFF'))).toBe(
+      '页面淘汰 · 决赛（一号选图）',
+    )
   })
 })
 
@@ -139,7 +179,7 @@ describe('groupMatches', () => {
     expect(groups.map((group) => group.label)).toEqual([
       '循环计分 · 第 1 轮',
       '循环计分 · 第 2 轮',
-      '收尾轮 · 挑战',
+      '收尾轮 · 半决赛',
     ])
     expect(groups[0]?.matches.map((entry) => entry.id)).toEqual(['m1', 'm2'])
     expect(groups[0]?.subtitle).toBe('BO1')

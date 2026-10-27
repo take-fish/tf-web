@@ -6,19 +6,19 @@ import AppIcon from '@/components/AppIcon.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { useTournamentStore } from '@/stores/tournament'
+import { ARENA_SCRIPTS } from '../lib/arenaScripts'
 import {
   countdown,
   formatClock,
   formatLabel,
-  gameLabel,
-  gameName,
   matchStatusLabel,
+  modeShortLabel,
   playerName,
 } from '../lib/gameFormat'
 import type {
+  ArenaGameId,
   BlindLayout,
   GameFormat,
-  GameId,
   GameMatch,
   GamePlayer,
   GameTournament,
@@ -26,9 +26,20 @@ import type {
 
 const emit = defineEmits<{ close: [] }>()
 
-const GAME_OPTIONS: Array<{ id: GameId; label: string; hint: string }> = [
-  { id: 'heatmap-gomoku', label: '五子棋', hint: '15×15 · 黑先无禁手' },
-  { id: 'blind-xiangqi', label: '盲棋', hint: '中国象棋暗棋 · 翻棋/盲吃' },
+/** 约战可选全部实时剧本，并保留盲棋固定玩法。 */
+const DUEL_GAMES: Array<{
+  id: ArenaGameId | 'blind-xiangqi'
+  label: string
+  hint: string
+  tag: string
+}> = [
+  ...ARENA_SCRIPTS.map((script) => ({
+    id: script.id,
+    label: script.shortName,
+    hint: script.duration,
+    tag: script.tag,
+  })),
+  { id: 'blind-xiangqi', label: '盲棋', hint: '翻棋 / 盲吃', tag: 'BLIND' },
 ]
 const BLIND_LAYOUTS: Array<{ id: BlindLayout; label: string; hint: string }> = [
   { id: 'STANDARD_SHUFFLE', label: '标准点位', hint: '标准开局点位随机洗牌' },
@@ -41,7 +52,7 @@ const router = useRouter()
 const route = useRoute()
 
 const selectedOpponentId = ref('')
-const gameId = ref<GameId>('heatmap-gomoku')
+const gameId = ref<ArenaGameId | 'blind-xiangqi'>('heatmap-gomoku')
 const blindLayout = ref<BlindLayout>('STANDARD_SHUFFLE')
 const format = ref<GameFormat>('BO1')
 const creating = ref(false)
@@ -130,7 +141,7 @@ function opponentLabel(duel: GameTournament): string {
   return playerName(opponent?.userId ?? null, opponent?.nickname ?? null)
 }
 
-function busyWith(userId: string, game: GameId): boolean {
+function busyWith(userId: string, game: string): boolean {
   return store.activeDuels.some(
     (duel) =>
       (duel.gameId ?? 'heatmap-gomoku') === game &&
@@ -158,7 +169,7 @@ async function propose() {
     )
     feedback.value =
       `已向 ${selectedOpponent.value.nickname} 发出 ` +
-      `${gameName(gameId.value)} ${format.value} 约战邀请`
+      `${modeShortLabel(gameId.value)} ${format.value} 约战邀请`
     selectedOpponentId.value = ''
   } catch (error) {
     localError.value = formatApiError(error, '约战发起失败')
@@ -299,16 +310,17 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="duel__field">
-              <span>对局类型</span>
-              <div class="duel__games">
+              <span>演练剧本</span>
+              <div class="duel__scripts">
                 <button
-                  v-for="option in GAME_OPTIONS"
+                  v-for="option in DUEL_GAMES"
                   :key="option.id"
                   type="button"
-                  class="duel__format"
+                  class="duel__script"
                   :class="{ 'is-active': gameId === option.id }"
                   @click="gameId = option.id"
                 >
+                  <span class="duel__script-tag">{{ option.tag }}</span>
                   <b>{{ option.label }}</b>
                   <em>{{ option.hint }}</em>
                 </button>
@@ -365,7 +377,7 @@ onBeforeUnmount(() => {
                 creating
                   ? '正在发出邀请…'
                   : selectedOpponent
-                    ? `向 ${selectedOpponent.nickname} 发起 ${gameName(gameId)} ${format}`
+                    ? `向 ${selectedOpponent.nickname} 发起 ${modeShortLabel(gameId)} ${format}`
                     : '选择一名在线成员'
               }}
             </button>
@@ -387,7 +399,7 @@ onBeforeUnmount(() => {
               <div class="duel__invite-main">
                 <b>
                   {{ opponentLabel(duel) }} 向你发起
-                  {{ gameLabel(duel.gameId, duel.blindLayout) }} {{ duel.format }} 约战
+                  {{ modeShortLabel(duel.gameId, duel.blindLayout) }} {{ duel.format }} 约战
                 </b>
                 <em :class="{ 'is-expired': invitationExpired(duel) }">
                   <template v-if="invitationExpired(duel)">邀请已超时</template>
@@ -439,7 +451,7 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
                 <div class="duel__record-meta">
-                  <span>{{ gameLabel(duel.gameId, duel.blindLayout) }}</span>
+                  <span>{{ modeShortLabel(duel.gameId, duel.blindLayout) }}</span>
                   <span>{{ formatLabel(duel.format) }}</span>
                   <span>{{ scoreLine(duel) }}</span>
                   <span>{{ formatClock(duel.createdAt) }}</span>
@@ -775,6 +787,59 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   color: var(--fm-warn);
   font-size: 7px;
+}
+
+.duel__scripts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.duel__script {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.duel__script:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+}
+
+.duel__script b {
+  color: var(--fm-text-dim);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.duel__script em {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 7px;
+  font-style: normal;
+}
+
+.duel__script-tag {
+  align-self: flex-start;
+  color: color-mix(in srgb, var(--fm-accent) 62%, var(--fm-text-muted));
+  font-family: var(--fm-mono);
+  font-size: 6.5px;
+  letter-spacing: 0.08em;
+}
+
+.duel__script.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
+}
+
+.duel__script.is-active b {
+  color: var(--fm-accent);
 }
 
 .duel__formats {

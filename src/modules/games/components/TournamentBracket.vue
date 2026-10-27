@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { scriptShortLabel } from '../lib/arenaScripts'
 import {
   canWatchMatch,
   formatLabel,
@@ -30,14 +31,16 @@ const isLeague = computed(() =>
   props.tournament.matches.some((match) => match.stage === 'LEAGUE'),
 )
 const modeLabel = computed(() => {
-  if (props.tournament.bracketType === 'KNOCKOUT') return '分组推进'
+  if (props.tournament.bracketType === 'KNOCKOUT') return '随机单败'
+  if (props.tournament.bracketType === 'PAGE_PLAYOFF') return '排位 + 页面淘汰'
   if (props.tournament.bracketType === 'LADDER') return '循环计分 + 收尾轮'
-  if (props.tournament.bracketType === 'LEAGUE') return '循环计分'
+  if (props.tournament.bracketType === 'LEAGUE') return '排位计分'
   return '等待开始'
 })
 const acceptedPlayers = computed(() =>
   props.tournament.players.filter((player) => player.status === 'ACCEPTED'),
 )
+const qualifierCount = computed(() => Math.min(4, acceptedPlayers.value.length))
 
 function playerStatusLabel(status: string): string {
   if (status === 'ACCEPTED') return '已接受'
@@ -63,12 +66,21 @@ function stateText(match: GameMatch): string {
 function actionText(match: GameMatch): string {
   if (!canWatchMatch(match)) return ''
   if (match.status === 'FINISHED') return '回放'
-  if (match.status === 'READY') {
-    return isSelf(match.player1UserId) || isSelf(match.player2UserId)
-      ? '进入准备'
-      : '查看执行'
+  if (match.status === 'READY' || match.status === 'PENDING') {
+    if (isSelf(match.player1UserId) || isSelf(match.player2UserId)) {
+      return ownsDraw(match) ? '选择首局剧本' : '进入准备'
+    }
   }
   return '查看执行'
+}
+
+function ownsDraw(match: GameMatch): boolean {
+  return Boolean(props.selfUserId && match.gameChooserUserId === props.selfUserId)
+}
+
+function drawNote(match: GameMatch): string {
+  if (!match.firstGameId) return ''
+  return `首局 ${scriptShortLabel(match.firstGameId)}`
 }
 
 function open(match: GameMatch) {
@@ -97,8 +109,11 @@ function open(match: GameMatch) {
         </p>
       </div>
       <div v-if="tournament.championUserId" class="bracket__champion">
-        <span>结果</span>
+        <span>冠军</span>
         <b>{{ tournament.championNickname || tournament.championUserId }}</b>
+        <span v-if="tournament.runnerUpUserId" class="bracket__runner-up">
+          亚军 {{ tournament.runnerUpNickname || tournament.runnerUpUserId }}
+        </span>
       </div>
     </header>
 
@@ -125,25 +140,25 @@ function open(match: GameMatch) {
     <div v-else class="bracket__content">
       <div v-if="isLeague && standings.length" class="bracket__standings">
         <div class="bracket__section-label">
-          循环计分排名
-          <em>前三名进入收尾轮</em>
+          排位名次
+          <em>前 {{ qualifierCount }} 名进入页面淘汰</em>
         </div>
         <div class="bracket__standing-row is-head">
           <span>#</span>
           <span>成员</span>
           <span>胜场</span>
-          <span>积分</span>
+          <span>已赛</span>
         </div>
         <div
           v-for="(row, index) in standings"
           :key="row.userId"
           class="bracket__standing-row"
-          :class="{ 'is-top': index < 3, 'is-self': isSelf(row.userId) }"
+          :class="{ 'is-top': index < qualifierCount, 'is-self': isSelf(row.userId) }"
         >
           <span>{{ index + 1 }}</span>
           <span>{{ row.nickname }}</span>
-          <span>{{ row.wins }}/{{ row.played }}</span>
-          <b>{{ row.points }}</b>
+          <span>{{ row.wins }}</span>
+          <b>{{ row.played }}</b>
         </div>
       </div>
 
@@ -197,6 +212,10 @@ function open(match: GameMatch) {
                 {{ match.status === 'BYE' ? '轮空' : playerName(match.player2UserId, match.player2Nickname) }}
               </span>
               <b>{{ match.status === 'PENDING' ? '–' : match.player2Score }}</b>
+            </div>
+            <div v-if="drawNote(match)" class="bracket__draw-note">
+              {{ drawNote(match) }}
+              <em v-if="ownsDraw(match) && !match.startedAt">· 你拥有选图权</em>
             </div>
             <div v-if="actionText(match)" class="bracket__action">
               {{ actionText(match) }} →
@@ -286,6 +305,13 @@ function open(match: GameMatch) {
 .bracket__champion b {
   color: var(--fm-warn);
   font-size: 12px;
+}
+
+.bracket__runner-up {
+  color: var(--fm-text-dim);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+  letter-spacing: normal;
 }
 
 .bracket__inviting {
@@ -545,6 +571,18 @@ function open(match: GameMatch) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bracket__draw-note {
+  margin-top: 2px;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+}
+
+.bracket__draw-note em {
+  color: var(--fm-accent);
+  font-style: normal;
 }
 
 .bracket__action {

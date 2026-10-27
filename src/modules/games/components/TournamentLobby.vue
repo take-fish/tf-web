@@ -7,28 +7,30 @@ import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import { useTournamentStore } from '@/stores/tournament'
+import { scriptDefaultName } from '../lib/arenaScripts'
 import {
   countdown,
   formatClock,
   formatLabel,
-  gameLabel,
+  modeShortLabel,
   tournamentStatusLabel,
 } from '../lib/gameFormat'
 import type {
   BlindLayout,
   GameFormat,
-  GameId,
   GameMatch,
   GameOnlineUser,
   GameTournament,
+  SelectableGameId,
 } from '../types'
 import TournamentBracket from './TournamentBracket.vue'
 
 const emit = defineEmits<{ close: [] }>()
 
 const MAX_PLAYERS = 16
-const GAME_OPTIONS: Array<{ id: GameId; label: string; hint: string }> = [
-  { id: 'heatmap-gomoku', label: '五子棋', hint: '15×15 · 黑先无禁手' },
+/** 赛事默认系统随机抽签；盲棋作为固定玩法保留，兼容既有入口。 */
+const GAME_OPTIONS: Array<{ id: SelectableGameId; label: string; hint: string }> = [
+  { id: 'random', label: '系统随机', hint: '四个 1v1 剧本每局开赛前抽签' },
   { id: 'blind-xiangqi', label: '盲棋', hint: '中国象棋暗棋 · 翻棋/盲吃' },
 ]
 const BLIND_LAYOUTS: Array<{ id: BlindLayout; label: string; hint: string }> = [
@@ -42,7 +44,7 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const gameId = ref<GameId>('heatmap-gomoku')
+const gameId = ref<SelectableGameId>('random')
 const blindLayout = ref<BlindLayout>('STANDARD_SHUFFLE')
 const format = ref<GameFormat>('BO1')
 const name = ref('')
@@ -117,7 +119,8 @@ watch(
 watch(
   () => store.lobbyPreferredGameId,
   (value) => {
-    if (value) gameId.value = value
+    // 竞技场入口仍使用系统随机；只有盲棋入口会固定玩法。
+    if (value === 'blind-xiangqi') gameId.value = value
   },
 )
 
@@ -177,7 +180,9 @@ async function create() {
     const created = await store.create({
       name:
         name.value.trim() ||
-        (gameId.value === 'blind-xiangqi' ? '盲棋演练' : '联调演练'),
+        (gameId.value === 'blind-xiangqi'
+          ? '盲棋演练'
+          : scriptDefaultName('random')),
       format: format.value,
       players: roster.value,
       gameId: gameId.value,
@@ -276,7 +281,9 @@ function isCreator(tournament: GameTournament): boolean {
 }
 
 onMounted(() => {
-  if (store.lobbyPreferredGameId) gameId.value = store.lobbyPreferredGameId
+  if (store.lobbyPreferredGameId === 'blind-xiangqi') {
+    gameId.value = store.lobbyPreferredGameId
+  }
   clockTimer = setInterval(() => {
     now.value = Date.now()
   }, 1000)
@@ -344,7 +351,7 @@ onBeforeUnmount(() => {
                 <b>{{ invitation.name }}</b>
                 <span>
                   {{ invitation.creatorNickname }} 邀请你 ·
-                  {{ gameLabel(invitation.gameId, invitation.blindLayout) }} ·
+                  {{ modeShortLabel(invitation.gameId, invitation.blindLayout) }} ·
                   {{ formatLabel(invitation.format) }}
                 </span>
                 <em :class="{ 'is-expired': isInvitationExpired(invitation) }">
@@ -408,13 +415,18 @@ onBeforeUnmount(() => {
                 v-model="name"
                 type="text"
                 maxlength="32"
-                :placeholder="gameId === 'blind-xiangqi' ? '盲棋演练' : '联调演练'"
+                :placeholder="
+                  gameId === 'blind-xiangqi' ? '盲棋演练' : scriptDefaultName('random')
+                "
                 :disabled="creating"
               />
             </label>
 
             <div class="lobby__field">
-              <span>演练类型</span>
+              <div class="lobby__field-head">
+                <span>比赛剧本</span>
+                <em>默认由系统随机抽取，盲棋可固定玩法</em>
+              </div>
               <div class="lobby__games">
                 <button
                   v-for="option in GAME_OPTIONS"
@@ -430,7 +442,17 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div v-if="gameId === 'blind-xiangqi'" class="lobby__field">
+            <div v-if="gameId === 'random'" class="lobby__field">
+              <div class="lobby__draw">
+                <span class="lobby__script-tag">RANDOM</span>
+                <div>
+                  <b>系统随机演练</b>
+                  <em>热点对弈 / 热点排查 / 拓扑攻防 / 集群巡检，每局开赛前抽签</em>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="gameId === 'blind-xiangqi'" class="lobby__field">
               <span>开局摆法</span>
               <div class="lobby__layouts">
                 <button
@@ -518,9 +540,10 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="lobby__rules">
-              <p><b>2/4/8/16 人</b>：分组单败推进，自动生成执行链路。</p>
-              <p><b>3-5 人</b>：循环计分；<b>6 人以上非 2 的幂</b>：三轮调度。</p>
-              <p><b>前三名</b>：第三名先对第二名，胜者再对第一名，产生最终结果。</p>
+              <p><b>2/4/8/16 人</b>：随机单败淘汰，自动生成执行链路。</p>
+              <p><b>3-5 人</b>：循环排位；<b>6 人以上非 2 的幂</b>：瑞士轮排位。</p>
+              <p><b>前四</b>进入页面淘汰：三打四、胜者打二、决赛打一。</p>
+              <p><b>首局选图</b>：三号、二号、一号各自拥有对应场次的首局选图权；其余小局系统随机。</p>
               <p><b>回放</b>：未参与的成员可从列表进入；执行内保留公开讨论与双方私聊。</p>
               <p v-if="gameId === 'blind-xiangqi'">
                 <b>盲棋</b>：翻棋或走子；反面棋可盲吃；将帅见面记和并进下一局。
@@ -619,7 +642,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="lobby__tournament-meta">
-                  <span>{{ gameLabel(tournament.gameId, tournament.blindLayout) }}</span>
+                  <span>{{ modeShortLabel(tournament.gameId, tournament.blindLayout) }}</span>
                   <span>{{ formatLabel(tournament.format) }}</span>
                   <span>{{ playerCount(tournament) }}/{{ tournament.targetPlayers }} 人</span>
                   <span>{{ formatClock(tournament.createdAt) }}</span>
@@ -628,7 +651,10 @@ onBeforeUnmount(() => {
                   <span>
                     发起人 {{ tournament.creatorNickname }}
                     <template v-if="tournament.championNickname">
-                      · 结果 <b>{{ tournament.championNickname }}</b>
+                      · 冠军 <b>{{ tournament.championNickname }}</b>
+                    </template>
+                    <template v-if="tournament.runnerUpNickname">
+                      · 亚军 {{ tournament.runnerUpNickname }}
                     </template>
                   </span>
                   <div class="lobby__tournament-actions">
@@ -1042,6 +1068,92 @@ onBeforeUnmount(() => {
 
 .lobby__field input:focus {
   border-color: var(--fm-accent);
+}
+
+.lobby__draw {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 32%, var(--fm-border));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fm-accent) 6%, transparent);
+}
+
+.lobby__draw > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lobby__draw b {
+  color: var(--fm-accent);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.lobby__draw em {
+  color: var(--fm-text-muted);
+  font-size: 7.5px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.lobby__scripts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.lobby__script {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lobby__script:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+}
+
+.lobby__script b {
+  color: var(--fm-text-dim);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.lobby__script em {
+  color: var(--fm-text-muted);
+  font-size: 7.5px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.lobby__script-tag {
+  align-self: flex-start;
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--fm-accent) 26%, transparent);
+  border-radius: 2px;
+  color: color-mix(in srgb, var(--fm-accent) 72%, var(--fm-text-muted));
+  font-family: var(--fm-mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+
+.lobby__script.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
+}
+
+.lobby__script.is-active b {
+  color: var(--fm-accent);
 }
 
 .lobby__formats {

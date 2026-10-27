@@ -9,6 +9,7 @@ import {
   cancelDuel,
   cancelTournament,
   createDuel,
+  createExerciseRoom,
   createTournament,
   declineDuel,
   declineTournament,
@@ -16,21 +17,37 @@ import {
   fetchActiveMatches,
   fetchDuel,
   fetchDuels,
+  fetchExerciseResults,
+  fetchExerciseRooms,
   fetchGameNotifications,
   fetchInvitations,
   fetchMatch,
   fetchMatchChat,
   fetchTournament,
   fetchTournaments,
+  joinExerciseRoom,
+  leaveExerciseRoom,
+  readyExerciseRoom,
   sendMatchChat,
 } from '@/modules/games/gameApi'
 import { GameSocketClient } from '@/modules/games/gameSocket'
 import { findWatchableMatch, isParticipant, otherPlayerId } from '@/modules/games/lib/gameFormat'
 import type {
+  ArenaGameId,
   BlindLayout,
+  ExerciseInput,
+  ExerciseMode,
+  ExerciseResult,
+  ExerciseRoom,
+  ExerciseState,
+  GameArenaAction,
+  GameArenaFinishedEvent,
+  GameArenaStateEvent,
   GameBlindActionEvent,
   GameChatChannel,
   GameChatMessage,
+  GameExerciseFinishedEvent,
+  GameExerciseStateEvent,
   GameFormat,
   GameId,
   GameMatch,
@@ -40,6 +57,7 @@ import type {
   GameSocketStatus,
   GameStoneEvent,
   GameTournament,
+  SelectableGameId,
 } from '@/modules/games/types'
 import { useAuthStore } from './auth'
 
@@ -81,7 +99,10 @@ export const useTournamentStore = defineStore('tournament', () => {
   const finalNotification = ref<GameNotification | null>(null)
   const championNotification = ref<GameNotification | null>(null)
   const lobbyOpen = ref(false)
+  /** 从盲棋入口打开调度台时预设的固定玩法；赛事默认仍走系统随机。 */
   const lobbyPreferredGameId = ref<GameId | ''>('')
+  /** 调度台最近进入的竞技场剧本，用于首页卡片高亮。 */
+  const lobbyScript = ref<ArenaGameId>('heatmap-gomoku')
   const lobbyLoading = ref(false)
   const lobbyError = ref('')
   const inviteUnread = ref(0)
@@ -91,6 +112,17 @@ export const useTournamentStore = defineStore('tournament', () => {
   const duelStartedMatchId = ref<string | null>(null)
   const lastError = ref('')
   const notificationCursor = ref(0)
+  /** 集群巡检对抗（2D 轻 FPS）：休闲房间大厅与当前对局。 */
+  const exerciseOpen = ref(false)
+  const exerciseRooms = ref<ExerciseRoom[]>([])
+  const exerciseRoom = ref<ExerciseRoom | null>(null)
+  const exerciseRoomId = ref<string | null>(null)
+  const exerciseState = ref<ExerciseState | null>(null)
+  const exerciseFinished = ref<GameExerciseFinishedEvent | null>(null)
+  const exerciseResults = ref<ExerciseResult[]>([])
+  const exerciseLoading = ref(false)
+  const exerciseBusy = ref(false)
+  const exerciseError = ref('')
 
   let socket: GameSocketClient | null = null
   let notificationTimer: ReturnType<typeof setInterval> | undefined
@@ -155,6 +187,16 @@ export const useTournamentStore = defineStore('tournament', () => {
     })
   })
 
+  const exerciseSelfActor = computed(
+    () =>
+      exerciseState.value?.actors.find((actor) => actor.userId === ownUserId.value) ??
+      null,
+  )
+  const exerciseInRoom = computed(() => Boolean(exerciseRoomId.value))
+  const exerciseRunning = computed(
+    () => exerciseRoom.value?.status === 'RUNNING' || Boolean(exerciseState.value && !exerciseState.value.finished),
+  )
+
   function start() {
     if (started.value) return
     if (!auth.hasToken) return
@@ -203,6 +245,20 @@ export const useTournamentStore = defineStore('tournament', () => {
           match.currentRound.turnUserId = null
         }
         updateActiveMatch(match)
+      },
+      onArenaState: (event) => applyArenaState(event),
+      onArenaFinished: (event) => {
+        applyArenaState(event)
+        // 服务端随后走 BO 计分与休息流程，稍后补拉一次比赛详情。
+        setTimeout(() => {
+          void refreshCurrentMatch()
+        }, 400)
+      },
+      onExerciseState: (event) => applyExerciseState(event),
+      onExerciseFinished: (event) => applyExerciseFinished(event),
+      onExerciseRoom: (event) => applyExerciseRoom(event.room),
+      onExerciseRooms: (event) => {
+        exerciseRooms.value = event.rooms ?? []
       },
       onMatchResult: (event) => {
         lastResult.value = event
@@ -409,10 +465,261 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
   }
 
+  /** 竞技场帧只更新当前小局的权威状态，避免整场比赛频繁重建。 */
+  function applyArenaState(event: GameArenaStateEvent | GameArenaFinishedEvent) {
+    const match = currentMatch.value
+    if (!match || match.id !== event.matchId) return
+    const round = match.currentRound
+    if (!round || round.id !== event.roundId) return
+    if (event.seq < round.seq) return
+    round.gameId = event.gameId
+    round.seq = event.seq
+    round.state = event.state
+    round.endsAt = event.state.endsAt
+    round.lastMoveAt = event.serverTime
+    if (event.state.finished) {
+      round.winnerUserId = event.state.winnerUserId ?? null
+    }
+  }
+
+  /** 赛事房间的巡检状态直接落在当前小局上，休闲房间则落在本地房间快照。 */
+  function applyExerciseState(event: GameExerciseStateEvent) {
+    const round = currentMatch.value?.currentRound
+    if (round && round.id === event.roomId) {
+      if (event.seq >= round.seq) {
+        round.gameId = 'cluster-patrol-arena'
+        round.seq = event.seq
+        round.state = event.state
+        round.endsAt = event.state.endsAt
+        round.lastMoveAt = event.serverTime
+        if (event.state.finished) {
+          round.winnerUserId = event.state.winnerUserId ?? null
+        }
+      }
+    }
+    if (exerciseRoomId.value && event.roomId === exerciseRoomId.value) {
+      exerciseState.value = { ...event.state, you: event.you ?? ownUserId.value }
+    }
+  }
+
+  function applyExerciseFinished(event: GameExerciseFinishedEvent) {
+    const round = currentMatch.value?.currentRound
+    if (event.state) {
+      applyExerciseState({
+        type: 'exercise_state',
+        roomId: event.roomId,
+        roomCode: event.roomCode,
+        mode: event.mode,
+        matchId: event.matchId,
+        seq: event.state.seq,
+        serverTime: event.state.serverTime,
+        you: event.state.you ?? null,
+        state: event.state,
+      })
+    }
+    if (round && round.id === event.roomId) {
+      // 服务端随后走 BO 计分与晋级流程，稍后补拉一次比赛详情。
+      setTimeout(() => {
+        void refreshCurrentMatch()
+      }, 400)
+    }
+    if (exerciseRoomId.value === event.roomId) {
+      exerciseFinished.value = event
+      if (exerciseRoom.value) {
+        exerciseRoom.value = { ...exerciseRoom.value, status: 'FINISHED' }
+      }
+      void refreshExerciseResults()
+    }
+  }
+
+  function applyExerciseRoom(room: ExerciseRoom) {
+    const index = exerciseRooms.value.findIndex((entry) => entry.roomId === room.roomId)
+    if (index >= 0) exerciseRooms.value[index] = room
+    else if (room.status === 'WAITING' || exerciseRoomId.value === room.roomId) {
+      exerciseRooms.value.unshift(room)
+    }
+    if (exerciseRoomId.value !== room.roomId) return
+    exerciseRoom.value = room
+    if (room.status === 'RUNNING') exerciseFinished.value = null
+    if (room.state) {
+      exerciseState.value = { ...room.state, you: ownUserId.value }
+    }
+  }
+
+  function resetExerciseRoom() {
+    exerciseRoomId.value = null
+    exerciseRoom.value = null
+    exerciseState.value = null
+    exerciseFinished.value = null
+    exerciseError.value = ''
+  }
+
+  function enterExerciseRoom(room: ExerciseRoom) {
+    exerciseRoomId.value = room.roomId
+    exerciseRoom.value = room
+    exerciseFinished.value = null
+    exerciseError.value = ''
+    exerciseState.value = room.state
+      ? { ...room.state, you: ownUserId.value }
+      : null
+    const index = exerciseRooms.value.findIndex((entry) => entry.roomId === room.roomId)
+    if (index >= 0) exerciseRooms.value[index] = room
+    else exerciseRooms.value.unshift(room)
+    // 单人训练在创建时已开局，服务端不接受“加入训练房”；其余房间用于登记重连。
+    if (room.mode !== 'TRAINING') socket?.joinExercise(room.roomId)
+  }
+
+  async function refreshExerciseRooms() {
+    if (!auth.hasToken) return
+    exerciseLoading.value = true
+    exerciseError.value = ''
+    try {
+      const [rooms, results] = await Promise.all([
+        fetchExerciseRooms(),
+        fetchExerciseResults(10),
+      ])
+      exerciseRooms.value = rooms
+      exerciseResults.value = results
+      const current = exerciseRoomId.value
+        ? rooms.find((room) => room.roomId === exerciseRoomId.value)
+        : null
+      if (current) applyExerciseRoom(current)
+    } catch (error) {
+      exerciseError.value = formatApiError(error, '巡检房间加载失败')
+    } finally {
+      exerciseLoading.value = false
+    }
+  }
+
+  async function refreshExerciseResults() {
+    try {
+      exerciseResults.value = await fetchExerciseResults(10)
+    } catch {
+      // 战绩为增强能力，失败不影响房间
+    }
+  }
+
+  async function createExercise(
+    mode: ExerciseMode,
+    maxPlayers?: number,
+  ): Promise<ExerciseRoom | null> {
+    if (exerciseBusy.value) return null
+    exerciseBusy.value = true
+    exerciseError.value = ''
+    try {
+      const room = await createExerciseRoom(mode, maxPlayers)
+      enterExerciseRoom(room)
+      if (room.status === 'RUNNING') {
+        socket?.refreshExerciseRooms()
+      }
+      return room
+    } catch (error) {
+      exerciseError.value = formatApiError(error, '巡检房间创建失败')
+      return null
+    } finally {
+      exerciseBusy.value = false
+    }
+  }
+
+  async function joinExercise(key: string): Promise<ExerciseRoom | null> {
+    if (exerciseBusy.value) return null
+    exerciseBusy.value = true
+    exerciseError.value = ''
+    try {
+      const room = await joinExerciseRoom(key)
+      enterExerciseRoom(room)
+      return room
+    } catch (error) {
+      exerciseError.value = formatApiError(error, '加入巡检房间失败')
+      return null
+    } finally {
+      exerciseBusy.value = false
+    }
+  }
+
+  async function readyExercise(): Promise<ExerciseRoom | null> {
+    const id = exerciseRoomId.value
+    if (!id || exerciseBusy.value) return null
+    exerciseBusy.value = true
+    exerciseError.value = ''
+    try {
+      const room = await readyExerciseRoom(id)
+      enterExerciseRoom(room)
+      return room
+    } catch (error) {
+      exerciseError.value = formatApiError(error, '准备失败')
+      return null
+    } finally {
+      exerciseBusy.value = false
+    }
+  }
+
+  async function leaveExercise(id?: string): Promise<void> {
+    const key = id ?? exerciseRoomId.value
+    if (!key) return
+    socket?.leaveExercise(key)
+    try {
+      await leaveExerciseRoom(key)
+    } catch (error) {
+      exerciseError.value = formatApiError(error, '离开房间失败')
+    } finally {
+      if (exerciseRoomId.value === key) resetExerciseRoom()
+      const index = exerciseRooms.value.findIndex((entry) => entry.roomId === key)
+      if (index >= 0) exerciseRooms.value.splice(index, 1)
+    }
+  }
+
+  function currentExerciseRoomKey(): string | null {
+    const round = currentMatch.value?.currentRound
+    if (
+      round &&
+      (round.gameId === 'cluster-patrol-arena' ||
+        round.state?.gameId === 'cluster-patrol-arena')
+    ) {
+      return round.id
+    }
+    return exerciseRoomId.value
+  }
+
+  function sendExerciseInput(input: ExerciseInput): boolean {
+    const id = currentExerciseRoomKey()
+    if (!id) return false
+    if (!socket?.sendExerciseInput(id, input)) {
+      lastError.value = '巡检通道未连接，请稍后重试'
+      return false
+    }
+    lastError.value = ''
+    return true
+  }
+
+  function openExerciseLobby() {
+    exerciseOpen.value = true
+    exerciseError.value = ''
+    void refreshExerciseRooms()
+  }
+
+  function closeExerciseLobby() {
+    if (exerciseRoomId.value) void leaveExercise()
+    exerciseOpen.value = false
+  }
+
   function applyMatch(match: GameMatch) {
     updateActiveMatch(match)
     if (currentMatchId.value === match.id) {
-      const previousRoundId = currentMatch.value?.currentRound?.id
+      // 详情接口可能比最后一帧广播更早落库，保留本地更新的快照避免画面回退。
+      const previous = currentMatch.value?.currentRound
+      const previousRoundId = previous?.id
+      const next = match.currentRound
+      if (
+        previous &&
+        next &&
+        previous.id === next.id &&
+        next.seq < previous.seq
+      ) {
+        next.state = previous.state
+        next.seq = previous.seq
+        next.endsAt = previous.endsAt ?? next.endsAt
+      }
       currentMatch.value = match
       if (previousRoundId !== match.currentRound?.id) lastBlindAction.value = null
       matchError.value = ''
@@ -664,11 +971,34 @@ export const useTournamentStore = defineStore('tournament', () => {
     return true
   }
 
+  function sendArenaAction(action: GameArenaAction): boolean {
+    const id = currentMatchId.value
+    if (!id) return false
+    if (!socket?.sendArenaAction(id, action)) {
+      lastError.value = '调度通道未连接，请稍后重试'
+      return false
+    }
+    lastError.value = ''
+    return true
+  }
+
+  /** 页面淘汰首局选图：只有高顺位选手在开赛前可用，权限由服务端复核。 */
+  function chooseGame(gameId: string): boolean {
+    const id = currentMatchId.value
+    if (!id) return false
+    if (!socket?.chooseGame(id, gameId)) {
+      lastError.value = '调度通道未连接，请稍后重试'
+      return false
+    }
+    lastError.value = ''
+    return true
+  }
+
   async function create(payload: {
     name: string
     format: GameFormat
     players: GameOnlineUser[]
-    gameId?: GameId
+    gameId?: SelectableGameId
     blindLayout?: BlindLayout
   }): Promise<GameTournament> {
     lobbyError.value = ''
@@ -732,7 +1062,7 @@ export const useTournamentStore = defineStore('tournament', () => {
   async function createDuelFor(
     opponent: GameOnlineUser,
     format: GameFormat,
-    gameId?: GameId,
+    gameId: SelectableGameId = 'heatmap-gomoku',
     blindLayout?: BlindLayout,
   ): Promise<GameTournament> {
     duelError.value = ''
@@ -855,8 +1185,13 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
   }
 
-  function openLobby(gameId?: GameId) {
-    lobbyPreferredGameId.value = gameId ?? ''
+  function openLobby(gameId?: GameId | ArenaGameId) {
+    if (gameId === 'blind-xiangqi') {
+      lobbyPreferredGameId.value = gameId
+    } else {
+      lobbyPreferredGameId.value = ''
+      if (gameId) lobbyScript.value = gameId
+    }
     lobbyOpen.value = true
     inviteUnread.value = 0
     void refreshLobby()
@@ -930,10 +1265,24 @@ export const useTournamentStore = defineStore('tournament', () => {
     championNotification,
     lobbyOpen,
     lobbyPreferredGameId,
+    lobbyScript,
     lobbyLoading,
     lobbyError,
     inviteUnread,
     lastError,
+    exerciseOpen,
+    exerciseRooms,
+    exerciseRoom,
+    exerciseRoomId,
+    exerciseState,
+    exerciseFinished,
+    exerciseResults,
+    exerciseLoading,
+    exerciseBusy,
+    exerciseError,
+    exerciseSelfActor,
+    exerciseInRoom,
+    exerciseRunning,
     start,
     stop,
     refreshLobby,
@@ -945,6 +1294,17 @@ export const useTournamentStore = defineStore('tournament', () => {
     revealPiece,
     movePiece,
     resign,
+    sendArenaAction,
+    chooseGame,
+    refreshExerciseRooms,
+    refreshExerciseResults,
+    createExercise,
+    joinExercise,
+    readyExercise,
+    leaveExercise,
+    sendExerciseInput,
+    openExerciseLobby,
+    closeExerciseLobby,
     loadChat,
     sendChat,
     create,

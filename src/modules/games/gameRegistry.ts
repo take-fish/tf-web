@@ -1,3 +1,5 @@
+import type { ArenaGameId } from './types'
+
 export interface GameDefinition {
   id: string
   name: string
@@ -5,6 +7,8 @@ export interface GameDefinition {
   description: string
   playable: boolean
   span: number
+  /** 可执行卡片对应的演练剧本，点击后直接按该剧本打开调度台。 */
+  scriptId?: ArenaGameId
 }
 
 export const GAMES: readonly GameDefinition[] = [
@@ -28,9 +32,10 @@ export const GAMES: readonly GameDefinition[] = [
     id: 'topology-minesweeper',
     name: '节点巡检',
     metricTitle: '节点拓扑图',
-    description: '集群节点巡检与故障标记，采集任务待接入',
-    playable: false,
+    description: '混沌工程攻防演练：注入故障与稳态保障',
+    playable: true,
     span: 4,
+    scriptId: 'topology-arena',
   },
   {
     id: 'qps-breakout',
@@ -44,9 +49,10 @@ export const GAMES: readonly GameDefinition[] = [
     id: 'heatmap-gomoku',
     name: '日志热点',
     metricTitle: '日志热力图',
-    description: '创建联调演练、邀请在线成员、执行与回放',
+    description: '热点区域对弈与日志热区排查',
     playable: true,
-    span: 4,
+    span: 5,
+    scriptId: 'heatmap-gomoku',
   },
   {
     id: 'blind-xiangqi',
