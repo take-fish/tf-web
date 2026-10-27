@@ -5,7 +5,6 @@ import { writeAuth } from '@/lib/authToken'
 import type { AuthUser } from '@/modules/auth/types'
 import type {
   ExerciseActor,
-  ExerciseResult,
   ExerciseRoom,
   ExerciseStanding,
   ExerciseState,
@@ -35,7 +34,7 @@ const { socketState, MockGameSocketClient } = vi.hoisted(() => {
     ready = vi.fn<() => boolean>(() => true)
     placeStone = vi.fn<() => boolean>(() => true)
     resign = vi.fn<() => boolean>(() => true)
-    sendArenaAction = vi.fn(() => true)
+    sendArenaAction = vi.fn<() => boolean>(() => true)
     chooseGame = vi.fn<() => boolean>(() => true)
     sendChat = vi.fn<() => boolean>(() => true)
     joinExercise = vi.fn<() => boolean>(() => true)
@@ -188,25 +187,6 @@ function standing(overrides: Partial<ExerciseStanding> = {}): ExerciseStanding {
     deaths: 1,
     assists: 1,
     winner: true,
-    ...overrides,
-  }
-}
-
-function result(overrides: Partial<ExerciseResult> = {}): ExerciseResult {
-  return {
-    id: 'res-1',
-    roomId: 'room-1',
-    mode: 'FFA',
-    userId: 'u1',
-    nickname: 'Alice',
-    team: null,
-    rankNo: 1,
-    score: 18,
-    kills: 3,
-    deaths: 1,
-    assists: 1,
-    winner: true,
-    createdAt: 0,
     ...overrides,
   }
 }

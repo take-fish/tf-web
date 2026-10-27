@@ -165,11 +165,6 @@ function cooldownLeft(key: string): number {
   return Math.max(0, Math.ceil((readyAt - now.value) / 1000))
 }
 
-function cooldownText(key: string): string {
-  const left = cooldownLeft(key)
-  return left > 0 ? `冷却 ${left}s` : ''
-}
-
 function attackCooldown(skill: 'traffic' | 'slow'): number {
   return cooldownLeft(`ATTACK|${skill}`)
 }
