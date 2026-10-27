@@ -63,6 +63,20 @@ export function modeShortLabel(
   return scriptShortLabel(gameId)
 }
 
+/** S赛按启用池逐场抽签；其余赛事为单一剧本的锦标赛。 */
+export function tournamentTypeLabel(gameId: string | null | undefined): string {
+  return gameId === 'random' ? 'S赛' : '锦标赛'
+}
+
+/** 列表行里的类型与剧本摘要。 */
+export function tournamentModeSummary(tournament: GameTournament): string {
+  if (tournament.gameId === 'random') {
+    const count = tournament.gamePool?.length ?? 0
+    return count > 0 ? `S赛 · 启用 ${count} 项` : 'S赛'
+  }
+  return `锦标赛 · ${modeShortLabel(tournament.gameId, tournament.blindLayout)}`
+}
+
 export function tournamentStatusLabel(status: TournamentStatus): string {
   switch (status) {
     case 'INVITING':

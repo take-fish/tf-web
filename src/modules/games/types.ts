@@ -26,6 +26,10 @@ export type ArenaGameId =
   | 'cluster-patrol-arena'
 /** 赛事开赛前只能选“系统随机”；具体小局由服务端抽签。 */
 export type TournamentGameId = ArenaGameId | 'random'
+/** S赛启用池与锦标赛可选剧本：五个 1v1 游戏，与后端 ArenaGames.TOURNAMENT_POOL 对齐。 */
+export type TournamentPoolGameId = ArenaGameId | 'blind-xiangqi'
+/** S赛：综合随机抽选；锦标赛：单一剧本专精。 */
+export type TournamentType = 'SERIES' | 'CHAMPIONSHIP'
 /** TOURNAMENT：多人演练；DUEL：一对一约战，不进入大厅、不计分、无聊天与观战。 */
 export type GameKind = 'TOURNAMENT' | 'DUEL'
 export type TournamentStatus = 'INVITING' | 'RUNNING' | 'FINISHED' | 'CANCELLED'
@@ -400,6 +404,8 @@ export interface GameTournament {
   players: GamePlayer[]
   matches: GameMatch[]
   blindLayout?: BlindLayout | null
+  /** S赛启用的剧本池；锦标赛与约战为空。 */
+  gamePool?: string[]
 }
 
 export interface GameChatMessage {
