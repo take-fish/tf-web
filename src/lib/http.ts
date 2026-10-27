@@ -8,6 +8,7 @@ export class ApiError extends Error {
   readonly traceId?: string
   readonly requestId?: string
   readonly timestamp?: string
+  readonly details?: Record<string, unknown>
 
   constructor(
     status: number,
@@ -16,6 +17,7 @@ export class ApiError extends Error {
     traceId?: string,
     requestId?: string,
     timestamp?: string,
+    details?: Record<string, unknown>,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -24,6 +26,7 @@ export class ApiError extends Error {
     this.traceId = traceId
     this.requestId = requestId
     this.timestamp = timestamp
+    this.details = details
   }
 }
 
@@ -33,6 +36,7 @@ interface ErrorBody {
   traceId?: string
   requestId?: string
   timestamp?: string
+  details?: Record<string, unknown>
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -49,7 +53,21 @@ async function parseError(response: Response): Promise<ApiError> {
     body.traceId ?? response.headers.get('X-Trace-ID') ?? undefined,
     body.requestId ?? response.headers.get('X-Request-ID') ?? undefined,
     body.timestamp,
+    body.details,
   )
+}
+
+/**
+ * 参数校验失败时服务端把逐字段提示放在 `details.fields` 里，
+ * 顶层 message 只是笼统的"请求参数校验未通过"。取第一条字段提示，避免提示变含糊。
+ */
+function firstFieldMessage(details: Record<string, unknown> | undefined): string {
+  const fields = details?.fields
+  if (!fields || typeof fields !== 'object') return ''
+  for (const value of Object.values(fields as Record<string, unknown>)) {
+    if (typeof value === 'string' && value) return value
+  }
+  return ''
 }
 
 /** 返回可用于日志检索的错误编号，没有编号时返回空串。 */
@@ -62,6 +80,10 @@ export function errorReference(error: unknown): string {
 
 /** 错误文案统一附带可复制的链路编号。 */
 export function formatApiError(error: unknown, fallback = '操作失败'): string {
+  if (error instanceof ApiError) {
+    const message = firstFieldMessage(error.details) || error.message || fallback
+    return appendErrorReference(message, error)
+  }
   const message = error instanceof Error && error.message ? error.message : fallback
   return appendErrorReference(message, error)
 }
@@ -75,7 +97,7 @@ function isAuthEntry(path: string): boolean {
   return path.startsWith('/api/v1/user/auth/login') || path.startsWith('/api/v1/user/auth/register')
 }
 
-async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+function buildHeaders(init: RequestInit): Headers {
   const headers = new Headers(init.headers)
   const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData
   if (init.body !== undefined && !isForm && !headers.has('Content-Type')) {
@@ -85,6 +107,11 @@ async function authFetch(path: string, init: RequestInit = {}): Promise<Response
     const token = getAuthToken()
     if (token) headers.set('Authorization', `Bearer ${token}`)
   }
+  return headers
+}
+
+async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = buildHeaders(init)
 
   const response = await fetch(path, { ...init, headers })
   if (!response.ok) {
@@ -103,6 +130,24 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   const response = await authFetch(path, init)
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/**
+ * 页面正在销毁时使用的请求。`keepalive` 让浏览器在页面卸载后继续把请求发完，
+ * 这是"关标签页丢数据"的正解。
+ *
+ * 不用 `navigator.sendBeacon`：beacon 无法携带 `Authorization` 头，网关会直接返回 401，
+ * 而本项目身份走 Bearer token 而不是 Cookie。
+ *
+ * 限制：keepalive 请求体上限约 64KB，只用于进度上报这类小体量数据。
+ */
+export function keepaliveRequest(path: string, init: RequestInit = {}): boolean {
+  try {
+    void fetch(path, { ...init, headers: buildHeaders(init), keepalive: true })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
