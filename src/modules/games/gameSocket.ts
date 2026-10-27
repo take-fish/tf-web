@@ -1,6 +1,7 @@
 import { ApiError } from '@/lib/http'
 import { fetchGameWsTicket } from './gameApi'
 import type {
+  GameBlindActionEvent,
   GameChatChannel,
   GameChatMessage,
   GameMatch,
@@ -27,6 +28,7 @@ export interface GameSocketHandlers {
   onMatch?: (match: GameMatch) => void
   onMatchReady?: (matchId: string, readyUserIds: string[]) => void
   onStone?: (event: GameStoneEvent) => void
+  onBlindAction?: (event: GameBlindActionEvent) => void
   onMatchRest?: (event: GameMatchRestEvent) => void
   onMatchResult?: (event: GameMatchResultEvent) => void
   onChat?: (message: GameChatMessage) => void
@@ -95,6 +97,20 @@ export class GameSocketClient {
 
   placeStone(matchId: string, x: number, y: number): boolean {
     return this.send({ type: 'place_stone', matchId, x, y })
+  }
+
+  revealPiece(matchId: string, x: number, y: number): boolean {
+    return this.send({ type: 'reveal_piece', matchId, x, y })
+  }
+
+  movePiece(
+    matchId: string,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+  ): boolean {
+    return this.send({ type: 'move_piece', matchId, fromX, fromY, toX, toY })
   }
 
   resign(matchId: string): boolean {
@@ -229,6 +245,40 @@ export class GameSocketClient {
             turnUserId: frame.turnUserId,
             moveCount: frame.moveCount ?? frame.moveNo,
             winning: Boolean(frame.winning),
+          })
+        }
+        break
+      case 'blind_action':
+        if (
+          frame.matchId &&
+          frame.roundId &&
+          frame.moveNo != null &&
+          frame.userId &&
+          frame.action &&
+          frame.pieceType &&
+          frame.pieceColor &&
+          frame.turnUserId &&
+          frame.toX != null &&
+          frame.toY != null
+        ) {
+          this.handlers.onBlindAction?.({
+            type: 'blind_action',
+            matchId: frame.matchId,
+            roundId: frame.roundId,
+            moveNo: frame.moveNo,
+            userId: frame.userId,
+            action: frame.action,
+            fromX: frame.fromX ?? null,
+            fromY: frame.fromY ?? null,
+            toX: frame.toX,
+            toY: frame.toY,
+            pieceType: frame.pieceType,
+            pieceColor: frame.pieceColor,
+            capturedPieceType: frame.capturedPieceType ?? null,
+            capturedPieceColor: frame.capturedPieceColor ?? null,
+            turnUserId: frame.turnUserId,
+            moveCount: frame.moveCount ?? frame.moveNo,
+            result: frame.result ?? null,
           })
         }
         break

@@ -10,7 +10,11 @@ import LeaderboardPanel from '@/modules/games/components/LeaderboardPanel.vue'
 import MatchWindow from '@/modules/games/components/MatchWindow.vue'
 import MetricChart from '@/modules/games/components/MetricChart.vue'
 import TournamentBracket from '@/modules/games/components/TournamentBracket.vue'
-import { fetchOverallLeaderboard, submitScore } from '@/modules/games/gameApi'
+import {
+  fetchLeaderboard,
+  fetchOverallLeaderboard,
+  submitScore,
+} from '@/modules/games/gameApi'
 import { GAMES } from '@/modules/games/gameRegistry'
 import {
   formatLabel,
@@ -24,7 +28,10 @@ import {
   topologyOption,
 } from '@/modules/games/lib/chartOptions'
 import type { EChartsCoreOption } from 'echarts/core'
-import type { LeaderboardEntry } from '@/modules/games/types'
+import type {
+  LeaderboardEntry,
+  LeaderboardGameId,
+} from '@/modules/games/types'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
@@ -47,9 +54,16 @@ const updatedAt = ref(new Date())
 const showBreakout = ref(false)
 const notice = ref('')
 
+const LEADERBOARD_OPTIONS: Array<{ id: LeaderboardGameId; label: string }> = [
+  { id: 'overall', label: '综合' },
+  { id: 'heatmap-gomoku', label: '五子棋' },
+  { id: 'blind-xiangqi', label: '盲棋' },
+]
+
 const leaderboard = ref<LeaderboardEntry[]>([])
 const leaderboardLoading = ref(false)
 const leaderboardError = ref('')
+const leaderboardGameId = ref<LeaderboardGameId>('overall')
 const bestScore = ref(0)
 const myRank = ref(0)
 const selectedTournamentId = ref('')
@@ -112,6 +126,7 @@ const chartOptions = computed<Record<string, EChartsCoreOption>>(() => ({
   'topology-minesweeper': topologyOption(light.value),
   'qps-breakout': qpsOption(labels.value, qpsValues.value, light.value),
   'heatmap-gomoku': heatmapOption(heatmapData.value, light.value),
+  'blind-xiangqi': heatmapOption(heatmapData.value, light.value),
 }))
 
 const updatedLabel = computed(() =>
@@ -123,6 +138,7 @@ function panelHeight(gameId: string): number {
   if (gameId === 'ring-2048') return 158
   if (gameId === 'topology-minesweeper') return 184
   if (gameId === 'qps-breakout') return 176
+  if (gameId === 'blind-xiangqi') return 184
   return 184
 }
 
@@ -135,11 +151,17 @@ function showNotice(message: string) {
 }
 
 async function loadLeaderboard() {
+  const requested = leaderboardGameId.value
   leaderboardLoading.value = true
   leaderboardError.value = ''
   try {
-    leaderboard.value = await fetchOverallLeaderboard(10)
-    const own = leaderboard.value.find((entry) => entry.userId === identity.state.userId)
+    const entries =
+      requested === 'overall'
+        ? await fetchOverallLeaderboard(10)
+        : await fetchLeaderboard(requested, 10)
+    if (leaderboardGameId.value !== requested) return
+    leaderboard.value = entries
+    const own = entries.find((entry) => entry.userId === identity.state.userId)
     if (own) {
       bestScore.value = own.points ?? own.score
       myRank.value = own.rank
@@ -148,10 +170,19 @@ async function loadLeaderboard() {
       myRank.value = 0
     }
   } catch (error) {
-    leaderboardError.value = formatApiError(error, '排行服务暂不可用')
+    if (leaderboardGameId.value === requested) {
+      leaderboardError.value = formatApiError(error, '排行服务暂不可用')
+    }
   } finally {
-    leaderboardLoading.value = false
+    if (leaderboardGameId.value === requested) leaderboardLoading.value = false
   }
+}
+
+function selectLeaderboard(gameId: LeaderboardGameId) {
+  leaderboardGameId.value = gameId
+  bestScore.value = 0
+  myRank.value = 0
+  void loadLeaderboard()
 }
 
 async function onGameFinish(score: number) {
@@ -175,6 +206,10 @@ async function onGameFinish(score: number) {
 function launchGame(gameId: string) {
   if (gameId === 'heatmap-gomoku') {
     tournamentStore.openLobby()
+    return
+  }
+  if (gameId === 'blind-xiangqi') {
+    tournamentStore.openLobby('blind-xiangqi')
     return
   }
   showBreakout.value = true
@@ -219,6 +254,13 @@ watch(
     selectedTournamentId.value = preferred?.id ?? ''
   },
   { deep: true, immediate: true },
+)
+
+watch(
+  () => tournamentStore.lastResult,
+  (result) => {
+    if (result) void loadLeaderboard()
+  },
 )
 
 watch(
@@ -295,9 +337,18 @@ onBeforeUnmount(() => {
           :playable="game.playable"
           :active="
             (showBreakout && game.id === 'qps-breakout') ||
-            (tournamentStore.lobbyOpen && game.id === 'heatmap-gomoku')
+            (tournamentStore.lobbyOpen &&
+              (tournamentStore.lobbyPreferredGameId
+                ? game.id === tournamentStore.lobbyPreferredGameId
+                : game.id === 'heatmap-gomoku'))
           "
-          :action-label="game.id === 'heatmap-gomoku' ? '进入演练' : '启动采样'"
+          :action-label="
+            game.id === 'heatmap-gomoku'
+              ? '进入演练'
+              : game.id === 'blind-xiangqi'
+                ? '进入盲棋'
+                : '启动采样'
+          "
           @launch="launchGame(game.id)"
         >
           <MetricChart
@@ -317,7 +368,9 @@ onBeforeUnmount(() => {
             myDrillMatches
               .map(
                 (match) =>
-                  `${match.player1Nickname || match.player1UserId} vs ${match.player2Nickname || match.player2UserId}`,
+                  `${match.gameId === 'blind-xiangqi' ? '盲棋 · ' : ''}` +
+                  `${match.player1Nickname || match.player1UserId} vs ` +
+                  `${match.player2Nickname || match.player2UserId}`,
               )
               .join(' · ')
           }}
@@ -338,7 +391,7 @@ onBeforeUnmount(() => {
           <span class="games__tourneys-mark">T</span>
           <div>
             <b>联调演练调度</b>
-            <span>创建演练 · 邀请在线成员 · 轮次策略 · 查看与回放</span>
+            <span>创建五子棋/盲棋演练 · 邀请在线成员 · 轮次策略 · 查看与回放</span>
           </div>
         </div>
         <div class="games__tourneys-actions">
@@ -400,6 +453,9 @@ onBeforeUnmount(() => {
           :error="leaderboardError"
           :best-score="bestScore"
           :rank="myRank"
+          :game-id="leaderboardGameId"
+          :game-options="LEADERBOARD_OPTIONS"
+          @change="selectLeaderboard"
         />
       </section>
       <section class="games__bottom-panel games__tasks">

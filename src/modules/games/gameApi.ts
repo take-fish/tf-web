@@ -1,8 +1,10 @@
 import { deleteJson, getJson, postJson, request } from '@/lib/http'
 import type {
+  BlindLayout,
   GameChatChannel,
   GameChatMessage,
   GameFormat,
+  GameId,
   GameMatch,
   GameNotification,
   GameOnlineUser,
@@ -58,6 +60,8 @@ export function createTournament(payload: {
   name: string
   format: GameFormat
   players: GameOnlineUser[]
+  gameId?: GameId
+  blindLayout?: BlindLayout
 }): Promise<GameTournament> {
   return postJson<GameTournament>('/api/v1/game/tournaments', payload)
 }
@@ -105,6 +109,8 @@ export function createDuel(payload: {
   opponentUserId: string
   opponentNickname: string
   format: GameFormat
+  gameId?: GameId
+  blindLayout?: BlindLayout
 }): Promise<GameTournament> {
   return postJson<GameTournament>('/api/v1/game/duels', payload)
 }

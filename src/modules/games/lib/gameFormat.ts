@@ -12,6 +12,35 @@ export function formatLabel(format: GameFormat): string {
   return 'BO1 · 单次执行'
 }
 
+export function gameName(gameId: string | null | undefined): string {
+  if (gameId === 'blind-xiangqi') return '盲棋'
+  if (gameId === 'heatmap-gomoku') return '五子棋'
+  return gameId || '五子棋'
+}
+
+export function blindLayoutLabel(layout: string | null | undefined): string {
+  switch (layout) {
+    case 'STANDARD_SHUFFLE':
+      return '标准点位洗牌'
+    case 'FULL_RANDOM':
+      return '全盘随机'
+    case 'HALF_RANDOM':
+      return '各自半场随机'
+    default:
+      return ''
+  }
+}
+
+/** 例如：盲棋 · 全盘随机；五子棋不带摆法。 */
+export function gameLabel(
+  gameId: string | null | undefined,
+  blindLayout?: string | null,
+): string {
+  const name = gameName(gameId)
+  const layout = blindLayoutLabel(blindLayout)
+  return layout ? `${name} · ${layout}` : name
+}
+
 export function tournamentStatusLabel(status: TournamentStatus): string {
   switch (status) {
     case 'INVITING':

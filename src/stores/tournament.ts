@@ -27,9 +27,12 @@ import {
 import { GameSocketClient } from '@/modules/games/gameSocket'
 import { findWatchableMatch, isParticipant, otherPlayerId } from '@/modules/games/lib/gameFormat'
 import type {
+  BlindLayout,
+  GameBlindActionEvent,
   GameChatChannel,
   GameChatMessage,
   GameFormat,
+  GameId,
   GameMatch,
   GameMatchResultEvent,
   GameNotification,
@@ -69,6 +72,7 @@ export const useTournamentStore = defineStore('tournament', () => {
   const matchLoading = ref(false)
   const matchError = ref('')
   const lastResult = ref<GameMatchResultEvent | null>(null)
+  const lastBlindAction = ref<GameBlindActionEvent | null>(null)
   const chatMessages = ref<GameChatMessage[]>([])
   const chatLoading = ref(false)
   const chatError = ref('')
@@ -77,6 +81,7 @@ export const useTournamentStore = defineStore('tournament', () => {
   const finalNotification = ref<GameNotification | null>(null)
   const championNotification = ref<GameNotification | null>(null)
   const lobbyOpen = ref(false)
+  const lobbyPreferredGameId = ref<GameId | ''>('')
   const lobbyLoading = ref(false)
   const lobbyError = ref('')
   const inviteUnread = ref(0)
@@ -184,6 +189,9 @@ export const useTournamentStore = defineStore('tournament', () => {
         }
       },
       onStone: applyStone,
+      onBlindAction: (event) => {
+        lastBlindAction.value = event
+      },
       onMatchRest: (event) => {
         const match = currentMatch.value
         if (!match || match.id !== event.matchId) return
@@ -404,7 +412,9 @@ export const useTournamentStore = defineStore('tournament', () => {
   function applyMatch(match: GameMatch) {
     updateActiveMatch(match)
     if (currentMatchId.value === match.id) {
+      const previousRoundId = currentMatch.value?.currentRound?.id
       currentMatch.value = match
+      if (previousRoundId !== match.currentRound?.id) lastBlindAction.value = null
       matchError.value = ''
     }
     const tournament = tournaments.value.find(
@@ -538,6 +548,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     chatError.value = ''
     chatLoading.value = false
     lastResult.value = null
+    lastBlindAction.value = null
     socket?.watchMatch(matchId)
     try {
       const match = await fetchMatch(matchId)
@@ -595,6 +606,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     chatMessages.value = []
     chatError.value = ''
     lastResult.value = null
+    lastBlindAction.value = null
   }
 
   function ready() {
@@ -619,6 +631,28 @@ export const useTournamentStore = defineStore('tournament', () => {
     return true
   }
 
+  function revealPiece(x: number, y: number) {
+    const id = currentMatchId.value
+    if (!id) return false
+    if (!socket?.revealPiece(id, x, y)) {
+      lastError.value = '翻棋通道未连接，请稍后重试'
+      return false
+    }
+    lastError.value = ''
+    return true
+  }
+
+  function movePiece(fromX: number, fromY: number, toX: number, toY: number) {
+    const id = currentMatchId.value
+    if (!id) return false
+    if (!socket?.movePiece(id, fromX, fromY, toX, toY)) {
+      lastError.value = '走子通道未连接，请稍后重试'
+      return false
+    }
+    lastError.value = ''
+    return true
+  }
+
   function resign() {
     const id = currentMatchId.value
     if (!id) return false
@@ -634,6 +668,8 @@ export const useTournamentStore = defineStore('tournament', () => {
     name: string
     format: GameFormat
     players: GameOnlineUser[]
+    gameId?: GameId
+    blindLayout?: BlindLayout
   }): Promise<GameTournament> {
     lobbyError.value = ''
     try {
@@ -696,6 +732,8 @@ export const useTournamentStore = defineStore('tournament', () => {
   async function createDuelFor(
     opponent: GameOnlineUser,
     format: GameFormat,
+    gameId?: GameId,
+    blindLayout?: BlindLayout,
   ): Promise<GameTournament> {
     duelError.value = ''
     try {
@@ -703,6 +741,8 @@ export const useTournamentStore = defineStore('tournament', () => {
         opponentUserId: opponent.userId,
         opponentNickname: opponent.nickname,
         format,
+        ...(gameId ? { gameId } : {}),
+        ...(blindLayout ? { blindLayout } : {}),
       })
       upsertDuel(duel)
       return duel
@@ -815,7 +855,8 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
   }
 
-  function openLobby() {
+  function openLobby(gameId?: GameId) {
+    lobbyPreferredGameId.value = gameId ?? ''
     lobbyOpen.value = true
     inviteUnread.value = 0
     void refreshLobby()
@@ -823,6 +864,7 @@ export const useTournamentStore = defineStore('tournament', () => {
 
   function closeLobby() {
     lobbyOpen.value = false
+    lobbyPreferredGameId.value = ''
   }
 
   function dismissFinal() {
@@ -878,6 +920,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     matchLoading,
     matchError,
     lastResult,
+    lastBlindAction,
     chatMessages,
     chatLoading,
     chatError,
@@ -886,6 +929,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     finalNotification,
     championNotification,
     lobbyOpen,
+    lobbyPreferredGameId,
     lobbyLoading,
     lobbyError,
     inviteUnread,
@@ -898,6 +942,8 @@ export const useTournamentStore = defineStore('tournament', () => {
     leaveWatch,
     ready,
     placeStone,
+    revealPiece,
+    movePiece,
     resign,
     loadChat,
     sendChat,
