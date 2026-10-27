@@ -65,6 +65,8 @@ export function createTournament(payload: {
   players: GameOnlineUser[]
   gameId?: SelectableGameId
   blindLayout?: BlindLayout
+  /** S赛启用池；不传表示启用全部 1v1 剧本。 */
+  gamePool?: string[]
 }): Promise<GameTournament> {
   return postJson<GameTournament>('/api/v1/game/tournaments', payload)
 }

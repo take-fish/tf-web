@@ -49,7 +49,6 @@ import type {
   GameExerciseFinishedEvent,
   GameExerciseStateEvent,
   GameFormat,
-  GameId,
   GameMatch,
   GameMatchResultEvent,
   GameNotification,
@@ -58,6 +57,8 @@ import type {
   GameStoneEvent,
   GameTournament,
   SelectableGameId,
+  TournamentPoolGameId,
+  TournamentType,
 } from '@/modules/games/types'
 import { useAuthStore } from './auth'
 
@@ -99,8 +100,10 @@ export const useTournamentStore = defineStore('tournament', () => {
   const finalNotification = ref<GameNotification | null>(null)
   const championNotification = ref<GameNotification | null>(null)
   const lobbyOpen = ref(false)
-  /** 从盲棋入口打开调度台时预设的固定玩法；赛事默认仍走系统随机。 */
-  const lobbyPreferredGameId = ref<GameId | ''>('')
+  /** 调度台创建模式：顶部入口默认 S赛，游戏卡片进入则为锦标赛。 */
+  const lobbyMode = ref<TournamentType>('SERIES')
+  /** 从游戏卡片/剧本卡片进入时预选的锦标赛剧本。 */
+  const lobbyPreferredGameId = ref<TournamentPoolGameId | ''>('')
   /** 调度台最近进入的竞技场剧本，用于首页卡片高亮。 */
   const lobbyScript = ref<ArenaGameId>('heatmap-gomoku')
   const lobbyLoading = ref(false)
@@ -1000,6 +1003,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     players: GameOnlineUser[]
     gameId?: SelectableGameId
     blindLayout?: BlindLayout
+    gamePool?: TournamentPoolGameId[]
   }): Promise<GameTournament> {
     lobbyError.value = ''
     try {
@@ -1185,12 +1189,15 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
   }
 
-  function openLobby(gameId?: GameId | ArenaGameId) {
-    if (gameId === 'blind-xiangqi') {
+  /** 指定剧本进入 = 锦标赛专精；不指定 = 顶部入口的 S赛综合抽签。 */
+  function openLobby(gameId?: TournamentPoolGameId) {
+    if (gameId) {
+      lobbyMode.value = 'CHAMPIONSHIP'
       lobbyPreferredGameId.value = gameId
+      if (gameId !== 'blind-xiangqi') lobbyScript.value = gameId
     } else {
+      lobbyMode.value = 'SERIES'
       lobbyPreferredGameId.value = ''
-      if (gameId) lobbyScript.value = gameId
     }
     lobbyOpen.value = true
     inviteUnread.value = 0
@@ -1199,6 +1206,7 @@ export const useTournamentStore = defineStore('tournament', () => {
 
   function closeLobby() {
     lobbyOpen.value = false
+    lobbyMode.value = 'SERIES'
     lobbyPreferredGameId.value = ''
   }
 
@@ -1264,6 +1272,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     finalNotification,
     championNotification,
     lobbyOpen,
+    lobbyMode,
     lobbyPreferredGameId,
     lobbyScript,
     lobbyLoading,

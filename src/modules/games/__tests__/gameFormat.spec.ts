@@ -13,7 +13,9 @@ import {
   leagueStandings,
   matchRoundLabel,
   matchStatusLabel,
+  tournamentModeSummary,
   tournamentStatusLabel,
+  tournamentTypeLabel,
 } from '../lib/gameFormat'
 import type {
   GameFormat,
@@ -111,6 +113,20 @@ describe('gameFormat 标签', () => {
     expect(blindLayoutLabel('HALF_RANDOM')).toBe('各自半场随机')
     expect(gameLabel('blind-xiangqi', 'HALF_RANDOM')).toBe('盲棋 · 各自半场随机')
     expect(gameLabel('heatmap-gomoku')).toBe('五子棋')
+  })
+
+  it('S赛与锦标赛使用不同类型徽标与摘要', () => {
+    expect(tournamentTypeLabel('random')).toBe('S赛')
+    expect(tournamentTypeLabel('topology-arena')).toBe('锦标赛')
+    expect(tournamentModeSummary(tournament({
+      gameId: 'random',
+      gamePool: ['heatmap-gomoku', 'blind-xiangqi'],
+    }))).toBe('S赛 · 启用 2 项')
+    expect(tournamentModeSummary(tournament({ gameId: 'random' }))).toBe('S赛')
+    expect(tournamentModeSummary(tournament({
+      gameId: 'blind-xiangqi',
+      blindLayout: 'FULL_RANDOM',
+    }))).toBe('锦标赛 · 盲棋 · 全盘随机')
   })
 
   it('淘汰赛轮次按总轮数换算', () => {
