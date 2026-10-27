@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppIcon from '@/components/AppIcon.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { formatApiError } from '@/lib/http'
+import { fetchMyStats } from '@/modules/reader/readerApi'
+import type { UserStats } from '@/modules/reader/types'
 import type { ReaderTemplateId } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
@@ -29,6 +31,35 @@ const MAX_AVATAR_BYTES = 2 * 1024 * 1024
 const accountName = computed(() => auth.user?.username ?? '')
 const accountNickname = computed(() => auth.user?.nickname ?? '')
 const accountRole = computed(() => (auth.isAdmin ? '管理员' : '成员'))
+
+const stats = ref<UserStats | null>(null)
+const statsError = ref('')
+
+const levelLabel = computed(() => (stats.value ? `Lv.${stats.value.level}` : '—'))
+const experienceLabel = computed(() => {
+  const value = stats.value
+  if (!value) return '—'
+  return value.nextLevelExperience === null
+    ? `${value.experience}（已满级）`
+    : `${value.experience} / ${value.nextLevelExperience}`
+})
+const uploadLabel = computed(() => (stats.value ? String(stats.value.uploadCount) : '—'))
+const readingLabel = computed(() => {
+  const value = stats.value
+  if (!value) return '—'
+  const hours = Math.floor(value.readingMinutes / 60)
+  const minutes = value.readingMinutes % 60
+  return hours > 0 ? `${hours} 小时 ${minutes} 分钟` : `${minutes} 分钟`
+})
+
+onMounted(async () => {
+  try {
+    stats.value = await fetchMyStats()
+  } catch (error) {
+    // 统计拉不到不影响设置面板的其他功能
+    statsError.value = formatApiError(error, '无法获取阅读等级')
+  }
+})
 
 const READER_TEMPLATES: ReadonlyArray<{ id: ReaderTemplateId; label: string }> = [
   { id: 'springboot', label: 'SpringBoot 业务层' },
@@ -209,6 +240,27 @@ async function onLogout() {
               {{ loggingOut ? '退出中…' : '退出登录' }}
             </button>
           </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>阅读等级</h3>
+          <div class="settings-row">
+            <span>当前等级</span>
+            <code>{{ levelLabel }}</code>
+          </div>
+          <div class="settings-row">
+            <span>经验值</span>
+            <code>{{ experienceLabel }}</code>
+          </div>
+          <div class="settings-row">
+            <span>上传本数</span>
+            <code>{{ uploadLabel }}</code>
+          </div>
+          <div class="settings-row">
+            <span>累计阅读</span>
+            <code>{{ readingLabel }}</code>
+          </div>
+          <p v-if="statsError" class="settings-avatar__error">{{ statsError }}</p>
         </section>
 
         <section class="settings-section">
