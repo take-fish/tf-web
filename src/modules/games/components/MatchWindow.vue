@@ -923,7 +923,8 @@ onBeforeUnmount(() => {
 .match-window {
   position: fixed;
   inset: 0;
-  z-index: 1150;
+  /* 高于演练调度台（1200），保证从调度台进入对局时调度台保留在下一层。 */
+  z-index: 1300;
   display: grid;
   place-items: center;
   padding: 22px;
@@ -1617,7 +1618,7 @@ onBeforeUnmount(() => {
 .board-window {
   position: fixed;
   inset: 0;
-  z-index: 1250;
+  z-index: 1400;
   background: rgba(3, 5, 8, 0.82);
   backdrop-filter: blur(5px);
 }
