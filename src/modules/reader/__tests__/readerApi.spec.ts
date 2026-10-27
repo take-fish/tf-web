@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { writeAuth } from '@/lib/authToken'
+import type { AuthUser } from '@/modules/auth/types'
 import {
   fetchBookmarks,
   fetchBooks,
@@ -8,6 +10,7 @@ import {
   previewSharedBook,
   requestAccess,
   saveProgress,
+  saveProgressKeepalive,
   updateBook,
 } from '../readerApi'
 
@@ -81,6 +84,28 @@ describe('readerApi', () => {
     expect(marks).toEqual([])
     expect(lastCall().url).toBe('/api/v1/reader/books/9/bookmarks')
     expect(lastCall().url).not.toContain('userId=')
+  })
+
+  it('页面隐藏时的进度上报走 keepalive，并携带鉴权头', () => {
+    const user: AuthUser = {
+      id: 1,
+      username: 'reader',
+      nickname: '读者',
+      role: 'USER',
+      status: 'ACTIVE',
+    }
+    writeAuth({ token: 'tk-1', user })
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(jsonResponse(null, 204))
+
+    const accepted = saveProgressKeepalive(9, 2, 0.35)
+
+    const { url, init } = lastCall()
+    expect(accepted).toBe(true)
+    expect(url).toBe('/api/v1/reader/books/9/progress')
+    expect(init.method).toBe('PUT')
+    expect(init.keepalive).toBe(true)
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer tk-1')
+    expect(JSON.parse(String(init.body))).toEqual({ chapterIndex: 2, scrollRatio: 0.35 })
   })
 
   it('上传使用 multipart 并写入目标库与分类', async () => {

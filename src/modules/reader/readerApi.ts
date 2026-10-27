@@ -1,4 +1,4 @@
-import { deleteJson, getJson, postForm, postJson, putJson, request } from '@/lib/http'
+import { deleteJson, getJson, keepaliveRequest, postForm, postJson, putJson, request } from '@/lib/http'
 import type {
   AccessRequest,
   Annotation,
@@ -114,6 +114,21 @@ export function saveProgress(
   return putJson<void>(`/api/v1/reader/books/${bookId}/progress`, {
     chapterIndex,
     scrollRatio,
+  })
+}
+
+/**
+ * 页面隐藏/关闭时的进度上报。走 keepalive，请求在页面销毁后仍会送达；
+ * 返回 false 表示浏览器拒绝了请求（例如超出 keepalive 体积上限），此时本地缓存仍可用。
+ */
+export function saveProgressKeepalive(
+  bookId: number,
+  chapterIndex: number,
+  scrollRatio: number,
+): boolean {
+  return keepaliveRequest(`/api/v1/reader/books/${bookId}/progress`, {
+    method: 'PUT',
+    body: JSON.stringify({ chapterIndex, scrollRatio }),
   })
 }
 

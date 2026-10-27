@@ -37,6 +37,7 @@ import {
   requestAccess,
   revokeAccessRequest,
   saveProgress,
+  saveProgressKeepalive,
   shareBook,
   updateBook,
 } from '@/modules/reader/readerApi'
@@ -47,6 +48,11 @@ import {
   paragraphStartLine,
   splitParagraphs,
 } from '@/modules/reader/lib/novelFormatter'
+import {
+  newerProgress,
+  readLocalProgress,
+  writeLocalProgress,
+} from '@/modules/reader/lib/progressCache'
 import type {
   AccessRequest,
   Annotation,
@@ -236,11 +242,33 @@ function clock(iso: string): string {
 
 async function persistProgress() {
   if (!selectedBookId.value || !chapter.value) return
+  const bookId = selectedBookId.value
+  const chapterNo = chapter.value.chapterIndex
+  const ratio = progressRatio.value
+  // 先写本地：即使下面请求失败，下次打开仍能恢复到原位。
+  writeLocalProgress(bookId, chapterNo, ratio)
   try {
-    await saveProgress(selectedBookId.value, chapter.value.chapterIndex, progressRatio.value)
+    await saveProgress(bookId, chapterNo, ratio)
   } catch {
-    // 进度保存失败不阻塞阅读
+    // 进度保存失败不阻塞阅读；本地缓存已写入，下次打开仍能恢复到原位
   }
+}
+
+/**
+ * 页面被隐藏或关闭时把最新进度补发出去。
+ * 滚动保存有 2 秒防抖，直接关标签页时定时器会随页面一起销毁，这一步就是补那个缺口。
+ */
+function flushProgress() {
+  if (!selectedBookId.value || !chapter.value) return
+  const bookId = selectedBookId.value
+  const chapterNo = chapter.value.chapterIndex
+  const ratio = progressRatio.value
+  writeLocalProgress(bookId, chapterNo, ratio)
+  saveProgressKeepalive(bookId, chapterNo, ratio)
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'hidden') flushProgress()
 }
 
 function onScrollRatio(ratio: number) {
@@ -292,6 +320,8 @@ async function selectChapter(index: number) {
   loading.value = true
   try {
     await loadChapterInternal(index, 0)
+    // 立刻记下"现在在第 N 章"：否则只点章节不滚动时，关掉页面再进来会退回上一章。
+    void persistProgress()
   } catch (value) {
     error.value = errorText(value)
   } finally {
@@ -313,16 +343,23 @@ async function selectBook(bookId: number) {
   loading.value = true
   error.value = ''
   try {
-    const detail = await fetchBook(bookId)
+    // 书籍详情、书签、进度三者互不依赖，并发发出。
+    // 书签/进度失败不阻塞正文：它们只是辅助信息，正文读不到才是硬错误。
+    const [detail, bookmarkList, remoteProgress] = await Promise.all([
+      fetchBook(bookId),
+      fetchBookmarks(bookId).catch(() => [] as Bookmark[]),
+      fetchProgress(bookId).catch(() => null),
+    ])
     selectedBookId.value = bookId
     book.value = detail.book
     chapters.value = detail.chapters
     sharePreview.value = null
-    bookmarks.value = await fetchBookmarks(bookId)
-    const progress = await fetchProgress(bookId)
-    const targetChapter =
-      progress && progress.chapterIndex < detail.book.chapterCount ? progress.chapterIndex : 0
-    await loadChapterInternal(targetChapter, progress?.scrollRatio ?? 0)
+    bookmarks.value = bookmarkList
+    // 本地进度可能比服务端新（上次关页面时请求没送达），取较新的一份。
+    // 章节数变少（重新导入过）时整条进度作废，避免停在第 1 章却沿用旧章节的滚动位置。
+    const found = newerProgress(readLocalProgress(bookId), remoteProgress)
+    const resumable = found && found.chapterIndex < detail.book.chapterCount ? found : null
+    await loadChapterInternal(resumable?.chapterIndex ?? 0, resumable?.scrollRatio ?? 0)
   } catch (value) {
     resetReader()
     error.value = errorText(value)
@@ -758,6 +795,9 @@ watch(
 )
 
 onMounted(async () => {
+  // 关标签页/切到后台时补存进度：滚动保存有 2 秒防抖，靠这两个事件兜住最后那段。
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('pagehide', flushProgress)
   await loadCategories()
   await loadBooks()
   void refreshRequests()
@@ -774,10 +814,12 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('pagehide', flushProgress)
   if (progressTimer) clearTimeout(progressTimer)
   if (annotationTimer) clearInterval(annotationTimer)
   stopAutoScrollTimer()
-  void persistProgress()
+  flushProgress()
 })
 </script>
 

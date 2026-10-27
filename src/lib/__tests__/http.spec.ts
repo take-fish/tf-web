@@ -23,4 +23,24 @@ describe('ApiError 链路编号', () => {
   it('非 ApiError 使用兜底文案', () => {
     expect(formatApiError(undefined, '操作失败')).toBe('操作失败')
   })
+
+  it('参数校验失败时展示逐字段提示，而不是笼统的顶层文案', () => {
+    const error = new ApiError(
+      400,
+      'VALIDATION_FAILED',
+      '请求参数校验未通过',
+      TRACE_ID,
+      undefined,
+      undefined,
+      {
+        fields: { title: '书名不能超过 255 个字符' },
+      },
+    )
+    expect(formatApiError(error)).toBe(`书名不能超过 255 个字符（编号 ${TRACE_ID}）`)
+  })
+
+  it('没有字段提示时仍用顶层文案', () => {
+    const error = new ApiError(400, 'BAD_REQUEST', '分类不存在', TRACE_ID, undefined, undefined, {})
+    expect(formatApiError(error)).toBe(`分类不存在（编号 ${TRACE_ID}）`)
+  })
 })
