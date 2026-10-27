@@ -191,8 +191,8 @@ function preferredMatch(tournament: GameTournament): GameMatch | undefined {
 }
 
 function watchMatch(matchId: string) {
+  // 调度台保持挂载，对局窗口覆盖在其上层；关闭对局后自然回到调度台。
   void router.push({ path: '/games', query: { ...route.query, watch: matchId } })
-  emit('close')
 }
 
 function openTournament(tournament: GameTournament) {
