@@ -35,7 +35,7 @@ const { socketState, MockGameSocketClient } = vi.hoisted(() => {
     ready = vi.fn<() => boolean>(() => true)
     placeStone = vi.fn<() => boolean>(() => true)
     resign = vi.fn<() => boolean>(() => true)
-    sendArenaAction = vi.fn(() => true)
+    sendArenaAction = vi.fn<() => boolean>(() => true)
     chooseGame = vi.fn<() => boolean>(() => true)
     sendChat = vi.fn<() => boolean>(() => true)
   }

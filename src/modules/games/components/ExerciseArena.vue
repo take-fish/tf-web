@@ -301,7 +301,7 @@ function smoothActors() {
     }
     cached.aim = actor.aim
   }
-  for (const key of [...rendered.keys()]) {
+  for (const key of rendered.keys()) {
     if (!seen.has(key)) rendered.delete(key)
   }
 }
