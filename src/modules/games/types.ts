@@ -39,11 +39,41 @@ export interface GamePlayer {
   status: string
 }
 
+export type GameId = 'heatmap-gomoku' | 'blind-xiangqi'
+export type LeaderboardGameId = 'overall' | 'heatmap-gomoku' | 'blind-xiangqi'
+
+export type BlindLayout = 'STANDARD_SHUFFLE' | 'FULL_RANDOM' | 'HALF_RANDOM'
+export type BlindPieceColor = 'RED' | 'BLACK'
+export type BlindPieceType =
+  | 'GENERAL'
+  | 'ADVISOR'
+  | 'ELEPHANT'
+  | 'HORSE'
+  | 'CHARIOT'
+  | 'CANNON'
+  | 'SOLDIER'
+
+/** 盲棋公开棋盘格：反面棋只暴露坐标，翻开后才下发颜色与兵种。 */
+export interface BlindPieceView {
+  x: number
+  y: number
+  revealed: boolean
+  color: BlindPieceColor | null
+  pieceType: BlindPieceType | null
+}
+
 export interface GameMove {
   moveNo: number
   userId: string
   x: number
   y: number
+  action?: 'PLACE' | 'REVEAL' | 'MOVE'
+  fromX?: number | null
+  fromY?: number | null
+  pieceType?: BlindPieceType | null
+  pieceColor?: BlindPieceColor | null
+  capturedPieceType?: BlindPieceType | null
+  capturedPieceColor?: BlindPieceColor | null
 }
 
 export interface GameRound {
@@ -61,6 +91,11 @@ export interface GameRound {
   startedAt: number
   finishedAt: number | null
   moves: GameMove[]
+  /** 盲棋公开棋盘；五子棋为空。 */
+  blindBoard?: BlindPieceView[]
+  /** 盲棋 firstUserId 为红方，secondUserId 为黑方。 */
+  firstUserId?: string
+  secondUserId?: string
 }
 
 export interface GameMatch {
@@ -83,6 +118,8 @@ export interface GameMatch {
   startedAt: number | null
   finishedAt: number | null
   currentRound: GameRound | null
+  gameId?: GameId | string
+  blindLayout?: BlindLayout | null
 }
 
 export interface GameTournament {
@@ -106,6 +143,7 @@ export interface GameTournament {
   finishedAt: number | null
   players: GamePlayer[]
   matches: GameMatch[]
+  blindLayout?: BlindLayout | null
 }
 
 export interface GameChatMessage {
@@ -152,6 +190,26 @@ export interface GameStoneEvent {
   turnUserId: string
   moveCount: number
   winning: boolean
+}
+
+export interface GameBlindActionEvent {
+  type: 'blind_action'
+  matchId: string
+  roundId: string
+  moveNo: number
+  userId: string
+  action: 'REVEAL' | 'MOVE'
+  fromX: number | null
+  fromY: number | null
+  toX: number
+  toY: number
+  pieceType: BlindPieceType
+  pieceColor: BlindPieceColor
+  capturedPieceType: BlindPieceType | null
+  capturedPieceColor: BlindPieceColor | null
+  turnUserId: string
+  moveCount: number
+  result: 'WIN' | 'DRAW' | null
 }
 
 export interface GameMatchRestEvent {
@@ -208,6 +266,16 @@ export interface GameServerFrame {
   userId?: string
   x?: number
   y?: number
+  action?: 'REVEAL' | 'MOVE'
+  fromX?: number | null
+  fromY?: number | null
+  toX?: number
+  toY?: number
+  pieceType?: BlindPieceType
+  pieceColor?: BlindPieceColor
+  capturedPieceType?: BlindPieceType | null
+  capturedPieceColor?: BlindPieceColor | null
+  result?: 'WIN' | 'DRAW' | null
   turnUserId?: string
   moveCount?: number
   winning?: boolean

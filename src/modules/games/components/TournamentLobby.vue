@@ -9,18 +9,38 @@ import {
   countdown,
   formatClock,
   formatLabel,
+  gameLabel,
   tournamentStatusLabel,
 } from '../lib/gameFormat'
-import type { GameFormat, GameMatch, GameOnlineUser, GameTournament } from '../types'
+import type {
+  BlindLayout,
+  GameFormat,
+  GameId,
+  GameMatch,
+  GameOnlineUser,
+  GameTournament,
+} from '../types'
 import TournamentBracket from './TournamentBracket.vue'
 
 const emit = defineEmits<{ close: [] }>()
 
 const MAX_PLAYERS = 16
+const GAME_OPTIONS: Array<{ id: GameId; label: string; hint: string }> = [
+  { id: 'heatmap-gomoku', label: '五子棋', hint: '15×15 · 黑先无禁手' },
+  { id: 'blind-xiangqi', label: '盲棋', hint: '中国象棋暗棋 · 翻棋/盲吃' },
+]
+const BLIND_LAYOUTS: Array<{ id: BlindLayout; label: string; hint: string }> = [
+  { id: 'STANDARD_SHUFFLE', label: '标准点位', hint: '标准开局点位随机洗牌' },
+  { id: 'FULL_RANDOM', label: '全盘随机', hint: '32 枚随机散布全盘' },
+  { id: 'HALF_RANDOM', label: '半场随机', hint: '红黑各自半场散布' },
+]
+
 const store = useTournamentStore()
 const router = useRouter()
 const route = useRoute()
 
+const gameId = ref<GameId>('heatmap-gomoku')
+const blindLayout = ref<BlindLayout>('STANDARD_SHUFFLE')
 const format = ref<GameFormat>('BO1')
 const name = ref('')
 const selectedIds = ref<string[]>([])
@@ -91,6 +111,13 @@ watch(
   { deep: true, immediate: true },
 )
 
+watch(
+  () => store.lobbyPreferredGameId,
+  (value) => {
+    if (value) gameId.value = value
+  },
+)
+
 function toggle(userId: string) {
   if (selectedIds.value.includes(userId)) {
     selectedIds.value = selectedIds.value.filter((entry) => entry !== userId)
@@ -145,9 +172,15 @@ async function create() {
   createError.value = ''
   try {
     const created = await store.create({
-      name: name.value.trim() || '联调演练',
+      name:
+        name.value.trim() ||
+        (gameId.value === 'blind-xiangqi' ? '盲棋演练' : '联调演练'),
       format: format.value,
       players: roster.value,
+      gameId: gameId.value,
+      ...(gameId.value === 'blind-xiangqi'
+        ? { blindLayout: blindLayout.value }
+        : {}),
     })
     selectedIds.value = []
     name.value = ''
@@ -240,6 +273,7 @@ function isCreator(tournament: GameTournament): boolean {
 }
 
 onMounted(() => {
+  if (store.lobbyPreferredGameId) gameId.value = store.lobbyPreferredGameId
   clockTimer = setInterval(() => {
     now.value = Date.now()
   }, 1000)
@@ -306,7 +340,9 @@ onBeforeUnmount(() => {
               <div class="lobby__invite-main">
                 <b>{{ invitation.name }}</b>
                 <span>
-                  {{ invitation.creatorNickname }} 邀请你 · {{ formatLabel(invitation.format) }}
+                  {{ invitation.creatorNickname }} 邀请你 ·
+                  {{ gameLabel(invitation.gameId, invitation.blindLayout) }} ·
+                  {{ formatLabel(invitation.format) }}
                 </span>
                 <em :class="{ 'is-expired': isInvitationExpired(invitation) }">
                   <template v-if="isInvitationExpired(invitation)">邀请已超时</template>
@@ -369,10 +405,44 @@ onBeforeUnmount(() => {
                 v-model="name"
                 type="text"
                 maxlength="32"
-                placeholder="联调演练"
+                :placeholder="gameId === 'blind-xiangqi' ? '盲棋演练' : '联调演练'"
                 :disabled="creating"
               />
             </label>
+
+            <div class="lobby__field">
+              <span>演练类型</span>
+              <div class="lobby__games">
+                <button
+                  v-for="option in GAME_OPTIONS"
+                  :key="option.id"
+                  type="button"
+                  class="lobby__format"
+                  :class="{ 'is-active': gameId === option.id }"
+                  @click="gameId = option.id"
+                >
+                  <b>{{ option.label }}</b>
+                  <em>{{ option.hint }}</em>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="gameId === 'blind-xiangqi'" class="lobby__field">
+              <span>开局摆法</span>
+              <div class="lobby__layouts">
+                <button
+                  v-for="option in BLIND_LAYOUTS"
+                  :key="option.id"
+                  type="button"
+                  class="lobby__format"
+                  :class="{ 'is-active': blindLayout === option.id }"
+                  @click="blindLayout = option.id"
+                >
+                  <b>{{ option.label }}</b>
+                  <em>{{ option.hint }}</em>
+                </button>
+              </div>
+            </div>
 
             <div class="lobby__field">
               <span>轮次策略</span>
@@ -440,6 +510,9 @@ onBeforeUnmount(() => {
               <p><b>3-5 人</b>：循环计分；<b>6 人以上非 2 的幂</b>：三轮调度。</p>
               <p><b>前三名</b>：第三名先对第二名，胜者再对第一名，产生最终结果。</p>
               <p><b>回放</b>：未参与的成员可从列表进入；执行内保留公开讨论与双方私聊。</p>
+              <p v-if="gameId === 'blind-xiangqi'">
+                <b>盲棋</b>：翻棋或走子；反面棋可盲吃；将帅见面记和并进下一局。
+              </p>
             </div>
 
             <p v-if="createError || store.lobbyError" class="lobby__error">
@@ -534,6 +607,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <div class="lobby__tournament-meta">
+                  <span>{{ gameLabel(tournament.gameId, tournament.blindLayout) }}</span>
                   <span>{{ formatLabel(tournament.format) }}</span>
                   <span>{{ playerCount(tournament) }}/{{ tournament.targetPlayers }} 人</span>
                   <span>{{ formatClock(tournament.createdAt) }}</span>
@@ -964,6 +1038,18 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
+.lobby__games {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.lobby__layouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
 .lobby__format {
   display: flex;
   flex-direction: column;
@@ -1344,7 +1430,9 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  .lobby__formats {
+  .lobby__formats,
+  .lobby__games,
+  .lobby__layouts {
     grid-template-columns: 1fr;
   }
 

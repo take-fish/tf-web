@@ -1,28 +1,64 @@
 <script setup lang="ts">
-import type { LeaderboardEntry } from '../types'
+import { computed } from 'vue'
 
-withDefaults(
+import type { LeaderboardEntry, LeaderboardGameId } from '../types'
+
+const props = withDefaults(
   defineProps<{
     entries: LeaderboardEntry[]
     loading?: boolean
     error?: string
     bestScore?: number
     rank?: number
+    gameId?: LeaderboardGameId
+    gameOptions?: Array<{ id: LeaderboardGameId; label: string }>
   }>(),
-  { loading: false, error: '', bestScore: 0, rank: 0 },
+  {
+    loading: false,
+    error: '',
+    bestScore: 0,
+    rank: 0,
+    gameId: 'overall',
+    gameOptions: () => [],
+  },
+)
+
+const emit = defineEmits<{ change: [gameId: LeaderboardGameId] }>()
+
+const title = computed(() => {
+  if (props.gameId === 'blind-xiangqi') return '盲棋排行'
+  if (props.gameId === 'heatmap-gomoku') return '五子棋排行'
+  return '综合排行'
+})
+
+const hint = computed(() =>
+  props.gameId === 'overall'
+    ? '演练成功 +3 / 参与 +1 / 结果确认 +10 · 采样每 100 分折算 1 积分'
+    : '演练成功 +3 / 参与 +1 / 结果确认 +10',
 )
 </script>
 
 <template>
   <section class="leaderboard">
     <header class="leaderboard__head">
-      <span>综合排行</span>
+      <span>{{ title }}</span>
       <span class="leaderboard__meta">
         <template v-if="bestScore">我的积分 {{ bestScore }} · 排名 {{ rank }}</template>
         <template v-else>暂无个人记录</template>
       </span>
     </header>
-    <p class="leaderboard__hint">演练成功 +3 / 参与 +1 / 结果确认 +10 · 采样每 100 分折算 1 积分</p>
+    <div v-if="gameOptions.length" class="leaderboard__tabs">
+      <button
+        v-for="option in gameOptions"
+        :key="option.id"
+        type="button"
+        :class="{ 'is-active': gameId === option.id }"
+        @click="emit('change', option.id)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+    <p class="leaderboard__hint">{{ hint }}</p>
     <div v-if="loading" class="leaderboard__empty">正在同步排行…</div>
     <div v-else-if="error" class="leaderboard__empty leaderboard__empty--err">{{ error }}</div>
     <div v-else-if="entries.length === 0" class="leaderboard__empty">暂无演练记录</div>
@@ -71,6 +107,33 @@ withDefaults(
   color: var(--fm-text-muted);
   font-family: var(--fm-mono);
   font-size: 9px;
+}
+
+.leaderboard__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+.leaderboard__tabs button {
+  padding: 3px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  cursor: pointer;
+}
+
+.leaderboard__tabs button:hover {
+  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
+  color: var(--fm-text-dim);
+}
+
+.leaderboard__tabs button.is-active {
+  border-color: var(--fm-accent);
+  background: color-mix(in srgb, var(--fm-accent) 8%, transparent);
+  color: var(--fm-accent);
 }
 
 .leaderboard__hint {
