@@ -127,3 +127,15 @@ export interface ImportBookOptions {
   author?: string
   categoryId?: number | null
 }
+
+/**
+ * 经验值概览。等级从 9 到 0，0 最高；满级时 nextLevelExperience 为 null。
+ * 服务端按规则累计，前端只负责展示，不自行推导等级。
+ */
+export interface UserStats {
+  experience: number
+  level: number
+  nextLevelExperience: number | null
+  uploadCount: number
+  readingMinutes: number
+}

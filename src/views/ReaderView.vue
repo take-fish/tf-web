@@ -38,6 +38,7 @@ import {
   revokeAccessRequest,
   saveProgress,
   saveProgressKeepalive,
+  sendReadingHeartbeat,
   shareBook,
   updateBook,
 } from '@/modules/reader/readerApi'
@@ -156,6 +157,7 @@ const pendingIncoming = computed(
 let progressTimer: ReturnType<typeof setTimeout> | undefined
 let annotationTimer: ReturnType<typeof setInterval> | undefined
 let autoScrollTimer: ReturnType<typeof setInterval> | undefined
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined
 
 const templateId = computed<ReaderTemplateId>({
   get: () => settings.state.readerTemplate,
@@ -164,9 +166,7 @@ const templateId = computed<ReaderTemplateId>({
 
 const light = computed(() => skinStore.effectiveSkin === 'swagger')
 
-const paragraphs = computed(() =>
-  chapter.value ? splitParagraphs(chapter.value.content) : [],
-)
+const paragraphs = computed(() => (chapter.value ? splitParagraphs(chapter.value.content) : []))
 
 const formatted = computed(() =>
   formatNovel(
@@ -205,8 +205,7 @@ const currentParagraphBookmarked = computed(() => {
   const paragraphIndex = currentParagraphIndex.value
   if (paragraphIndex < 0) return false
   return bookmarks.value.some(
-    (mark) =>
-      mark.chapterIndex === chapterIndex.value && mark.paragraphIndex === paragraphIndex,
+    (mark) => mark.chapterIndex === chapterIndex.value && mark.paragraphIndex === paragraphIndex,
   )
 })
 
@@ -267,8 +266,25 @@ function flushProgress() {
   saveProgressKeepalive(bookId, chapterNo, ratio)
 }
 
+/**
+ * 阅读心跳：服务端只用两次心跳的时间差来算时长，所以这里不传任何时长。
+ * 页面隐藏时停止计时，避免把"挂机"算成阅读。
+ */
+async function heartbeat() {
+  if (!selectedBookId.value || !chapter.value) return
+  try {
+    await sendReadingHeartbeat(selectedBookId.value)
+  } catch {
+    // 心跳失败不影响阅读
+  }
+}
+
 function onVisibilityChange() {
-  if (document.visibilityState === 'hidden') flushProgress()
+  if (document.visibilityState === 'hidden') {
+    flushProgress()
+    // 离开时补一次心跳，把"最后一段"封口；否则下次回来会把离开的这段时间也算进去
+    void heartbeat()
+  }
 }
 
 function onScrollRatio(ratio: number) {
@@ -360,6 +376,8 @@ async function selectBook(bookId: number) {
     const found = newerProgress(readLocalProgress(bookId), remoteProgress)
     const resumable = found && found.chapterIndex < detail.book.chapterCount ? found : null
     await loadChapterInternal(resumable?.chapterIndex ?? 0, resumable?.scrollRatio ?? 0)
+    // 打开书就先打一次心跳，给服务端一个计时起点；否则第一分钟会被算丢
+    void heartbeat()
   } catch (value) {
     resetReader()
     error.value = errorText(value)
@@ -599,7 +617,10 @@ async function refreshRequests() {
   }
 }
 
-async function decideRequest(request: AccessRequest, action: 'approve' | 'reject' | 'revoke' | 'cancel') {
+async function decideRequest(
+  request: AccessRequest,
+  action: 'approve' | 'reject' | 'revoke' | 'cancel',
+) {
   try {
     if (action === 'approve') await approveAccessRequest(request.id)
     else if (action === 'reject') await rejectAccessRequest(request.id)
@@ -621,8 +642,7 @@ async function toggleBookmark() {
     if (currentParagraphBookmarked.value) {
       const existing = bookmarks.value.find(
         (mark) =>
-          mark.chapterIndex === chapterIndex.value &&
-          mark.paragraphIndex === paragraphIndex,
+          mark.chapterIndex === chapterIndex.value && mark.paragraphIndex === paragraphIndex,
       )
       if (existing) {
         await removeBookmark(existing.id)
@@ -709,26 +729,26 @@ function stopAutoScrollTimer() {
 function startAutoScrollTimer() {
   stopAutoScrollTimer()
   if (!autoScroll.value) return
-  autoScrollTimer = setInterval(() => {
-    if (skinStore.bossActive || document.visibilityState !== 'visible') return
-    const reachedEnd = editorRef.value?.advance(0.8) ?? true
-    if (reachedEnd) {
-      const next = chapterIndex.value + 1
-      if (next < (book.value?.chapterCount ?? 0)) {
-        void selectChapter(next)
-      } else {
-        autoScroll.value = false
+  autoScrollTimer = setInterval(
+    () => {
+      if (skinStore.bossActive || document.visibilityState !== 'visible') return
+      const reachedEnd = editorRef.value?.advance(0.8) ?? true
+      if (reachedEnd) {
+        const next = chapterIndex.value + 1
+        if (next < (book.value?.chapterCount ?? 0)) {
+          void selectChapter(next)
+        } else {
+          autoScroll.value = false
+        }
       }
-    }
-  }, Math.max(15, settings.state.autoScrollSeconds) * 1000)
+    },
+    Math.max(15, settings.state.autoScrollSeconds) * 1000,
+  )
 }
 
 function openImport() {
   if (!canImport.value) {
-    error.value =
-      mode.value === 'private'
-        ? '没有管理个人书库的权限'
-        : '没有向公共书库上传的权限'
+    error.value = mode.value === 'private' ? '没有管理个人书库的权限' : '没有向公共书库上传的权限'
     return
   }
   importOpen.value = true
@@ -811,6 +831,11 @@ onMounted(async () => {
       void loadAnnotations(false)
     }
   }, 5000)
+  heartbeatTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && !skinStore.bossActive) {
+      void heartbeat()
+    }
+  }, 60000)
 })
 
 onBeforeUnmount(() => {
@@ -818,6 +843,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', flushProgress)
   if (progressTimer) clearTimeout(progressTimer)
   if (annotationTimer) clearInterval(annotationTimer)
+  if (heartbeatTimer) clearInterval(heartbeatTimer)
   stopAutoScrollTimer()
   flushProgress()
 })
@@ -878,7 +904,15 @@ onBeforeUnmount(() => {
             {{ item.name }}
           </option>
         </select>
-        <button v-if="canManageCategory" type="button" class="reader-mini-btn" title="新建分类" @click="categoryEditorOpen = !categoryEditorOpen">+</button>
+        <button
+          v-if="canManageCategory"
+          type="button"
+          class="reader-mini-btn"
+          title="新建分类"
+          @click="categoryEditorOpen = !categoryEditorOpen"
+        >
+          +
+        </button>
         <div v-if="categoryEditorOpen" class="reader-filter__inline">
           <input v-model="categoryDraft" maxlength="32" placeholder="新分类名称" />
           <button type="button" @click="submitCategory">保存</button>
@@ -920,15 +954,21 @@ onBeforeUnmount(() => {
           <AppIcon name="file" :size="13" />
           <span class="reader-book__title">{{ item.title }}</span>
           <span v-if="item.status === 'HIDDEN'" class="reader-book__badge">隐藏</span>
-          <em>{{ item.scope === 'PRIVATE' ? '私有' : (item.categoryName || `${item.chapterCount} 章`) }}</em>
+          <em>{{
+            item.scope === 'PRIVATE' ? '私有' : item.categoryName || `${item.chapterCount} 章`
+          }}</em>
         </button>
         <div v-if="books.length === 0" class="reader-side__empty">
           <p>
-            {{ mode === 'shared' ? '暂无可阅读的共享书籍' : mode === 'private' ? '私有库还是空的' : '公共库暂无书籍' }}
+            {{
+              mode === 'shared'
+                ? '暂无可阅读的共享书籍'
+                : mode === 'private'
+                  ? '私有库还是空的'
+                  : '公共库暂无书籍'
+            }}
           </p>
-          <button v-if="canImport" class="reader-link" @click="openImport">
-            导入 txt 数据集
-          </button>
+          <button v-if="canImport" class="reader-link" @click="openImport">导入 txt 数据集</button>
         </div>
       </template>
 
@@ -944,7 +984,9 @@ onBeforeUnmount(() => {
           :class="{ 'is-active': chapterIndex === item.chapterIndex }"
           @click="selectChapter(item.chapterIndex)"
         >
-          <span class="reader-chapter__index">{{ String(item.chapterIndex + 1).padStart(2, '0') }}</span>
+          <span class="reader-chapter__index">{{
+            String(item.chapterIndex + 1).padStart(2, '0')
+          }}</span>
           <span class="reader-chapter__title">{{ item.title }}</span>
           <em>{{ item.wordCount }}w</em>
         </button>
@@ -1020,8 +1062,8 @@ onBeforeUnmount(() => {
           <span class="reader-preview__tag">私有内容 · 需要授权</span>
           <h2>{{ sharePreview.title }}</h2>
           <p class="reader-preview__meta">
-            {{ sharePreview.author || '未知作者' }} · {{ sharePreview.chapterCount }} 章 ·
-            所有者 {{ sharePreview.ownerNickname || '—' }}
+            {{ sharePreview.author || '未知作者' }} · {{ sharePreview.chapterCount }} 章 · 所有者
+            {{ sharePreview.ownerNickname || '—' }}
           </p>
           <p class="reader-preview__desc">
             {{ sharePreview.description || '所有者未填写简介。' }}
@@ -1037,11 +1079,7 @@ onBeforeUnmount(() => {
           />
           <p v-if="applyError" class="reader-import__error">{{ applyError }}</p>
           <div class="reader-preview__actions">
-            <button
-              class="primary-button"
-              :disabled="applying"
-              @click="submitAccessRequest"
-            >
+            <button class="primary-button" :disabled="applying" @click="submitAccessRequest">
               {{ applying ? '提交中…' : '申请访问' }}
             </button>
             <button class="reader-btn" @click="sharePreview = null">关闭</button>
@@ -1233,10 +1271,7 @@ onBeforeUnmount(() => {
             <span>简介</span>
             <input v-model="editDescription" maxlength="512" />
           </label>
-          <label
-            v-if="auth.hasPermission('reader.category.manage')"
-            class="reader-import__row"
-          >
+          <label v-if="auth.hasPermission('reader.category.manage')" class="reader-import__row">
             <span>分类</span>
             <select v-model="editCategoryId">
               <option :value="null">未分类</option>
@@ -1245,10 +1280,7 @@ onBeforeUnmount(() => {
               </option>
             </select>
           </label>
-          <label
-            v-if="auth.hasPermission('reader.content.manage.any')"
-            class="reader-import__row"
-          >
+          <label v-if="auth.hasPermission('reader.content.manage.any')" class="reader-import__row">
             <span>可见状态</span>
             <select v-model="editStatus">
               <option value="VISIBLE">公开可见</option>
@@ -1277,12 +1309,10 @@ onBeforeUnmount(() => {
         </header>
         <div class="reader-requests__body">
           <section>
-            <h3>收到的申请 <em>{{ receivedRequests.length }}</em></h3>
-            <div
-              v-for="item in receivedRequests"
-              :key="`in-${item.id}`"
-              class="reader-request"
-            >
+            <h3>
+              收到的申请 <em>{{ receivedRequests.length }}</em>
+            </h3>
+            <div v-for="item in receivedRequests" :key="`in-${item.id}`" class="reader-request">
               <div class="reader-request__main">
                 <b>{{ item.bookTitle }}</b>
                 <span>{{ item.requesterNickname }} · {{ item.status }}</span>
@@ -1317,7 +1347,9 @@ onBeforeUnmount(() => {
             </p>
           </section>
           <section>
-            <h3>我发出的申请 <em>{{ myRequests.length }}</em></h3>
+            <h3>
+              我发出的申请 <em>{{ myRequests.length }}</em>
+            </h3>
             <div v-for="item in myRequests" :key="`out-${item.id}`" class="reader-request">
               <div class="reader-request__main">
                 <b>{{ item.bookTitle }}</b>
