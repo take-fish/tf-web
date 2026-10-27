@@ -1,5 +1,8 @@
 import { deleteJson, getJson, postJson, request } from '@/lib/http'
 import type {
+  ExerciseMode,
+  ExerciseResult,
+  ExerciseRoom,
   GameChatChannel,
   GameChatMessage,
   GameFormat,
@@ -58,6 +61,7 @@ export function createTournament(payload: {
   name: string
   format: GameFormat
   players: GameOnlineUser[]
+  gameId?: string
 }): Promise<GameTournament> {
   return postJson<GameTournament>('/api/v1/game/tournaments', payload)
 }
@@ -105,6 +109,7 @@ export function createDuel(payload: {
   opponentUserId: string
   opponentNickname: string
   format: GameFormat
+  gameId?: string
 }): Promise<GameTournament> {
   return postJson<GameTournament>('/api/v1/game/duels', payload)
 }
@@ -137,6 +142,14 @@ export async function fetchActiveMatches(): Promise<GameMatch[]> {
 
 export function fetchMatch(id: string): Promise<GameMatch> {
   return getJson<GameMatch>(`/api/v1/game/matches/${encodeURIComponent(id)}`)
+}
+
+/** 页面淘汰高顺位选手指定首局剧本；传入 random 表示让系统重新抽签。 */
+export function chooseMatchGame(matchId: string, gameId: string): Promise<GameMatch> {
+  return postJson<GameMatch>(
+    `/api/v1/game/matches/${encodeURIComponent(matchId)}/game`,
+    { gameId },
+  )
 }
 
 export async function fetchMatchChat(
@@ -178,4 +191,50 @@ export async function fetchGameNotifications(
 
 export function fetchGameWsTicket(): Promise<GameWsTicket> {
   return request<GameWsTicket>('/api/v1/game/ws-ticket', { method: 'POST' })
+}
+
+/** 集群巡检对抗：休闲房间大厅。 */
+export async function fetchExerciseRooms(): Promise<ExerciseRoom[]> {
+  const data = await getJson<{ rooms: ExerciseRoom[] }>('/api/v1/game/exercise/rooms')
+  return data.rooms ?? []
+}
+
+export function createExerciseRoom(
+  mode: ExerciseMode,
+  maxPlayers?: number,
+): Promise<ExerciseRoom> {
+  return postJson<ExerciseRoom>('/api/v1/game/exercise/rooms', { mode, maxPlayers })
+}
+
+export function fetchExerciseRoom(key: string): Promise<ExerciseRoom> {
+  return getJson<ExerciseRoom>(`/api/v1/game/exercise/rooms/${encodeURIComponent(key)}`)
+}
+
+export function joinExerciseRoom(key: string): Promise<ExerciseRoom> {
+  return postJson<ExerciseRoom>(
+    `/api/v1/game/exercise/rooms/${encodeURIComponent(key)}/join`,
+    {},
+  )
+}
+
+export function readyExerciseRoom(key: string): Promise<ExerciseRoom> {
+  return postJson<ExerciseRoom>(
+    `/api/v1/game/exercise/rooms/${encodeURIComponent(key)}/ready`,
+    {},
+  )
+}
+
+export function leaveExerciseRoom(key: string): Promise<{ left: boolean }> {
+  return postJson<{ left: boolean }>(
+    `/api/v1/game/exercise/rooms/${encodeURIComponent(key)}/leave`,
+    {},
+  )
+}
+
+/** 最近战绩只包含休闲与赛事对抗，单人训练不会出现在这里。 */
+export async function fetchExerciseResults(limit = 20): Promise<ExerciseResult[]> {
+  const data = await getJson<{ results: ExerciseResult[] }>(
+    `/api/v1/game/exercise/results?limit=${limit}`,
+  )
+  return data.results ?? []
 }

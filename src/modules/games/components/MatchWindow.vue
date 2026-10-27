@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
 import { useTournamentStore } from '@/stores/tournament'
+import { ARENA_SCRIPTS, isArenaScript, scriptLabel, scriptShortLabel } from '../lib/arenaScripts'
 import {
   formatClock,
   formatDuration,
@@ -10,14 +11,25 @@ import {
   isParticipant,
   playerName,
 } from '../lib/gameFormat'
-import type { GameChatChannel, GameRound } from '../types'
+import type {
+  ExerciseInput,
+  ExerciseState,
+  GameArenaAction,
+  GameChatChannel,
+  GameRound,
+  HeatmapState,
+  TopologyState,
+} from '../types'
+import ArenaHeatmap from './ArenaHeatmap.vue'
+import ArenaTopology from './ArenaTopology.vue'
+import ExerciseArena from './ExerciseArena.vue'
 import GomokuBoard from './GomokuBoard.vue'
 
 const emit = defineEmits<{ close: [] }>()
 
 const store = useTournamentStore()
 
-const MOVE_TIMEOUT_SECONDS = 30
+const MOVE_TIMEOUT_SECONDS = 60
 
 const now = ref(Date.now())
 const channel = ref<GameChatChannel>('PUBLIC')
@@ -26,6 +38,13 @@ const chatBody = ref<HTMLElement | null>(null)
 const actionError = ref('')
 const resigning = ref(false)
 const boardExpanded = ref(false)
+const drawChoice = ref('')
+
+/** 选图权目录：随机抽签 + 四个竞技场剧本。 */
+const DRAW_OPTIONS = [
+  { id: 'random', shortName: '随机抽签' },
+  ...ARENA_SCRIPTS.map((script) => ({ id: script.id, shortName: script.shortName })),
+]
 
 let clockTimer: ReturnType<typeof setInterval> | undefined
 
@@ -40,11 +59,70 @@ const tournament = computed(() => store.currentTournament)
 const round = computed<GameRound | null>(() => store.currentRound)
 const selfId = computed(() => store.ownUserId)
 const participant = computed(() => isParticipant(match.value, selfId.value))
+const gameId = computed(
+  () => round.value?.gameId || match.value?.gameId || 'heatmap-gomoku',
+)
+/** 两个实时竞技场共用一套窗口，但棋盘、HUD 与操作面板完全不同。 */
+const arenaMode = computed(() => isArenaScript(gameId.value))
+const arenaState = computed(() => (arenaMode.value ? (round.value?.state ?? null) : null))
+const heatmapState = computed<HeatmapState | null>(() =>
+  gameId.value === 'log-hotspot-arena'
+    ? ((arenaState.value as HeatmapState | null) ?? null)
+    : null,
+)
+const topologyState = computed<TopologyState | null>(() =>
+  gameId.value === 'topology-arena'
+    ? ((arenaState.value as TopologyState | null) ?? null)
+    : null,
+)
+const exerciseState = computed<ExerciseState | null>(() =>
+  gameId.value === 'cluster-patrol-arena'
+    ? ((arenaState.value as ExerciseState | null) ?? null)
+    : null,
+)
+const exerciseSelf = computed(
+  () =>
+    exerciseState.value?.actors.find((actor) => actor.userId === selfId.value) ?? null,
+)
+const playerNames = computed<Record<string, string>>(() => {
+  const names: Record<string, string> = {}
+  const value = match.value
+  if (!value) return names
+  if (value.player1UserId) {
+    names[value.player1UserId] = value.player1Nickname || value.player1UserId
+  }
+  if (value.player2UserId) {
+    names[value.player2UserId] = value.player2Nickname || value.player2UserId
+  }
+  return names
+})
 const isBlack = computed(() => Boolean(round.value && round.value.blackUserId === selfId.value))
 const myColor = computed(() => {
   if (!participant.value || !round.value) return ''
-  return isBlack.value ? '先手' : '后手'
+  if (!arenaMode.value) return isBlack.value ? '先手' : '后手'
+  if (gameId.value === 'topology-arena') {
+    return round.value.attackerUserId === selfId.value ? '故障注入方' : '稳态保障方'
+  }
+  if (gameId.value === 'cluster-patrol-arena') {
+    const team = exerciseSelf.value?.team
+    return team ? `${team} 队巡检员` : '巡检员'
+  }
+  return '排查方'
 })
+const arenaRemaining = computed(() => {
+  const endsAt = arenaState.value?.endsAt ?? round.value?.endsAt
+  if (!endsAt) return 0
+  return Math.max(0, Math.ceil((endsAt - now.value) / 1000))
+})
+const arenaInteractive = computed(
+  () =>
+    participant.value &&
+    store.status === 'online' &&
+    match.value?.status === 'RUNNING' &&
+    round.value?.status === 'RUNNING' &&
+    Boolean(arenaState.value) &&
+    !arenaState.value?.finished,
+)
 const blackName = computed(() =>
   match.value && round.value
     ? playerName(round.value.blackUserId, nicknameFor(round.value.blackUserId))
@@ -107,12 +185,16 @@ const stateLabel = computed(() => {
 })
 const winnerName = computed(() => {
   const value = match.value
-  if (!value?.winnerUserId) return ''
-  if (value.winnerUserId === value.player1UserId) return value.player1Nickname || value.winnerUserId
-  if (value.winnerUserId === value.player2UserId) return value.player2Nickname || value.winnerUserId
-  return value.winnerUserId
+  const winnerId = arenaState.value?.winnerUserId || value?.winnerUserId
+  if (!winnerId) return ''
+  if (!value) return playerNames.value[winnerId] ?? winnerId
+  if (winnerId === value.player1UserId) return value.player1Nickname || winnerId
+  if (winnerId === value.player2UserId) return value.player2Nickname || winnerId
+  return playerNames.value[winnerId] ?? winnerId
 })
-const resultReason = computed(() => store.lastResult?.reason ?? '')
+const resultReason = computed(
+  () => arenaState.value?.finishReason || store.lastResult?.reason || '',
+)
 const chatClosed = computed(
   () =>
     tournament.value?.status === 'FINISHED' || tournament.value?.status === 'CANCELLED',
@@ -141,6 +223,19 @@ const readyState = computed(() => {
   }
   return ''
 })
+const firstGameLabel = computed(() =>
+  match.value?.firstGameId ? scriptShortLabel(match.value.firstGameId) : '待抽取',
+)
+const ownsFirstGame = computed(
+  () =>
+    Boolean(
+      match.value &&
+        selfId.value &&
+        match.value.gameChooserUserId === selfId.value &&
+        !match.value.startedAt &&
+        (match.value.status === 'READY' || match.value.status === 'PENDING'),
+    ),
+)
 const bothReady = computed(() => {
   const value = match.value
   if (!value) return false
@@ -160,6 +255,18 @@ function nicknameFor(userId: string | null): string {
 
 function colorFor(userId: string | null): string {
   if (!userId || !round.value) return ''
+  if (gameId.value === 'topology-arena') {
+    return round.value.attackerUserId === userId ? '攻' : '守'
+  }
+  if (gameId.value === 'cluster-patrol-arena') {
+    return (
+      exerciseState.value?.actors.find((actor) => actor.userId === userId)?.team ??
+      (round.value.blackUserId === userId ? '1' : '2')
+    )
+  }
+  if (arenaMode.value) {
+    return round.value.blackUserId === userId ? '1' : '2'
+  }
   if (round.value.blackUserId === userId) return 'A'
   if (round.value.whiteUserId === userId) return 'B'
   return ''
@@ -195,10 +302,28 @@ function ready() {
   if (!store.ready()) actionError.value = store.lastError
 }
 
+function chooseGame() {
+  if (!drawChoice.value) return
+  actionError.value = ''
+  if (!store.chooseGame(drawChoice.value)) actionError.value = store.lastError
+}
+
 function place(x: number, y: number) {
   if (!boardInteractive.value) return
   actionError.value = ''
   if (!store.placeStone(x, y)) actionError.value = store.lastError
+}
+
+function arenaAction(action: GameArenaAction) {
+  if (!arenaInteractive.value) return
+  actionError.value = ''
+  if (!store.sendArenaAction(action)) actionError.value = store.lastError
+}
+
+function exerciseInput(input: ExerciseInput) {
+  if (!arenaInteractive.value) return
+  actionError.value = ''
+  if (!store.sendExerciseInput(input)) actionError.value = store.lastError
 }
 
 function openBoardWindow() {
@@ -234,6 +359,15 @@ watch(
 )
 
 watch(
+  () => match.value?.firstGameId,
+  (gameId) => {
+    // 服务端抽签结果变化时同步下拉选中项；不覆盖用户已选但未提交的剧本。
+    if (gameId && !drawChoice.value) drawChoice.value = gameId
+  },
+  { immediate: true },
+)
+
+watch(
   () => [channel.value, chatMessages.value.length],
   () => void scrollChat(),
 )
@@ -263,7 +397,7 @@ onBeforeUnmount(() => {
     aria-modal="true"
     :aria-label="isDuel ? '一对一约战对局' : '演练执行窗口'"
   >
-    <div class="match-window__panel">
+    <div class="match-window__panel" :class="{ 'is-duel': isDuel }">
       <header class="match-window__head">
         <div class="match-window__title">
           <span class="match-window__mark">{{ isDuel ? 'D' : 'T' }}</span>
@@ -358,9 +492,37 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
+          <div v-if="ownsFirstGame" class="match-window__draw">
+            <div class="match-window__draw-info">
+              <span>页面淘汰 · 首局选图权</span>
+              <em>当前首局：{{ firstGameLabel }}</em>
+            </div>
+            <div class="match-window__draw-options">
+              <button
+                v-for="option in DRAW_OPTIONS"
+                :key="option.id"
+                type="button"
+                :class="{ 'is-active': drawChoice === option.id }"
+                @click="drawChoice = option.id"
+              >
+                {{ option.shortName }}
+              </button>
+            </div>
+            <button
+              type="button"
+              class="match-window__primary"
+              :disabled="!drawChoice || drawChoice === match.firstGameId"
+              @click="chooseGame"
+            >
+              确认剧本
+            </button>
+          </div>
+
           <div class="match-window__statusbar">
             <template v-if="match.status === 'READY'">
-              <span class="match-window__hint">{{ readyState }}</span>
+              <span class="match-window__hint">
+                {{ readyState }} · 首局剧本 {{ firstGameLabel }}
+              </span>
               <button
                 v-if="canReady"
                 class="match-window__primary"
@@ -384,20 +546,39 @@ onBeforeUnmount(() => {
               </button>
             </template>
             <template v-else-if="match.status === 'RUNNING'">
-              <span class="match-window__hint">
-                {{ turnName }} 轮次 · {{ round?.moveCount ?? 0 }} 步
-                <template v-if="isMyTurn"> · 请提交</template>
-                <template v-else-if="participant"> · 等待对方</template>
-              </span>
-              <span
-                class="match-window__clock"
-                :class="{ 'is-danger': moveSeconds <= 10 }"
-              >
-                {{ formatDuration(moveSeconds) }}
-              </span>
-              <button v-if="participant" class="match-window__ghost" :disabled="resigning" @click="resign">
-                终止本轮
-              </button>
+              <template v-if="arenaMode">
+                <span class="match-window__hint">
+                  {{ scriptLabel(gameId) }} · {{ round?.moveCount ?? 0 }} 个动作
+                  <template v-if="arenaState?.finished"> · 已结算</template>
+                  <template v-else-if="participant"> · 你是{{ myColor }}</template>
+                  <template v-else> · 只读查看</template>
+                </span>
+                <span
+                  class="match-window__clock"
+                  :class="{ 'is-danger': arenaRemaining <= 15 }"
+                >
+                  {{ formatDuration(arenaRemaining) }}
+                </span>
+                <button v-if="participant" class="match-window__ghost" :disabled="resigning" @click="resign">
+                  终止本轮
+                </button>
+              </template>
+              <template v-else>
+                <span class="match-window__hint">
+                  {{ turnName }} 轮次 · {{ round?.moveCount ?? 0 }} 步
+                  <template v-if="isMyTurn"> · 请提交</template>
+                  <template v-else-if="participant"> · 等待对方</template>
+                </span>
+                <span
+                  class="match-window__clock"
+                  :class="{ 'is-danger': moveSeconds <= 10 }"
+                >
+                  {{ formatDuration(moveSeconds) }}
+                </span>
+                <button v-if="participant" class="match-window__ghost" :disabled="resigning" @click="resign">
+                  终止本轮
+                </button>
+              </template>
             </template>
             <template v-else-if="match.status === 'FINISHED'">
               <span class="match-window__hint">
@@ -442,7 +623,34 @@ onBeforeUnmount(() => {
             只读查看 · 公开频道可参与讨论
           </div>
 
+          <ArenaTopology
+            v-if="topologyState"
+            :state="topologyState"
+            :self-user-id="selfId"
+            :player-names="playerNames"
+            :interactive="arenaInteractive"
+            @action="arenaAction"
+          />
+          <ArenaHeatmap
+            v-else-if="heatmapState"
+            :state="heatmapState"
+            :self-user-id="selfId"
+            :player-names="playerNames"
+            :interactive="arenaInteractive"
+            @action="arenaAction"
+          />
+          <ExerciseArena
+            v-else-if="exerciseState"
+            :state="exerciseState"
+            :self-user-id="selfId"
+            :interactive="arenaInteractive"
+            @input="exerciseInput"
+          />
+          <div v-else-if="arenaMode" class="match-window__arena-loading">
+            正在同步演练状态…
+          </div>
           <GomokuBoard
+            v-else
             :moves="round?.moves ?? []"
             :black-user-id="round?.blackUserId ?? match.player1UserId ?? ''"
             :white-user-id="round?.whiteUserId ?? match.player2UserId ?? ''"
@@ -455,18 +663,26 @@ onBeforeUnmount(() => {
           />
 
           <div class="match-window__footer">
-            <span>
-              {{ blackName }} 先手 · {{ whiteName }} 后手
-            </span>
-            <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
-            <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
-            <span v-if="match.status === 'RUNNING' && round">
-              提交倒计时 {{ formatDuration(moveSeconds) }}
-            </span>
-            <button type="button" class="match-window__expand" @click="openBoardWindow">
-              <AppIcon name="external" :size="10" />
-              双击棋盘放大
-            </button>
+            <template v-if="arenaMode">
+              <span>{{ scriptLabel(gameId) }}</span>
+              <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
+              <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
+              <span v-if="arenaState">剩余 {{ formatDuration(arenaRemaining) }}</span>
+            </template>
+            <template v-else>
+              <span>
+                {{ blackName }} 先手 · {{ whiteName }} 后手
+              </span>
+              <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
+              <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
+              <span v-if="match.status === 'RUNNING' && round">
+                提交倒计时 {{ formatDuration(moveSeconds) }}
+              </span>
+              <button type="button" class="match-window__expand" @click="openBoardWindow">
+                <AppIcon name="external" :size="10" />
+                双击棋盘放大
+              </button>
+            </template>
           </div>
 
           <p v-if="actionError || store.lastError" class="match-window__action-error">
@@ -537,7 +753,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      v-if="boardExpanded"
+      v-if="boardExpanded && !arenaMode"
       class="board-window"
       role="dialog"
       aria-modal="true"
@@ -608,12 +824,19 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   width: min(1220px, 100%);
+  /* 固定窗口高度：聊天消息在内部滚动，不再把窗口越撑越长 */
+  height: min(760px, 92vh);
   max-height: 94vh;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--fm-accent) 18%, var(--fm-border));
   border-radius: 4px;
   background: var(--fm-panel);
   box-shadow: var(--fm-shadow);
+}
+
+/* 约战没有聊天区，保持内容自适应高度 */
+.match-window__panel.is-duel {
+  height: auto;
 }
 
 .match-window__head {
@@ -749,6 +972,7 @@ onBeforeUnmount(() => {
 
 .match-window__body {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr) 340px;
   min-height: 0;
   overflow: hidden;
@@ -876,6 +1100,65 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
 }
 
+.match-window__draw {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--fm-warn) 38%, var(--fm-border));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fm-warn) 6%, transparent);
+}
+
+.match-window__draw-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.match-window__draw-info span {
+  color: var(--fm-warn);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.match-window__draw-info em {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.match-window__draw-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.match-window__draw-options button {
+  padding: 3px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.match-window__draw-options button:hover {
+  border-color: color-mix(in srgb, var(--fm-warn) 48%, transparent);
+  color: var(--fm-text-dim);
+}
+
+.match-window__draw-options button.is-active {
+  border-color: var(--fm-warn);
+  background: color-mix(in srgb, var(--fm-warn) 14%, transparent);
+  color: var(--fm-warn);
+}
+
 .match-window__statusbar {
   display: flex;
   align-items: center;
@@ -985,6 +1268,16 @@ onBeforeUnmount(() => {
   font-size: 8.5px;
 }
 
+.match-window__arena-loading {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  border: 1px dashed var(--fm-border);
+  border-radius: 3px;
+  color: var(--fm-text-muted);
+  font-size: 9.5px;
+}
+
 .match-window__spectator {
   display: flex;
   align-items: center;
@@ -1055,6 +1348,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
   border-left: 1px solid var(--fm-border);
   background: color-mix(in srgb, var(--fm-bg) 32%, transparent);
 }
@@ -1095,10 +1389,10 @@ onBeforeUnmount(() => {
 
 .match-window__messages {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
   flex-direction: column;
   gap: 8px;
-  min-height: 220px;
+  min-height: 0;
   padding: 10px 12px;
   overflow-y: auto;
 }

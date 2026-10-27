@@ -3,16 +3,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { writeAuth } from '@/lib/authToken'
 import type { AuthUser } from '@/modules/auth/types'
-import type { GameMatch, GameTournament } from '@/modules/games/types'
+import type {
+  GameArenaStateEvent,
+  GameMatch,
+  GameRound,
+  GameTournament,
+  HeatmapState,
+} from '@/modules/games/types'
 import { useTournamentStore } from '@/stores/tournament'
 
 const { socketState, MockGameSocketClient } = vi.hoisted(() => {
+  interface SocketStub {
+    sendArenaAction: ReturnType<typeof vi.fn>
+    chooseGame: ReturnType<typeof vi.fn>
+  }
   const state: {
     handlers: Record<string, (...args: unknown[]) => void> | null
-  } = { handlers: null }
+    socket: SocketStub | null
+  } = { handlers: null, socket: null }
   class MockGameSocketClient {
     constructor(handlers: Record<string, (...args: unknown[]) => void>) {
       state.handlers = handlers
+      state.socket = this
     }
 
     connect = vi.fn<() => Promise<void>>(() => Promise.resolve())
@@ -23,6 +35,8 @@ const { socketState, MockGameSocketClient } = vi.hoisted(() => {
     ready = vi.fn<() => boolean>(() => true)
     placeStone = vi.fn<() => boolean>(() => true)
     resign = vi.fn<() => boolean>(() => true)
+    sendArenaAction = vi.fn<() => boolean>(() => true)
+    chooseGame = vi.fn<() => boolean>(() => true)
     sendChat = vi.fn<() => boolean>(() => true)
   }
   return { socketState: state, MockGameSocketClient }
@@ -85,6 +99,8 @@ function duel(overrides: Partial<GameTournament> = {}): GameTournament {
     totalRounds: 1,
     championUserId: null,
     championNickname: null,
+    runnerUpUserId: null,
+    runnerUpNickname: null,
     createdAt: 0,
     startedAt: null,
     finishedAt: null,
@@ -101,6 +117,7 @@ function duelMatch(overrides: Partial<GameMatch> = {}): GameMatch {
   return {
     id: 'm1',
     tournamentId: 'd1',
+    gameId: 'heatmap-gomoku',
     kind: 'DUEL',
     roundNo: 1,
     slotNo: 1,
@@ -114,11 +131,76 @@ function duelMatch(overrides: Partial<GameMatch> = {}): GameMatch {
     player2Score: 0,
     winnerUserId: null,
     nextMatchId: null,
+    firstGameId: null,
+    gameChooserUserId: null,
     createdAt: 0,
     startedAt: 0,
     finishedAt: null,
     currentRound: null,
     ...overrides,
+  }
+}
+
+function arenaRound(overrides: Partial<GameRound> = {}): GameRound {
+  return {
+    id: 'r1',
+    gameId: 'log-hotspot-arena',
+    gameNo: 1,
+    status: 'RUNNING',
+    blackUserId: 'u1',
+    whiteUserId: 'u2',
+    attackerUserId: 'u1',
+    turnUserId: null,
+    winnerUserId: null,
+    moveCount: 0,
+    lastMoveAt: 0,
+    restUntil: null,
+    readyUserIds: ['u1', 'u2'],
+    startedAt: 0,
+    endsAt: 120_000,
+    finishedAt: null,
+    seq: 0,
+    state: null,
+    moves: [],
+    ...overrides,
+  }
+}
+
+function heatmapState(seq: number, endsAt = 120_000): HeatmapState {
+  return {
+    gameId: 'log-hotspot-arena',
+    players: ['u1', 'u2'],
+    startedAt: 0,
+    endsAt,
+    finishedAt: 0,
+    serverTime: seq,
+    seed: 7,
+    seq,
+    finished: false,
+    winnerUserId: null,
+    finishReason: null,
+    events: [],
+    rows: 8,
+    cols: 12,
+    lastIncomeAt: 0,
+    lastHeatShiftAt: 0,
+    heatShiftIndex: 0,
+    cells: [],
+    scores: { u1: 0, u2: 0 },
+    energy: { u1: 30, u2: 30 },
+    cooldowns: {},
+  }
+}
+
+function arenaStateEvent(seq: number, endsAt = 120_000): GameArenaStateEvent {
+  return {
+    type: 'arena_state',
+    matchId: 'm1',
+    roundId: 'r1',
+    gameId: 'log-hotspot-arena',
+    seq,
+    serverTime: seq,
+    state: heatmapState(seq, endsAt),
   }
 }
 
@@ -202,6 +284,7 @@ describe('约战状态', () => {
       opponentUserId: 'u2',
       opponentNickname: 'Bob',
       format: 'BO3',
+      gameId: 'heatmap-gomoku',
     })
     expect(result.id).toBe('d1')
     expect(store.duels.map((entry) => entry.id)).toEqual(['d1'])
@@ -272,6 +355,113 @@ describe('约战状态', () => {
       { userId: 'u1', nickname: 'Alice' },
       { userId: 'u2', nickname: '良一情' },
     ])
+    store.stop()
+  })
+})
+
+describe('竞技场剧本', () => {
+  it('创建演练与约战都会携带选定剧本', async () => {
+    const store = await bootStore()
+    api.createTournament.mockResolvedValue(
+      duel({ id: 't1', kind: 'TOURNAMENT', gameId: 'topology-arena' }),
+    )
+
+    await store.create({
+      name: '混沌演练',
+      format: 'BO1',
+      players: [{ userId: 'u1', nickname: 'Alice' }],
+      gameId: 'topology-arena',
+    })
+
+    expect(api.createTournament).toHaveBeenCalledWith({
+      name: '混沌演练',
+      format: 'BO1',
+      players: [{ userId: 'u1', nickname: 'Alice' }],
+      gameId: 'topology-arena',
+    })
+
+    api.createDuel.mockResolvedValue(duel({ gameId: 'log-hotspot-arena' }))
+    await store.createDuelFor({ userId: 'u2', nickname: 'Bob' }, 'BO1', 'log-hotspot-arena')
+
+    expect(api.createDuel).toHaveBeenLastCalledWith({
+      opponentUserId: 'u2',
+      opponentNickname: 'Bob',
+      format: 'BO1',
+      gameId: 'log-hotspot-arena',
+    })
+    store.stop()
+  })
+
+  it('增量帧只接受更新的 seq，并写入权威状态', async () => {
+    const store = await bootStore()
+    store.currentMatchId = 'm1'
+    store.currentMatch = duelMatch({ currentRound: arenaRound({ seq: 10 }) })
+
+    fire('onArenaState', arenaStateEvent(12, 90_000))
+
+    expect(store.currentRound?.seq).toBe(12)
+    expect(store.currentRound?.state?.endsAt).toBe(90_000)
+    expect(store.currentRound?.gameId).toBe('log-hotspot-arena')
+    expect(store.currentRound?.lastMoveAt).toBe(12)
+
+    fire('onArenaState', arenaStateEvent(11, 200_000))
+
+    expect(store.currentRound?.seq).toBe(12)
+    expect(store.currentRound?.state?.endsAt).toBe(90_000)
+    store.stop()
+  })
+
+  it('详情接口返回旧快照时保留本地更新的竞技场状态', async () => {
+    const store = await bootStore()
+    store.currentMatchId = 'm1'
+    store.currentMatch = duelMatch({ currentRound: arenaRound({ seq: 10 }) })
+    fire('onArenaState', arenaStateEvent(15, 80_000))
+
+    fire(
+      'onMatch',
+      duelMatch({
+        currentRound: arenaRound({
+          seq: 9,
+          endsAt: 120_000,
+          state: heatmapState(9),
+        }),
+      }),
+    )
+
+    expect(store.currentMatch?.currentRound?.seq).toBe(15)
+    expect(store.currentMatch?.currentRound?.endsAt).toBe(80_000)
+    expect(store.currentMatch?.currentRound?.state?.seq).toBe(15)
+    store.stop()
+  })
+
+  it('竞技场动作通过调度通道转发，断线时给出提示', async () => {
+    const store = await bootStore()
+    store.currentMatchId = 'm1'
+    store.currentMatch = duelMatch({ currentRound: arenaRound() })
+
+    expect(store.sendArenaAction({ action: 'CLAIM', cell: 3 })).toBe(true)
+    expect(socketState.socket?.sendArenaAction).toHaveBeenCalledWith('m1', {
+      action: 'CLAIM',
+      cell: 3,
+    })
+
+    socketState.socket?.sendArenaAction.mockReturnValue(false)
+    expect(store.sendArenaAction({ action: 'RAID', cell: 4 })).toBe(false)
+    expect(store.lastError).toBe('调度通道未连接，请稍后重试')
+    store.stop()
+  })
+
+  it('首局选图经调度通道发送，断线时给出提示', async () => {
+    const store = await bootStore()
+    store.currentMatchId = 'm1'
+    store.currentMatch = duelMatch({ currentRound: arenaRound() })
+
+    expect(store.chooseGame('topology-arena')).toBe(true)
+    expect(socketState.socket?.chooseGame).toHaveBeenCalledWith('m1', 'topology-arena')
+
+    socketState.socket?.chooseGame.mockReturnValue(false)
+    expect(store.chooseGame('random')).toBe(false)
+    expect(store.lastError).toBe('调度通道未连接，请稍后重试')
     store.stop()
   })
 })
