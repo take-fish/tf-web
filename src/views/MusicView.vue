@@ -17,6 +17,7 @@ import {
 } from '@/modules/music/musicApi'
 import type { Category, ContentStatus, Track } from '@/types/music'
 import { errorText } from './music/music-helpers'
+import MusicRequestsDialog from './music/MusicRequestsDialog.vue'
 import { useMusicAccess } from './music/useMusicAccess'
 import { useMusicConsole } from './music/useMusicConsole'
 
@@ -720,53 +721,13 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="requestsOpen" class="overlay" @click.self="requestsOpen = false">
-      <div class="sheet music__requests">
-        <header class="sheet__head">
-          <div>
-            <h2>访问申请</h2>
-            <p>私有曲目仅所有者可批准，管理员不可绕过。</p>
-          </div>
-          <button type="button" class="icon-button" @click="requestsOpen = false">×</button>
-        </header>
-        <div class="music__requests-body">
-          <section>
-            <h3>收到的申请 <em>{{ receivedRequests.length }}</em></h3>
-            <div
-              v-for="item in receivedRequests"
-              :key="`in-${item.id}`"
-              class="music__request"
-            >
-              <div class="music__request-main">
-                <b>{{ item.trackTitle }}</b>
-                <span>{{ item.requesterNickname }} · {{ item.status }}</span>
-                <p v-if="item.message">{{ item.message }}</p>
-              </div>
-              <div class="music__request-actions">
-                <button v-if="item.status === 'PENDING'" class="music__mini" @click="decideRequest(item, 'approve')">批准</button>
-                <button v-if="item.status === 'PENDING'" class="music__mini" @click="decideRequest(item, 'reject')">拒绝</button>
-                <button v-if="item.status === 'APPROVED'" class="music__mini" @click="decideRequest(item, 'revoke')">撤销</button>
-              </div>
-            </div>
-            <p v-if="receivedRequests.length === 0" class="music__empty">暂无收到的申请</p>
-          </section>
-          <section>
-            <h3>我发出的申请 <em>{{ myRequests.length }}</em></h3>
-            <div v-for="item in myRequests" :key="`out-${item.id}`" class="music__request">
-              <div class="music__request-main">
-                <b>{{ item.trackTitle }}</b>
-                <span>所有者 {{ item.ownerNickname }} · {{ item.status }}</span>
-                <p v-if="item.decisionMessage">回复：{{ item.decisionMessage }}</p>
-              </div>
-              <div class="music__request-actions">
-                <button v-if="item.status === 'PENDING'" class="music__mini" @click="decideRequest(item, 'cancel')">取消</button>
-              </div>
-            </div>
-            <p v-if="myRequests.length === 0" class="music__empty">暂无申请记录</p>
-          </section>
-        </div>
-      </div>
-    </div>
+    <MusicRequestsDialog
+      v-if="requestsOpen"
+      :received="receivedRequests"
+      :mine="myRequests"
+      @close="requestsOpen = false"
+      @decide="decideRequest"
+    />
 
     <div v-if="error" class="music__error-bar">{{ error }}</div>
     <div v-if="notice" class="music__notice">{{ notice }}</div>

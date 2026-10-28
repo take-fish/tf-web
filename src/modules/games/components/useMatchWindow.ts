@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useTournamentStore } from '@/stores/tournament'
 import { ARENA_SCRIPTS, isArenaScript, scriptLabel, scriptShortLabel } from '../lib/arenaScripts'
@@ -27,8 +27,6 @@ export function useMatchWindow() {
 
   const now = ref(Date.now())
   const channel = ref<GameChatChannel>('PUBLIC')
-  const chatInput = ref('')
-  const chatBody = ref<HTMLElement | null>(null)
   const actionError = ref('')
   const resigning = ref(false)
   const boardExpanded = ref(false)
@@ -365,21 +363,11 @@ export function useMatchWindow() {
     return Boolean(userId && match.value?.winnerUserId === userId)
   }
 
-  async function scrollChat() {
-    await nextTick()
-    if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
-  }
-
-  function sendChat() {
-    const text = chatInput.value.trim()
-    if (!text || chatClosed.value) return
+  function sendChat(text: string): Promise<boolean> {
+    const content = text.trim()
+    if (!content || chatClosed.value) return Promise.resolve(false)
     actionError.value = ''
-    void store.sendChat(text, channel.value).then((ok) => {
-      if (ok) {
-        chatInput.value = ''
-        void scrollChat()
-      }
-    })
+    return store.sendChat(content, channel.value)
   }
 
   function ready() {
@@ -464,11 +452,6 @@ export function useMatchWindow() {
     { immediate: true },
   )
 
-  watch(
-    () => [channel.value, chatMessages.value.length],
-    () => void scrollChat(),
-  )
-
   watch(privateTabVisible, (visible) => {
     if (!visible && channel.value === 'PLAYER_DM') channel.value = 'PUBLIC'
   })
@@ -478,7 +461,6 @@ export function useMatchWindow() {
       now.value = Date.now()
     }, 1000)
     window.addEventListener('keydown', onKeydown)
-    void scrollChat()
   })
 
   onBeforeUnmount(() => {
@@ -558,8 +540,6 @@ export function useMatchWindow() {
     boardExpanded,
     actionError,
     channel,
-    chatInput,
-    chatBody,
     formatClock,
     formatDuration,
     formatLabel,
