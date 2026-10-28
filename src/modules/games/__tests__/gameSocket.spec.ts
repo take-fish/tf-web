@@ -142,6 +142,24 @@ describe('GameSocketClient', () => {
     client.close()
   })
 
+  it('浏览器断网立即进入重连态，恢复网络后立刻重连', async () => {
+    vi.useFakeTimers()
+    const events = handlers()
+    const client = new GameSocketClient(events)
+    await client.connect()
+    const first = FakeSocket.instances[0]
+    first?.open()
+
+    window.dispatchEvent(new Event('offline'))
+    expect(events.onStatus).toHaveBeenLastCalledWith('reconnecting')
+    expect(first?.readyState).toBe(FakeSocket.CLOSED)
+
+    window.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(1)
+    expect(FakeSocket.instances).toHaveLength(2)
+    client.close()
+  })
+
   it('连接未稳定时退避递增，稳定后清零', async () => {
     vi.useFakeTimers()
     const events = handlers()

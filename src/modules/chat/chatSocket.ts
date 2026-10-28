@@ -67,13 +67,25 @@ export class ChatSocketClient {
     void this.open()
   }
 
-  /** 网络断开时主动关闭，让界面立即进入重连态，而不是等心跳超时。 */
+  /**
+   * 网络断开时立即进入重连态：主动丢弃旧 socket 并通知界面。
+   * 不依赖 onclose —— 断网时关闭握手发不出去，onclose 可能迟迟不触发。
+   */
   private readonly onBrowserOffline = () => {
+    this.stopHeartbeat()
+    this.clearStable()
+    this.clearReconnect()
     const ws = this.ws
-    if (!ws) return
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+    this.ws = null
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       ws.close(4001, 'network offline')
     }
+    this.handlers.onStatus?.('reconnecting')
+    // 断网期间不空转重试；若浏览器未派发 online，按最长退避兜底再试一次。
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined
+      void this.open()
+    }, 15_000)
   }
 
   private removeBrowserListeners() {

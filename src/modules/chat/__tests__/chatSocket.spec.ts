@@ -334,6 +334,24 @@ describe('ChatSocketClient', () => {
     client.close()
   })
 
+  it('浏览器断网立即进入重连态，恢复网络后立刻重连', async () => {
+    vi.useFakeTimers()
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const first = FakeSocket.instances[0]
+    first?.open()
+
+    window.dispatchEvent(new Event('offline'))
+    expect(events.onStatus).toHaveBeenLastCalledWith('reconnecting')
+    expect(first?.readyState).toBe(FakeSocket.CLOSED)
+
+    window.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(1)
+    expect(FakeSocket.instances).toHaveLength(2)
+    client.close()
+  })
+
   it('连接稳定后清零退避，下一次断线仍从 1 秒开始', async () => {
     vi.useFakeTimers()
     const events = handlers()
