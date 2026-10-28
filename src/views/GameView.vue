@@ -8,10 +8,17 @@ import BreakoutCanvas from '@/modules/games/components/BreakoutCanvas.vue'
 import ExerciseLobby from '@/modules/games/components/ExerciseLobby.vue'
 import GamePanel from '@/modules/games/components/GamePanel.vue'
 import LeaderboardPanel from '@/modules/games/components/LeaderboardPanel.vue'
+import MatchRecordsPanel from '@/modules/games/components/MatchRecordsPanel.vue'
 import MatchWindow from '@/modules/games/components/MatchWindow.vue'
 import MetricChart from '@/modules/games/components/MetricChart.vue'
 import TournamentBracket from '@/modules/games/components/TournamentBracket.vue'
-import { fetchOverallLeaderboard, submitScore } from '@/modules/games/gameApi'
+import {
+  fetchAdminLeaderboard,
+  fetchAdminMatchRecords,
+  fetchMatchRecords,
+  fetchOverallLeaderboard,
+  submitScore,
+} from '@/modules/games/gameApi'
 import { GAMES } from '@/modules/games/gameRegistry'
 import { ARENA_SCRIPTS } from '@/modules/games/lib/arenaScripts'
 import {
@@ -28,7 +35,7 @@ import {
   topologyOption,
 } from '@/modules/games/lib/chartOptions'
 import type { EChartsCoreOption } from 'echarts/core'
-import type { ArenaGameId, LeaderboardEntry } from '@/types/games'
+import type { ArenaGameId, LeaderboardEntry, MatchRecordPreview } from '@/types/games'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
@@ -54,7 +61,13 @@ const notice = ref('')
 const leaderboard = ref<LeaderboardEntry[]>([])
 const leaderboardLoading = ref(false)
 const leaderboardError = ref('')
+const records = ref<MatchRecordPreview[]>([])
+const recordsLoading = ref(false)
+const recordsError = ref('')
 const selectedTournamentId = ref('')
+/** 管理员是特殊玩家：同一套页面，权限码命中才多出对应管理入口。 */
+const canManageLeaderboard = computed(() => auth.hasPermission('game.leaderboard.manage'))
+const canManageRecords = computed(() => auth.hasPermission('game.record.manage'))
 
 const playableCount = computed(() => GAMES.filter((game) => game.playable).length)
 const pendingCount = computed(() => GAMES.length - playableCount.value)
@@ -143,12 +156,33 @@ async function loadLeaderboard() {
   leaderboardError.value = ''
   try {
     // 冠军榜只由赛事冠亚军结算，采样小游戏不再写入总积分。
-    leaderboard.value = await fetchOverallLeaderboard(10)
+    // 管理员读管理台榜单，才能看到被下架的行与展示权重。
+    leaderboard.value = canManageLeaderboard.value
+      ? await fetchAdminLeaderboard('', 20)
+      : await fetchOverallLeaderboard(10)
   } catch (error) {
     leaderboardError.value = formatApiError(error, '排行服务暂不可用')
   } finally {
     leaderboardLoading.value = false
   }
+}
+
+async function loadRecords() {
+  recordsLoading.value = true
+  recordsError.value = ''
+  try {
+    records.value = canManageRecords.value
+      ? await fetchAdminMatchRecords(12)
+      : await fetchMatchRecords(8)
+  } catch (error) {
+    recordsError.value = formatApiError(error, '赛事记录暂不可用')
+  } finally {
+    recordsLoading.value = false
+  }
+}
+
+function onRecordsUpdated(next: MatchRecordPreview[]) {
+  records.value = next
 }
 
 async function onGameFinish(score: number) {
@@ -267,6 +301,7 @@ onMounted(() => {
   refreshCharts()
   refreshTimer = setInterval(refreshCharts, 2000)
   void loadLeaderboard()
+  void loadRecords()
   void tournamentStore.refreshLobby()
 })
 
@@ -461,12 +496,37 @@ onBeforeUnmount(() => {
       </template>
     </section>
 
+    <section class="games__tourneys games__records">
+      <header class="games__tourneys-head">
+        <div class="games__tourneys-title">
+          <span class="games__tourneys-mark">R</span>
+          <div>
+            <b>赛事记录</b>
+            <span>RECORDS / 只展示对阵与比分预览</span>
+          </div>
+        </div>
+        <div class="games__tourneys-actions">
+          <span class="games__tourneys-count">{{ records.length }} 条</span>
+          <button type="button" class="games__refresh" @click="loadRecords">刷新记录</button>
+        </div>
+      </header>
+      <MatchRecordsPanel
+        :records="records"
+        :loading="recordsLoading"
+        :error="recordsError"
+        :admin="canManageRecords"
+        @updated="onRecordsUpdated"
+      />
+    </section>
+
     <div class="games__bottom">
       <section class="games__bottom-panel">
         <LeaderboardPanel
           :entries="leaderboard"
           :loading="leaderboardLoading"
           :error="leaderboardError"
+          :admin="canManageLeaderboard"
+          @saved="loadLeaderboard"
         />
       </section>
       <section class="games__bottom-panel games__tasks">
