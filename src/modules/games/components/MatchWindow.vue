@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { useTournamentStore } from '@/stores/tournament'
 import { ARENA_SCRIPTS, isArenaScript, scriptLabel, scriptShortLabel } from '../lib/arenaScripts'
-import { pieceLabel } from '../lib/blindXiangqi'
+import { colorOfPlayer, lostPiecesByColor, pieceLabel } from '../lib/blindXiangqi'
 import {
   formatClock,
   formatDuration,
@@ -23,6 +23,7 @@ import type {
 } from '../types'
 import ArenaHeatmap from './ArenaHeatmap.vue'
 import ArenaTopology from './ArenaTopology.vue'
+import BlindLossRow from './BlindLossRow.vue'
 import BlindXiangqiBoard from './BlindXiangqiBoard.vue'
 import ExerciseArena from './ExerciseArena.vue'
 import GomokuBoard from './GomokuBoard.vue'
@@ -83,6 +84,26 @@ const firstSideName = computed(() =>
 )
 const secondSideName = computed(() =>
   secondSideUserId.value ? nicknameFor(secondSideUserId.value) : '待定',
+)
+/** 当前小局双方已损失棋子；被吃棋身份在吃子时已公开。 */
+const lostByColor = computed(() => lostPiecesByColor(round.value?.moves ?? []))
+const player1BlindColor = computed(() =>
+  isBlind.value
+    ? colorOfPlayer(
+        match.value?.player1UserId ?? '',
+        firstSideUserId.value,
+        secondSideUserId.value,
+      )
+    : null,
+)
+const player2BlindColor = computed(() =>
+  isBlind.value
+    ? colorOfPlayer(
+        match.value?.player2UserId ?? '',
+        firstSideUserId.value,
+        secondSideUserId.value,
+      )
+    : null,
 )
 const gameId = computed(
   () => round.value?.gameId || match.value?.gameId || 'heatmap-gomoku',
@@ -552,6 +573,12 @@ onBeforeUnmount(() => {
               <div class="match-window__player-main">
                 <b>{{ playerName(match.player1UserId, match.player1Nickname) }}</b>
                 <span v-if="hasReady(match.player1UserId)" class="match-window__ready">已就绪</span>
+                <BlindLossRow
+                  v-if="isBlind"
+                  :color="player1BlindColor"
+                  :groups="player1BlindColor ? lostByColor[player1BlindColor] : []"
+                  align="left"
+                />
               </div>
               <strong>{{ match.player1Score }}</strong>
             </div>
@@ -573,6 +600,12 @@ onBeforeUnmount(() => {
               <div class="match-window__player-main">
                 <b>{{ playerName(match.player2UserId, match.player2Nickname) }}</b>
                 <span v-if="hasReady(match.player2UserId)" class="match-window__ready">已就绪</span>
+                <BlindLossRow
+                  v-if="isBlind"
+                  :color="player2BlindColor"
+                  :groups="player2BlindColor ? lostByColor[player2BlindColor] : []"
+                  align="right"
+                />
               </div>
               <span class="match-window__chip" :class="chipClass(match.player2UserId)">
                 {{ colorFor(match.player2UserId) || '·' }}
