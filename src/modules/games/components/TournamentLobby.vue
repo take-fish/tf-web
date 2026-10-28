@@ -8,10 +8,8 @@ import { formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import { useTournamentStore } from '@/stores/tournament'
 import {
-  countdown,
   formatClock,
   formatLabel,
-  modeShortLabel,
   tournamentModeSummary,
   tournamentStatusLabel,
   tournamentTypeLabel,
@@ -33,6 +31,7 @@ import type {
   TournamentPoolGameId,
   TournamentType,
 } from '@/types/games'
+import LobbyPendingCards from './LobbyPendingCards.vue'
 import TournamentBracket from './TournamentBracket.vue'
 
 const emit = defineEmits<{ close: [] }>()
@@ -167,14 +166,6 @@ function toggle(userId: string) {
 
 function isSelected(userId: string): boolean {
   return selectedIds.value.includes(userId)
-}
-
-function invitationRemaining(tournament: GameTournament): string {
-  return countdown(tournament.inviteDeadline, now.value)
-}
-
-function isInvitationExpired(tournament: GameTournament): boolean {
-  return tournament.inviteDeadline <= now.value
 }
 
 function playerCount(tournament: GameTournament): number {
@@ -362,71 +353,14 @@ onBeforeUnmount(() => {
 
       <div class="lobby__body">
         <div class="lobby__column">
-          <section v-if="store.invitations.length" class="lobby__card lobby__card--invite">
-            <div class="lobby__card-head">
-              <span>收到的邀请</span>
-              <em>{{ store.invitations.length }} 个待响应</em>
-            </div>
-            <article
-              v-for="invitation in store.invitations"
-              :key="invitation.id"
-              class="lobby__invite"
-            >
-              <div class="lobby__invite-main">
-                <b>{{ invitation.name }}</b>
-                <span>
-                  {{ invitation.creatorNickname }} 邀请你 ·
-                  {{ modeShortLabel(invitation.gameId, invitation.blindLayout) }} ·
-                  {{ formatLabel(invitation.format) }}
-                </span>
-                <em :class="{ 'is-expired': isInvitationExpired(invitation) }">
-                  <template v-if="isInvitationExpired(invitation)">邀请已超时</template>
-                  <template v-else>剩余 {{ invitationRemaining(invitation) }}</template>
-                </em>
-              </div>
-              <div class="lobby__invite-actions">
-                <button
-                  type="button"
-                  class="lobby__button lobby__button--primary"
-                  :disabled="Boolean(actingId) || isInvitationExpired(invitation)"
-                  @click="respond(invitation, true)"
-                >
-                  接受
-                </button>
-                <button
-                  type="button"
-                  class="lobby__button"
-                  :disabled="Boolean(actingId)"
-                  @click="respond(invitation, false)"
-                >
-                  拒绝
-                </button>
-              </div>
-            </article>
-          </section>
-
-          <section v-if="myActiveMatches.length" class="lobby__card lobby__card--active">
-            <div class="lobby__card-head">
-              <span>进行中的演练</span>
-              <em>{{ myActiveMatches.length }} 项</em>
-            </div>
-            <button
-              v-for="match in myActiveMatches"
-              :key="match.id"
-              type="button"
-              class="lobby__active-match"
-              @click="watchMatch(match.id)"
-            >
-              <span>
-                {{ match.player1Nickname || match.player1UserId }} vs
-                {{ match.player2Nickname || match.player2UserId }}
-              </span>
-              <em>
-                {{ match.status === 'RUNNING' ? '执行中' : '待准备' }}
-                · 查看执行
-              </em>
-            </button>
-          </section>
+          <LobbyPendingCards
+            :invitations="store.invitations"
+            :active-matches="myActiveMatches"
+            :acting-id="actingId"
+            :now="now"
+            @respond="respond"
+            @watch="watchMatch"
+          />
 
           <section class="lobby__card">
             <div class="lobby__card-head">

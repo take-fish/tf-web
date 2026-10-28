@@ -7,6 +7,7 @@ import { useIdentityStore } from '@/stores/identity'
 import { useSettingsStore } from '@/stores/settings'
 import { READER_TEMPLATES } from '@/modules/reader/lib/novelFormatter'
 import CodeEditorPane from '@/modules/reader/components/CodeEditorPane.vue'
+import ReaderRequestsDialog from './reader/ReaderRequestsDialog.vue'
 import { useReaderCore } from './reader/useReaderCore'
 import { useReaderLibrary } from './reader/useReaderLibrary'
 
@@ -591,79 +592,13 @@ onBeforeUnmount(() => {
       </form>
     </div>
 
-    <div v-if="requestsOpen" class="overlay" @click.self="requestsOpen = false">
-      <div class="sheet reader-requests">
-        <header class="sheet__head">
-          <div>
-            <h2>访问申请</h2>
-            <p>私有内容只有所有者批准后才能被查看，管理员也不例外。</p>
-          </div>
-          <button type="button" class="icon-button" @click="requestsOpen = false">×</button>
-        </header>
-        <div class="reader-requests__body">
-          <section>
-            <h3>
-              收到的申请 <em>{{ receivedRequests.length }}</em>
-            </h3>
-            <div v-for="item in receivedRequests" :key="`in-${item.id}`" class="reader-request">
-              <div class="reader-request__main">
-                <b>{{ item.bookTitle }}</b>
-                <span>{{ item.requesterNickname }} · {{ item.status }}</span>
-                <p v-if="item.message">{{ item.message }}</p>
-              </div>
-              <div class="reader-request__actions">
-                <button
-                  v-if="item.status === 'PENDING'"
-                  class="reader-btn"
-                  @click="decideRequest(item, 'approve')"
-                >
-                  批准
-                </button>
-                <button
-                  v-if="item.status === 'PENDING'"
-                  class="reader-btn"
-                  @click="decideRequest(item, 'reject')"
-                >
-                  拒绝
-                </button>
-                <button
-                  v-if="item.status === 'APPROVED'"
-                  class="reader-btn"
-                  @click="decideRequest(item, 'revoke')"
-                >
-                  撤销授权
-                </button>
-              </div>
-            </div>
-            <p v-if="receivedRequests.length === 0" class="reader-side__empty">
-              还没有人申请访问你的私有内容
-            </p>
-          </section>
-          <section>
-            <h3>
-              我发出的申请 <em>{{ myRequests.length }}</em>
-            </h3>
-            <div v-for="item in myRequests" :key="`out-${item.id}`" class="reader-request">
-              <div class="reader-request__main">
-                <b>{{ item.bookTitle }}</b>
-                <span>所有者 {{ item.ownerNickname }} · {{ item.status }}</span>
-                <p v-if="item.decisionMessage">回复：{{ item.decisionMessage }}</p>
-              </div>
-              <div class="reader-request__actions">
-                <button
-                  v-if="item.status === 'PENDING'"
-                  class="reader-btn"
-                  @click="decideRequest(item, 'cancel')"
-                >
-                  取消申请
-                </button>
-              </div>
-            </div>
-            <p v-if="myRequests.length === 0" class="reader-side__empty">暂无申请记录</p>
-          </section>
-        </div>
-      </div>
-    </div>
+    <ReaderRequestsDialog
+      v-if="requestsOpen"
+      :received="receivedRequests"
+      :mine="myRequests"
+      @close="requestsOpen = false"
+      @decide="decideRequest"
+    />
 
     <div v-if="shelfPickerOpen" class="overlay" @click.self="shelfPickerOpen = false">
       <div class="sheet reader-import">

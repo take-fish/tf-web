@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
 import AppIcon from '@/components/AppIcon.vue'
 
 import ArenaHeatmap from './ArenaHeatmap.vue'
@@ -7,6 +9,7 @@ import BlindLossRow from './BlindLossRow.vue'
 import BlindXiangqiBoard from './BlindXiangqiBoard.vue'
 import ExerciseArena from './ExerciseArena.vue'
 import GomokuBoard from './GomokuBoard.vue'
+import MatchChatPanel from './MatchChatPanel.vue'
 import { useMatchWindow } from './useMatchWindow'
 
 const emit = defineEmits<{ close: [] }>()
@@ -83,14 +86,19 @@ const {
   boardExpanded,
   actionError,
   channel,
-  chatInput,
-  chatBody,
-  formatClock,
   formatDuration,
   formatLabel,
   playerName,
   scriptLabel,
 } = useMatchWindow()
+
+const chatPanel = ref<InstanceType<typeof MatchChatPanel> | null>(null)
+
+function submitChat(text: string) {
+  void sendChat(text).then((ok) => {
+    if (ok) chatPanel.value?.clearDraft()
+  })
+}
 </script>
 
 <template>
@@ -431,65 +439,22 @@ const {
           </p>
         </section>
 
-        <aside v-if="!isDuel" class="match-window__chat">
-          <header class="match-window__chat-head">
-            <div class="match-window__tabs">
-              <button
-                type="button"
-                :class="{ 'is-active': channel === 'PUBLIC' }"
-                @click="channel = 'PUBLIC'"
-              >
-                公开频道
-              </button>
-              <button
-                v-if="privateTabVisible"
-                type="button"
-                :class="{ 'is-active': channel === 'PLAYER_DM' }"
-                @click="channel = 'PLAYER_DM'"
-              >
-                双方私聊
-              </button>
-            </div>
-            <span class="match-window__chat-hint">{{ chatHint }}</span>
-          </header>
-
-          <div ref="chatBody" class="match-window__messages">
-            <div v-if="chatLoading" class="match-window__chat-empty">正在同步聊天记录…</div>
-            <div v-else-if="chatMessages.length === 0" class="match-window__chat-empty">
-              {{ channel === 'PLAYER_DM' ? '还没有私聊消息，先和对方打个招呼吧' : '暂时没有消息' }}
-            </div>
-            <div
-              v-for="message in chatMessages"
-              :key="message.id"
-              class="match-window__message"
-              :class="{ 'is-self': message.fromUserId === selfId }"
-            >
-              <div class="match-window__message-meta">
-                <b>{{ message.fromNickname }}</b>
-                <span>{{ formatClock(message.createdAt) }}</span>
-              </div>
-              <p>{{ message.content }}</p>
-            </div>
-            <p v-if="chatError" class="match-window__chat-error">{{ chatError }}</p>
-          </div>
-
-          <form class="match-window__composer" @submit.prevent="sendChat">
-            <input
-              v-model="chatInput"
-              type="text"
-              :placeholder="chatPlaceholder"
-              :disabled="chatClosed || store.chatSending"
-              maxlength="1000"
-            />
-            <button
-              type="submit"
-              class="match-window__send"
-              :disabled="chatClosed || store.chatSending || !chatInput.trim()"
-            >
-              发送
-            </button>
-          </form>
-        </aside>
+        <MatchChatPanel
+          v-if="!isDuel"
+          ref="chatPanel"
+          :channel="channel"
+          :messages="chatMessages"
+          :loading="chatLoading"
+          :error="chatError"
+          :closed="chatClosed"
+          :sending="store.chatSending"
+          :hint="chatHint"
+          :placeholder="chatPlaceholder"
+          :private-tab-visible="privateTabVisible"
+          :self-id="selfId"
+          @update:channel="channel = $event"
+          @send="submitChat"
+        />
       </div>
     </div>
 
