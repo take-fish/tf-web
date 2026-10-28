@@ -13,6 +13,7 @@ import type {
   GameTournament,
   GameWsTicket,
   LeaderboardEntry,
+  MatchRecordPreview,
   LeaderboardResponse,
   ScoreResponse,
   SelectableGameId,
@@ -41,6 +42,94 @@ export function submitScore(payload: {
   return postJson<ScoreResponse>('/api/v1/game/scores', payload)
 }
 
+/**
+ * 管理台排行榜：包含被下架的行，带展示权重与操作审计；普通玩家只能看公开榜。
+ */
+export async function fetchAdminLeaderboard(
+  gameId = '',
+  limit = 20,
+): Promise<LeaderboardEntry[]> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (gameId) query.set('gameId', gameId)
+  const data = await getJson<LeaderboardResponse>(
+    `/api/v1/game/admin/leaderboards?${query.toString()}`,
+  )
+  return data.entries ?? []
+}
+
+/** 管理员改排行榜数值 / 可见性 / 展示顺序；未提交的字段保持不变。 */
+export function updateLeaderboardEntry(
+  userId: string,
+  patch: {
+    matches?: number
+    wins?: number
+    losses?: number
+    points?: number
+    championships?: number
+    runnerUps?: number
+    bestScore?: number
+    visible?: boolean
+    displayOrder?: number
+  },
+  gameId = '',
+): Promise<LeaderboardEntry> {
+  const query = gameId ? `?gameId=${encodeURIComponent(gameId)}` : ''
+  return request<LeaderboardEntry>(
+    `/api/v1/game/admin/leaderboards/${encodeURIComponent(userId)}${query}`,
+    { method: 'PATCH', body: JSON.stringify(patch) },
+  )
+}
+
+/** 批量覆盖展示顺序，返回调整后的管理台榜单。 */
+export async function reorderLeaderboard(
+  items: { id: string; displayOrder: number }[],
+  gameId = '',
+): Promise<LeaderboardEntry[]> {
+  const query = gameId ? `?gameId=${encodeURIComponent(gameId)}` : ''
+  const data = await request<LeaderboardResponse>(
+    `/api/v1/game/admin/leaderboards/order${query}`,
+    { method: 'POST', body: JSON.stringify({ items }) },
+  )
+  return data.entries ?? []
+}
+
+/** 比赛记录预览列表（只读，玩家也能看）。 */
+export async function fetchMatchRecords(limit = 8): Promise<MatchRecordPreview[]> {
+  const data = await getJson<{ records: MatchRecordPreview[] }>(
+    `/api/v1/game/records?limit=${limit}`,
+  )
+  return data.records ?? []
+}
+
+/** 管理台比赛记录列表：包含被隐藏的记录。 */
+export async function fetchAdminMatchRecords(limit = 20): Promise<MatchRecordPreview[]> {
+  const data = await getJson<{ records: MatchRecordPreview[] }>(
+    `/api/v1/game/admin/records?limit=${limit}`,
+  )
+  return data.records ?? []
+}
+
+/** 管理员调整比赛记录是否展示 / 展示顺序。 */
+export function updateMatchRecord(
+  matchId: string,
+  patch: { visible?: boolean; displayOrder?: number },
+): Promise<MatchRecordPreview> {
+  return request<MatchRecordPreview>(
+    `/api/v1/game/admin/records/${encodeURIComponent(matchId)}`,
+    { method: 'PATCH', body: JSON.stringify(patch) },
+  )
+}
+
+/** 批量覆盖比赛记录展示顺序，返回调整后的记录列表。 */
+export async function reorderMatchRecords(
+  items: { id: string; displayOrder: number }[],
+): Promise<MatchRecordPreview[]> {
+  const data = await request<{ records: MatchRecordPreview[] }>(
+    '/api/v1/game/admin/records/order',
+    { method: 'POST', body: JSON.stringify({ items }) },
+  )
+  return data.records ?? []
+}
 export async function fetchTournaments(limit = 20): Promise<GameTournament[]> {
   const data = await getJson<{ tournaments: GameTournament[] }>(
     `/api/v1/game/tournaments?limit=${limit}`,
