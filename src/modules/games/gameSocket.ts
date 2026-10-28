@@ -53,6 +53,10 @@ export interface GameSocketHandlers {
 }
 
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000]
+/** 连接稳定这么久才清零退避计数，避免「连上即被踢」时按 1 秒风暴重试。 */
+const STABLE_CONNECTION_MS = 10_000
+/** 出站缓冲上限：动作帧高频发送时防止队列无限堆积。 */
+const MAX_BUFFERED_BYTES = 512 * 1024
 
 function socketUrl(ticket: string): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -69,6 +73,7 @@ export class GameSocketClient {
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined
+  private stableTimer: ReturnType<typeof setTimeout> | undefined
   private lastPong = 0
   private manuallyClosed = false
   private authFailed = false
@@ -77,7 +82,36 @@ export class GameSocketClient {
   private exerciseRoomId: string | null = null
   private exerciseSeq = 0
 
-  constructor(private readonly handlers: GameSocketHandlers) {}
+  constructor(private readonly handlers: GameSocketHandlers) {
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('online', this.onBrowserOnline)
+      window.addEventListener('offline', this.onBrowserOffline)
+    }
+  }
+
+  /** 网络恢复时立刻重连，不必等退避计时器走完。 */
+  private readonly onBrowserOnline = () => {
+    if (this.manuallyClosed || this.authFailed) return
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) return
+    this.clearReconnect()
+    void this.open()
+  }
+
+  /** 网络断开时主动关闭，让界面立即进入重连态，而不是等心跳超时。 */
+  private readonly onBrowserOffline = () => {
+    const ws = this.ws
+    if (!ws) return
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      ws.close(4001, 'network offline')
+    }
+  }
+
+  private removeBrowserListeners() {
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      window.removeEventListener('online', this.onBrowserOnline)
+      window.removeEventListener('offline', this.onBrowserOffline)
+    }
+  }
 
   connect(): Promise<void> {
     this.manuallyClosed = false
@@ -89,7 +123,9 @@ export class GameSocketClient {
     this.manuallyClosed = true
     this.connectAttempt += 1
     this.stopHeartbeat()
+    this.clearStable()
     this.clearReconnect()
+    this.removeBrowserListeners()
     this.handlers.onStatus?.('offline')
     this.ws?.close(1000, 'client close')
     this.ws = null
@@ -234,10 +270,10 @@ export class GameSocketClient {
     this.ws = ws
 
     ws.onopen = () => {
-      this.reconnectAttempts = 0
       this.lastPong = Date.now()
       this.handlers.onStatus?.('online')
       this.startHeartbeat()
+      this.scheduleStableReset()
       if (this.watchingMatchId) {
         this.send({ type: 'watch_match', matchId: this.watchingMatchId })
       }
@@ -257,7 +293,10 @@ export class GameSocketClient {
 
     ws.onclose = () => {
       this.stopHeartbeat()
-      if (this.ws === ws) this.ws = null
+      this.clearStable()
+      // 已被新连接替换的旧 socket：忽略它的关闭事件，避免多开一条连接。
+      if (this.ws !== ws) return
+      this.ws = null
       if (this.manuallyClosed || this.authFailed) return
       this.handlers.onStatus?.('reconnecting')
       this.scheduleReconnect()
@@ -461,9 +500,17 @@ export class GameSocketClient {
     }
   }
 
+  /**
+   * 出站背压保护：缓冲超过上限时拒绝写入，调用方沿用「通道未连接」提示；
+   * 高频的巡检输入帧同样受此限制，避免弱网时队列无限堆积。
+   */
   private send(payload: Record<string, unknown>): boolean {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false
-    this.ws.send(JSON.stringify(payload))
+    const ws = this.ws
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false
+    if (typeof ws.bufferedAmount === 'number' && ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+      return false
+    }
+    ws.send(JSON.stringify(payload))
     return true
   }
 
@@ -498,6 +545,21 @@ export class GameSocketClient {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = undefined
+    }
+  }
+
+  private scheduleStableReset() {
+    this.clearStable()
+    this.stableTimer = setTimeout(() => {
+      this.reconnectAttempts = 0
+      this.stableTimer = undefined
+    }, STABLE_CONNECTION_MS)
+  }
+
+  private clearStable() {
+    if (this.stableTimer) {
+      clearTimeout(this.stableTimer)
+      this.stableTimer = undefined
     }
   }
 }
