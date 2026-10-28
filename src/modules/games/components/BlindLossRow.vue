@@ -22,6 +22,8 @@ const colorClass = computed(() =>
   props.color ? `is-${props.color.toLowerCase()}` : '',
 )
 
+const lostGroups = computed(() => props.groups ?? [])
+
 function glyphFor(group: LostPieceGroup): string {
   return props.color ? pieceGlyph(props.color, group.pieceType) : ''
 }
@@ -40,9 +42,9 @@ function labelFor(group: LostPieceGroup): string {
     :class="[colorClass, { 'is-right': align === 'right' }]"
   >
     <span class="blind-loss__label">已损失</span>
-    <span v-if="groups.length === 0" class="blind-loss__empty">暂无损失</span>
+    <span v-if="lostGroups.length === 0" class="blind-loss__empty">暂无损失</span>
     <span
-      v-for="group in groups"
+      v-for="group in lostGroups"
       :key="group.pieceType"
       class="blind-loss__piece"
       :title="labelFor(group)"
