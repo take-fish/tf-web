@@ -16,6 +16,7 @@ class FakeSocket {
   static instances: FakeSocket[] = []
 
   readyState = 0
+  bufferedAmount = 0
   sent: string[] = []
   onopen: (() => void) | null = null
   onmessage: ((event: { data: string }) => void) | null = null
@@ -262,5 +263,117 @@ describe('ChatSocketClient', () => {
 
     expect(FakeSocket.instances).toHaveLength(1)
     expect(fetchWsTicket).toHaveBeenCalledTimes(1)
+  })
+
+  it('出站缓冲超过上限时拒绝发送并提示拥塞', async () => {
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const socket = FakeSocket.instances[0]
+    socket?.open()
+    client.join('dev-group')
+    if (socket) {
+      socket.sent = []
+      socket.bufferedAmount = 1024 * 1024 + 1
+    }
+
+    expect(client.sendGroupMessage('拥塞消息')).toBe(false)
+    expect(socket?.sent).toEqual([])
+    expect(events.onError).toHaveBeenCalledWith('网络拥塞，消息未发送，请稍后重试', 'WS_BACKPRESSURE')
+
+    if (socket) socket.bufferedAmount = 0
+    expect(client.sendGroupMessage('恢复后发送')).toBe(true)
+    expect(socket?.sent).toHaveLength(1)
+    client.close()
+  })
+
+  it('旧 socket 的延迟关闭事件不触发新连接', async () => {
+    vi.useFakeTimers()
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const stale = FakeSocket.instances[0]
+    stale?.open()
+
+    // 模拟网络恢复：直接建立新连接替换旧 socket，旧 socket 的关闭事件随后才到。
+    await client.connect()
+    FakeSocket.instances[1]?.open()
+    events.onStatus.mockClear()
+
+    stale?.serverClose()
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    expect(FakeSocket.instances).toHaveLength(2)
+    expect(events.onStatus).not.toHaveBeenCalledWith('reconnecting')
+    client.close()
+  })
+
+  it('连接未稳定就断开时退避继续递增', async () => {
+    vi.useFakeTimers()
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const first = FakeSocket.instances[0]
+    first?.open()
+
+    // 建立 0.5 秒后断开：不足稳定阈值，下一次重连仍是 1 秒。
+    await vi.advanceTimersByTimeAsync(500)
+    first?.serverClose()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(FakeSocket.instances).toHaveLength(2)
+
+    // 第二条连接同样很快断开：退避应为 2 秒，1 秒时还不应建立第三条。
+    FakeSocket.instances[1]?.open()
+    await vi.advanceTimersByTimeAsync(500)
+    FakeSocket.instances[1]?.serverClose()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(FakeSocket.instances).toHaveLength(2)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(FakeSocket.instances).toHaveLength(3)
+    client.close()
+  })
+
+  it('浏览器断网立即进入重连态，恢复网络后立刻重连', async () => {
+    vi.useFakeTimers()
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const first = FakeSocket.instances[0]
+    first?.open()
+
+    window.dispatchEvent(new Event('offline'))
+    expect(events.onStatus).toHaveBeenLastCalledWith('reconnecting')
+    expect(first?.readyState).toBe(FakeSocket.CLOSED)
+
+    window.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(1)
+    expect(FakeSocket.instances).toHaveLength(2)
+    client.close()
+  })
+
+  it('连接稳定后清零退避，下一次断线仍从 1 秒开始', async () => {
+    vi.useFakeTimers()
+    const events = handlers()
+    const client = new ChatSocketClient(events)
+    await client.connect()
+    const first = FakeSocket.instances[0]
+    first?.open()
+
+    // 先制造一次退避（0.5 秒即断）。
+    await vi.advanceTimersByTimeAsync(500)
+    first?.serverClose()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(FakeSocket.instances).toHaveLength(2)
+
+    // 第二条连接稳定 10 秒后计数清零，再断线仍是 1 秒重连。
+    const second = FakeSocket.instances[1]
+    second?.open()
+    await vi.advanceTimersByTimeAsync(10_000)
+    second?.serverClose()
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(FakeSocket.instances).toHaveLength(3)
+    client.close()
   })
 })
