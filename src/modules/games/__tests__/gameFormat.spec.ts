@@ -24,7 +24,7 @@ import type {
   GameTournament,
   GameStage,
   MatchStatus,
-} from '../types'
+} from '@/types/games'
 
 function match(
   id: string,

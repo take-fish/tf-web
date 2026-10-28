@@ -19,7 +19,7 @@ import {
   helpLines,
   shortId,
 } from '@/modules/chat/format'
-import type { ChatGroup, ChatMessage, OnlineMember } from '@/modules/chat/types'
+import type { ChatGroup, ChatMessage, OnlineMember } from '@/types/chat'
 
 import type { TerminalApi } from './types'
 

@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@/modules/chat/types'
+import type { ChatMessage } from '@/types/chat'
 
 export type ChatTone = 'info' | 'ok' | 'warn' | 'error' | 'dim' | 'message' | 'ascii' | 'link'
 

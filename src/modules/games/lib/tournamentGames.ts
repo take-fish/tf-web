@@ -1,4 +1,8 @@
-import type { SelectableGameId, TournamentPoolGameId, TournamentType } from '../types'
+import type {
+  SelectableGameId,
+  TournamentPoolGameId,
+  TournamentType,
+} from '@/types/games'
 
 export interface TournamentGameOption {
   id: TournamentPoolGameId

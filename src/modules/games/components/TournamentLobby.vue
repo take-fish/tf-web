@@ -32,7 +32,7 @@ import type {
   SelectableGameId,
   TournamentPoolGameId,
   TournamentType,
-} from '../types'
+} from '@/types/games'
 import TournamentBracket from './TournamentBracket.vue'
 
 const emit = defineEmits<{ close: [] }>()

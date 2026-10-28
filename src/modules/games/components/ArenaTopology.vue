@@ -6,7 +6,7 @@ import type {
   TopologyEdge,
   TopologyNode,
   TopologyState,
-} from '../types'
+} from '@/types/games'
 
 const props = defineProps<{
   state: TopologyState

@@ -10,7 +10,7 @@ import type {
   ReadPayload,
   ServerFrame,
   SmokeState,
-} from './types'
+} from '@/types/chat'
 
 export interface ChatSocketHandlers {
   onStatus?: (status: ChatStatus) => void

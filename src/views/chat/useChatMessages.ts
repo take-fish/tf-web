@@ -4,7 +4,7 @@ import type { Ref } from 'vue'
 import { ApiError } from '@/lib/http'
 import { fetchImageBlob } from '@/modules/chat/chatApi'
 import { shortId } from '@/modules/chat/format'
-import type { ChatMessage } from '@/modules/chat/types'
+import type { ChatMessage } from '@/types/chat'
 
 import type { GalleryEntry, TerminalApi } from './types'
 

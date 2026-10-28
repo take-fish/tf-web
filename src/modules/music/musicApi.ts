@@ -11,7 +11,7 @@ import type {
   Track,
   TrackPage,
   TrackUpdatePayload,
-} from './types'
+} from '@/types/music'
 
 function query(params: Record<string, string | number | null | undefined>): string {
   const search = new URLSearchParams()

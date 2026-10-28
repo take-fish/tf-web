@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/lib/http'
-import type { ChatMessage, ChatStatus, ChatUser, SmokeState, WsTicket } from '../types'
+import type { ChatMessage, ChatStatus, ChatUser, SmokeState, WsTicket } from '@/types/chat'
 
 import { fetchWsTicket } from '../chatApi'
 import { ChatSocketClient } from '../chatSocket'

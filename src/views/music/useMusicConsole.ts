@@ -10,7 +10,7 @@ import {
   recordPlayback,
 } from '@/modules/music/musicApi'
 import { usePlayerStore } from '@/modules/music/playerStore'
-import type { Playlist, PlaylistDetail, Track } from '@/modules/music/types'
+import type { Playlist, PlaylistDetail, Track } from '@/types/music'
 import { errorText } from './music-helpers'
 
 interface PlayLogLine {

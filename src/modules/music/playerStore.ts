@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 
 import { formatApiError, getBlob } from '@/lib/http'
 import { trackStreamPath } from './musicApi'
-import type { PlayStatus, Track } from './types'
+import type { PlayStatus, Track } from '@/types/music'
 
 /**
  * 音频播放器。后端音频接口需要 Bearer 头，<audio src> 无法携带，

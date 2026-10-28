@@ -28,7 +28,7 @@ import {
   topologyOption,
 } from '@/modules/games/lib/chartOptions'
 import type { EChartsCoreOption } from 'echarts/core'
-import type { ArenaGameId, LeaderboardEntry } from '@/modules/games/types'
+import type { ArenaGameId, LeaderboardEntry } from '@/types/games'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'

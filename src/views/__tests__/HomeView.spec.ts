@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { writeAuth } from '@/lib/authToken'
-import type { ChatGroup, OnlineMember, SmokeState } from '@/modules/chat/types'
-import type { AuthUser } from '@/modules/auth/types'
+import type { ChatGroup, OnlineMember, SmokeState } from '@/types/chat'
+import type { AuthUser } from '@/types/auth'
 
 import HomeView from '../HomeView.vue'
 

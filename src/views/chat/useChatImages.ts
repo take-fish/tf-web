@@ -3,7 +3,7 @@ import type { Ref } from 'vue'
 import { ApiError, formatApiError } from '@/lib/http'
 import { uploadImage } from '@/modules/chat/chatApi'
 import type { ChatSocketClient } from '@/modules/chat/chatSocket'
-import type { OnlineMember } from '@/modules/chat/types'
+import type { OnlineMember } from '@/types/chat'
 
 import type { TerminalApi } from './types'
 

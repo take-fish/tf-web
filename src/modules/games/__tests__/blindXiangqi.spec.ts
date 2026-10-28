@@ -13,7 +13,7 @@ import type {
   BlindPieceType,
   BlindPieceView,
   GameMove,
-} from '../types'
+} from '@/types/games'
 
 function revealed(
   x: number,

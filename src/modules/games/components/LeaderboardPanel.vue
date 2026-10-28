@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardEntry } from '../types'
+import type { LeaderboardEntry } from '@/types/games'
 
 withDefaults(
   defineProps<{

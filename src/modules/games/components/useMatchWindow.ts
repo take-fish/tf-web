@@ -18,7 +18,7 @@ import type {
   GameRound,
   HeatmapState,
   TopologyState,
-} from '../types'
+} from '@/types/games'
 
 export function useMatchWindow() {
   const store = useTournamentStore()

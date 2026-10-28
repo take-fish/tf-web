@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 import { pieceGlyph, pieceLabel } from '../lib/blindXiangqi'
 import type { LostPieceGroup } from '../lib/blindXiangqi'
-import type { BlindPieceColor } from '../types'
+import type { BlindPieceColor } from '@/types/games'
 
 const props = withDefaults(
   defineProps<{

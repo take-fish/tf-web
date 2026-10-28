@@ -3,7 +3,7 @@ import { ref, type Ref } from 'vue'
 import { formatApiError } from '@/lib/http'
 import { fetchMatchChat, sendMatchChat } from '@/modules/games/gameApi'
 import { isParticipant } from '@/modules/games/lib/gameFormat'
-import type { GameChatChannel, GameChatMessage, GameMatch } from '@/modules/games/types'
+import type { GameChatChannel, GameChatMessage, GameMatch } from '@/types/games'
 
 const MAX_CHAT_MESSAGES = 240
 

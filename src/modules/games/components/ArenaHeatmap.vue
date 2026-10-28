@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import type { GameArenaAction, HeatmapCell, HeatmapState } from '../types'
+import type { GameArenaAction, HeatmapCell, HeatmapState } from '@/types/games'
 
 const props = defineProps<{
   state: HeatmapState
