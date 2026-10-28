@@ -22,7 +22,7 @@ import type {
   GameMatch,
   GamePlayer,
   GameTournament,
-} from '../types'
+} from '@/types/games'
 
 const emit = defineEmits<{ close: [] }>()
 

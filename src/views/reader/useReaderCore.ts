@@ -32,7 +32,7 @@ import type {
   BookSummary,
   ChapterContent,
   ChapterSummary,
-} from '@/modules/reader/types'
+} from '@/types/reader'
 import { clock, errorText, type EditorApi } from './reader-helpers'
 
 export function useReaderCore() {

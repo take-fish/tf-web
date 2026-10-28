@@ -1,5 +1,11 @@
 import { deleteJson, getJson, postForm, postJson, request } from '@/lib/http'
-import type { AppMeta, AuthUser, Credentials, LoginResponse, RegisterResponse } from './types'
+import type {
+  AppMeta,
+  AuthUser,
+  Credentials,
+  LoginResponse,
+  RegisterResponse,
+} from '@/types/auth'
 
 const BASE = '/api/v1/user/auth'
 

@@ -31,7 +31,7 @@ import type {
   ContentStatus,
   Shelf,
   ShelfDetail,
-} from '@/modules/reader/types'
+} from '@/types/reader'
 import { errorText } from './reader-helpers'
 import type { useReaderCore } from './useReaderCore'
 

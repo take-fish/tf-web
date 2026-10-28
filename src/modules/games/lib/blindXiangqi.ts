@@ -3,7 +3,7 @@ import type {
   BlindPieceType,
   BlindPieceView,
   GameMove,
-} from '../types'
+} from '@/types/games'
 
 export const BLIND_WIDTH = 9
 export const BLIND_HEIGHT = 10

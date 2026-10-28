@@ -10,7 +10,7 @@ import {
   requestAccess,
   revokeAccessRequest,
 } from '@/modules/music/musicApi'
-import type { AccessRequest, Track } from '@/modules/music/types'
+import type { AccessRequest, Track } from '@/types/music'
 import { errorText } from './music-helpers'
 
 interface MusicAccessOptions {

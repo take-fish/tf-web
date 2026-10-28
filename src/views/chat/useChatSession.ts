@@ -25,7 +25,7 @@ import type {
   ChatUser,
   OnlineMember,
   UnreadSummary,
-} from '@/modules/chat/types'
+} from '@/types/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useIdentityStore } from '@/stores/identity'

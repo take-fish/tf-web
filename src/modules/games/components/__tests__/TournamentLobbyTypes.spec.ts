@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { writeAuth } from '@/lib/authToken'
-import type { AuthUser } from '@/modules/auth/types'
-import type { GameTournament } from '@/modules/games/types'
+import type { AuthUser } from '@/types/auth'
+import type { GameTournament } from '@/types/games'
 import { useTournamentStore } from '@/stores/tournament'
 
 import TournamentLobby from '../TournamentLobby.vue'

@@ -17,7 +17,7 @@ import type {
   SelectableGameId,
   TournamentPoolGameId,
   TournamentType,
-} from '@/modules/games/types'
+} from '@/types/games'
 
 export interface LobbyModuleDeps {
   lobbyError: Ref<string>

@@ -13,7 +13,7 @@ import type {
   GameOnlineUser,
   GameTournament,
   SelectableGameId,
-} from '@/modules/games/types'
+} from '@/types/games'
 
 export interface DuelModuleDeps {
   ownUserId: Ref<string>

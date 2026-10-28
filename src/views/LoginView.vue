@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { ApiError, appendErrorReference } from '@/lib/http'
 import { fetchMeta } from '@/modules/auth/authApi'
-import type { AppMeta } from '@/modules/auth/types'
+import type { AppMeta } from '@/types/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 

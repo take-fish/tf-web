@@ -15,7 +15,7 @@ import {
   shareTrack,
   updateTrack,
 } from '@/modules/music/musicApi'
-import type { Category, ContentStatus, Track } from '@/modules/music/types'
+import type { Category, ContentStatus, Track } from '@/types/music'
 import { errorText } from './music/music-helpers'
 import { useMusicAccess } from './music/useMusicAccess'
 import { useMusicConsole } from './music/useMusicConsole'

@@ -9,7 +9,7 @@ import type {
   Credentials,
   LoginResponse,
   RegisterResponse,
-} from '@/modules/auth/types'
+} from '@/types/auth'
 
 const api = vi.hoisted(() => ({
   login: vi.fn<(credentials: Credentials) => Promise<LoginResponse>>(),

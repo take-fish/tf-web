@@ -28,7 +28,7 @@ import type {
   GameTournament,
   TournamentPoolGameId,
   TournamentType,
-} from '@/modules/games/types'
+} from '@/types/games'
 import { useAuthStore } from './auth'
 import { createChatModule } from './tournament/chat'
 import { createDuelModule } from './tournament/duel'

@@ -6,7 +6,7 @@ import type {
   ExerciseInput,
   ExerciseStanding,
   ExerciseState,
-} from '../types'
+} from '@/types/games'
 
 const props = defineProps<{
   state: ExerciseState

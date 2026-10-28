@@ -22,7 +22,7 @@ import type {
   GameSocketStatus,
   GameStoneEvent,
   GameTournament,
-} from './types'
+} from '@/types/games'
 
 export interface GameSocketHandlers {
   onStatus?: (status: GameSocketStatus) => void

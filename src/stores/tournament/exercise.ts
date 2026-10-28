@@ -19,7 +19,7 @@ import type {
   GameExerciseFinishedEvent,
   GameExerciseStateEvent,
   GameMatch,
-} from '@/modules/games/types'
+} from '@/types/games'
 
 export interface ExerciseModuleDeps {
   hasToken: () => boolean

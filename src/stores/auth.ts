@@ -16,7 +16,7 @@ import type {
   Credentials,
   LoginResponse,
   RegisterResponse,
-} from '@/modules/auth/types'
+} from '@/types/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const saved = readAuth()

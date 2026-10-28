@@ -4,7 +4,7 @@ import type {
   GameTournament,
   MatchStatus,
   TournamentStatus,
-} from '../types'
+} from '@/types/games'
 import { scriptLabel, scriptShortLabel } from './arenaScripts'
 
 export function formatLabel(format: GameFormat): string {

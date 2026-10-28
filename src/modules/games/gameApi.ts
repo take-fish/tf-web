@@ -16,7 +16,7 @@ import type {
   LeaderboardResponse,
   ScoreResponse,
   SelectableGameId,
-} from './types'
+} from '@/types/games'
 
 export async function fetchLeaderboard(
   gameId = 'qps-breakout',

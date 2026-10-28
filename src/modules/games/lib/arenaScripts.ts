@@ -1,4 +1,4 @@
-import type { ArenaGameId } from '../types'
+import type { ArenaGameId } from '@/types/games'
 
 export interface ArenaScriptOption {
   id: ArenaGameId

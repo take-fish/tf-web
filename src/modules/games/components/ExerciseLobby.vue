@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import ExerciseArena from './ExerciseArena.vue'
-import type { ExerciseMode, ExerciseRoom } from '../types'
+import type { ExerciseMode, ExerciseRoom } from '@/types/games'
 import { useTournamentStore } from '@/stores/tournament'
 
 const store = useTournamentStore()

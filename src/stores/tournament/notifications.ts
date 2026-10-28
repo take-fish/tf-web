@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 import { fetchGameNotifications } from '@/modules/games/gameApi'
-import type { GameNotification } from '@/modules/games/types'
+import type { GameNotification } from '@/types/games'
 
 const NOTIFICATION_FRESH_MS = 120_000
 

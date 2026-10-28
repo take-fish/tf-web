@@ -13,7 +13,7 @@ import {
   playerName,
   tournamentStatusLabel,
 } from '../lib/gameFormat'
-import type { GameMatch, GameTournament } from '../types'
+import type { GameMatch, GameTournament } from '@/types/games'
 
 const props = withDefaults(
   defineProps<{

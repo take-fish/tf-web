@@ -9,7 +9,7 @@ import type {
   ReadPayload,
   UnreadSummary,
   WsTicket,
-} from './types'
+} from '@/types/chat'
 
 function historyQuery(query: HistoryQuery, fallbackLimit: number): string {
   const params = new URLSearchParams({ limit: String(query.limit ?? fallbackLimit) })
