@@ -93,8 +93,9 @@ export function appendErrorReference(message: string, error: unknown): string {
   return reference ? `${message}（编号 ${reference}）` : message
 }
 
+/** 身份接口自身返回 401 才算登录态失效。 */
 function isAuthEntry(path: string): boolean {
-  return path.startsWith('/api/v1/user/auth/login') || path.startsWith('/api/v1/user/auth/register')
+  return path.startsWith('/api/v1/user/auth/')
 }
 
 function buildHeaders(init: RequestInit): Headers {
@@ -110,15 +111,39 @@ function buildHeaders(init: RequestInit): Headers {
   return headers
 }
 
+/**
+ * 业务服务返回 401 时先回用户中台确认会话是否真的失效。
+ *
+ * 服务重启、身份签名密钥不一致时，下游会把有效会话也判成 401；
+ * 这种情况下清本地登录态会让用户"刚登录就被登出"，所以只以用户中台为准。
+ */
+async function sessionExpired(token: string | null): Promise<boolean> {
+  if (!token) return true
+  try {
+    const response = await fetch('/api/v1/user/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return response.status === 401
+  } catch {
+    // 网络异常时保留本地登录态，避免后端闪断把用户踢下线
+    return false
+  }
+}
+
 async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const sentToken = getAuthToken()
   const headers = buildHeaders(init)
 
   const response = await fetch(path, { ...init, headers })
   if (!response.ok) {
-    if (response.status === 401 && !isAuthEntry(path)) {
-      clearAuth()
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+    if (response.status === 401) {
+      // 旧请求晚到（期间已经重新登录）时忽略，避免清掉新会话
+      const stillSameToken = getAuthToken() === sentToken
+      if (stillSameToken && (isAuthEntry(path) || (await sessionExpired(sentToken)))) {
+        clearAuth()
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+        }
       }
     }
     throw await parseError(response)
