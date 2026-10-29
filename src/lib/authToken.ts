@@ -5,6 +5,8 @@ export const AUTH_STORAGE_KEY = 'fm.auth.v1'
 export interface StoredAuth {
   token: string
   user: AuthUser
+  /** 刷新令牌：访问令牌过期时用它静默换新 token。旧数据没有这个字段。 */
+  refreshToken?: string
 }
 
 function storage(): Storage | null {
@@ -36,7 +38,11 @@ export function readAuth(): StoredAuth | null {
     if (typeof parsed.token !== 'string' || !parsed.token || !isAuthUser(parsed.user)) {
       return null
     }
-    return { token: parsed.token, user: parsed.user }
+    return {
+      token: parsed.token,
+      user: parsed.user,
+      refreshToken: typeof parsed.refreshToken === 'string' ? parsed.refreshToken : undefined,
+    }
   } catch {
     return null
   }
@@ -60,4 +66,15 @@ export function clearAuth(): void {
 
 export function getAuthToken(): string | null {
   return readAuth()?.token ?? null
+}
+
+export function getRefreshToken(): string | null {
+  return readAuth()?.refreshToken ?? null
+}
+
+/** 静默刷新成功后只换访问令牌，用户信息与刷新令牌保持不变。 */
+export function updateAuthToken(token: string): void {
+  const current = readAuth()
+  if (!current) return
+  writeAuth({ ...current, token })
 }

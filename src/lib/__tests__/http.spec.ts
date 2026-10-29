@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AUTH_STORAGE_KEY } from '../authToken'
 import {
@@ -55,8 +55,8 @@ describe('ApiError 链路编号', () => {
 
 const USER = { id: 2, username: 'u2', nickname: '良一深', role: 'USER', status: 'ACTIVE' }
 
-function storeAuth(token: string) {
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token, user: USER }))
+function storeAuth(token: string, refreshToken?: string) {
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token, user: USER, refreshToken }))
 }
 
 function storedToken(): string {
@@ -139,10 +139,105 @@ describe('业务服务返回 401 时不误判登录态', () => {
 
   it('身份接口自身 401 立即清登录态', async () => {
     storeAuth('tok-expired')
-    vi.stubGlobal('fetch', vi.fn(async () => response(401, { error: 'UNAUTHORIZED' })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(401, { error: 'UNAUTHORIZED' })),
+    )
 
     await expect(request('/api/v1/user/auth/me')).rejects.toBeInstanceOf(ApiError)
 
     expect(storedToken()).toBe('')
+  })
+})
+
+describe('访问令牌静默刷新', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.unstubAllGlobals()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('401 时用刷新令牌换新 access 并重放原请求', async () => {
+    storeAuth('stale-token', 'refresh-1')
+    const calls: string[] = []
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async (input, init) => {
+        const url = String(input)
+        calls.push(url)
+        if (url.endsWith('/api/v1/user/auth/refresh')) {
+          return response(200, { token: 'fresh-token' })
+        }
+        const auth = new Headers(init?.headers).get('Authorization')
+        return auth === 'Bearer fresh-token'
+          ? response(200, { ok: true })
+          : response(401, { error: 'UNAUTHORIZED', message: '请先登录' })
+      },
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await request<{ ok: boolean }>('/api/v1/chat/rooms')
+
+    expect(result.ok).toBe(true)
+    expect(calls).toEqual(['/api/v1/chat/rooms', '/api/v1/user/auth/refresh', '/api/v1/chat/rooms'])
+    expect(storedToken()).toBe('fresh-token')
+  })
+
+  it('并发 401 只打一次刷新接口', async () => {
+    storeAuth('stale-token', 'refresh-1')
+    let refreshCalls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/api/v1/user/auth/refresh')) {
+          refreshCalls += 1
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          return response(200, { token: 'fresh-token' })
+        }
+        const auth = new Headers(init?.headers).get('Authorization')
+        return auth === 'Bearer fresh-token' ? response(200, { ok: true }) : response(401, {})
+      }),
+    )
+
+    const results = await Promise.all([
+      request('/api/v1/chat/rooms'),
+      request('/api/v1/chat/friends'),
+    ])
+
+    expect(results).toHaveLength(2)
+    expect(refreshCalls).toBe(1)
+  })
+
+  it('没有刷新令牌时直接清空登录态', async () => {
+    storeAuth('stale-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(401, { error: 'UNAUTHORIZED', message: '请先登录' })),
+    )
+
+    await expect(request('/api/v1/chat/rooms')).rejects.toBeInstanceOf(ApiError)
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
+
+  it('刷新被拒时以用户中台的判定为准，不误踢有效会话', async () => {
+    storeAuth('stale-token', 'refresh-dead')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.endsWith('/api/v1/user/auth/refresh')) {
+          return response(401, { error: 'INVALID_REFRESH_TOKEN' })
+        }
+        if (url === '/api/v1/user/auth/me') return response(200, USER)
+        return response(401, { error: 'INVALID_IDENTITY', message: '身份信息无效' })
+      }),
+    )
+
+    await expect(request('/api/v1/reader/me/stats')).rejects.toBeInstanceOf(ApiError)
+
+    expect(storedToken()).toBe('stale-token')
   })
 })

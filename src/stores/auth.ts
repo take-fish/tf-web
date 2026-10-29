@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { AUTH_EXPIRED_EVENT, ApiError } from '@/lib/http'
-import { clearAuth, readAuth, writeAuth, type StoredAuth } from '@/lib/authToken'
+import { clearAuth, getRefreshToken, readAuth, writeAuth, type StoredAuth } from '@/lib/authToken'
 import {
   fetchMe as fetchMeRequest,
   login as loginRequest,
@@ -79,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const result = await loginRequest(credentials)
-      apply({ token: result.token, user: result.user })
+      apply({ token: result.token, user: result.user, refreshToken: result.refreshToken })
       return result
     } finally {
       loading.value = false
@@ -98,7 +98,9 @@ export const useAuthStore = defineStore('auth', () => {
   function applyUser(next: AuthUser) {
     user.value = next
     validated.value = true
-    if (token.value) writeAuth({ token: token.value, user: next })
+    if (token.value) {
+      writeAuth({ token: token.value, user: next, refreshToken: getRefreshToken() ?? undefined })
+    }
   }
 
   async function fetchMe(): Promise<AuthUser> {
