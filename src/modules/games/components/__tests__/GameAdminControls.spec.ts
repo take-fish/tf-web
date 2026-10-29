@@ -6,9 +6,9 @@ import type { LeaderboardEntry, MatchRecordPreview } from '@/types/games'
 import LeaderboardPanel from '../LeaderboardPanel.vue'
 import MatchRecordsPanel from '../MatchRecordsPanel.vue'
 
-const updateLeaderboardEntry = vi.fn()
-const updateMatchRecord = vi.fn()
-const reorderMatchRecords = vi.fn()
+const updateLeaderboardEntry = vi.fn<(...args: unknown[]) => Promise<LeaderboardEntry>>()
+const updateMatchRecord = vi.fn<(...args: unknown[]) => Promise<MatchRecordPreview>>()
+const reorderMatchRecords = vi.fn<(...args: unknown[]) => Promise<MatchRecordPreview[]>>()
 
 vi.mock('@/modules/games/gameApi', () => ({
   updateLeaderboardEntry: (...args: unknown[]) => updateLeaderboardEntry(...args),
