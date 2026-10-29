@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { writeAuth } from '@/lib/authToken'
-import type { AuthUser } from '@/modules/auth/types'
+import type { AuthUser } from '@/types/auth'
 import {
   fetchBookmarks,
   fetchBooks,

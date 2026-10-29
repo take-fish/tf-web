@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from 'vue'
 
-import type { GameMove } from '../types'
+import type { GameMove } from '@/types/games'
 
 const SIZE = 15
 /** 留出双击判定窗口，避免双击放大时先落下第一颗子。 */

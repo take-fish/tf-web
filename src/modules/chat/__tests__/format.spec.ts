@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { formatDmLines, formatMessageLines } from '../format'
-import type { ChatMessage } from '../types'
+import type { ChatMessage } from '@/types/chat'
 
 const base: ChatMessage = {
   id: 'm-1',

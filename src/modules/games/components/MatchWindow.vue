@@ -1,478 +1,104 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ref } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
-import { useTournamentStore } from '@/stores/tournament'
-import { ARENA_SCRIPTS, isArenaScript, scriptLabel, scriptShortLabel } from '../lib/arenaScripts'
-import { pieceLabel } from '../lib/blindXiangqi'
-import {
-  formatClock,
-  formatDuration,
-  formatLabel,
-  isParticipant,
-  playerName,
-} from '../lib/gameFormat'
-import type {
-  ExerciseInput,
-  ExerciseState,
-  GameArenaAction,
-  GameChatChannel,
-  GameRound,
-  HeatmapState,
-  TopologyState,
-} from '../types'
+
 import ArenaHeatmap from './ArenaHeatmap.vue'
 import ArenaTopology from './ArenaTopology.vue'
+import BlindLossRow from './BlindLossRow.vue'
 import BlindXiangqiBoard from './BlindXiangqiBoard.vue'
 import ExerciseArena from './ExerciseArena.vue'
 import GomokuBoard from './GomokuBoard.vue'
+import MatchChatPanel from './MatchChatPanel.vue'
+import { useMatchWindow } from './useMatchWindow'
 
 const emit = defineEmits<{ close: [] }>()
 
-const store = useTournamentStore()
+const {
+  store,
+  match,
+  isDuel,
+  matchLoading,
+  matchError,
+  chatLoading,
+  chatError,
+  tournament,
+  round,
+  selfId,
+  participant,
+  isBlind,
+  firstSideName,
+  secondSideName,
+  lostByColor,
+  player1BlindColor,
+  player2BlindColor,
+  gameId,
+  arenaMode,
+  arenaState,
+  heatmapState,
+  topologyState,
+  exerciseState,
+  playerNames,
+  myColor,
+  arenaRemaining,
+  arenaInteractive,
+  blackName,
+  whiteName,
+  turnName,
+  isMyTurn,
+  boardInteractive,
+  canReady,
+  restSeconds,
+  moveSeconds,
+  maxGames,
+  gameLabel,
+  stateLabel,
+  winnerName,
+  resultReason,
+  blindActionText,
+  chatClosed,
+  chatMessages,
+  privateTabVisible,
+  chatHint,
+  chatPlaceholder,
+  readyState,
+  firstGameLabel,
+  ownsFirstGame,
+  bothReady,
+  isWinner,
+  colorFor,
+  chipClass,
+  hasReady,
+  sendChat,
+  ready,
+  chooseGame,
+  place,
+  arenaAction,
+  exerciseInput,
+  openBoardWindow,
+  closeBoardWindow,
+  reveal,
+  move,
+  resign,
+  DRAW_OPTIONS,
+  drawChoice,
+  resigning,
+  boardExpanded,
+  actionError,
+  channel,
+  formatDuration,
+  formatLabel,
+  playerName,
+  scriptLabel,
+} = useMatchWindow()
 
-const MOVE_TIMEOUT_SECONDS = 60
+const chatPanel = ref<InstanceType<typeof MatchChatPanel> | null>(null)
 
-const now = ref(Date.now())
-const channel = ref<GameChatChannel>('PUBLIC')
-const chatInput = ref('')
-const chatBody = ref<HTMLElement | null>(null)
-const actionError = ref('')
-const resigning = ref(false)
-const boardExpanded = ref(false)
-const drawChoice = ref('')
-
-/** 选图权目录：随机抽签 + 四个竞技场剧本。 */
-const DRAW_OPTIONS = [
-  { id: 'random', shortName: '随机抽签' },
-  ...ARENA_SCRIPTS.map((script) => ({ id: script.id, shortName: script.shortName })),
-]
-
-let clockTimer: ReturnType<typeof setInterval> | undefined
-
-const match = computed(() => store.currentMatch)
-/** 一对一约战：只用棋盘与比分，不提供聊天与观战。 */
-const isDuel = computed(() => match.value?.kind === 'DUEL')
-const matchLoading = computed(() => store.matchLoading)
-const matchError = computed(() => store.matchError)
-const chatLoading = computed(() => store.chatLoading)
-const chatError = computed(() => store.chatError)
-const tournament = computed(() => store.currentTournament)
-const round = computed<GameRound | null>(() => store.currentRound)
-const selfId = computed(() => store.ownUserId)
-const participant = computed(() => isParticipant(match.value, selfId.value))
-const isBlind = computed(
-  () =>
-    match.value?.gameId === 'blind-xiangqi' ||
-    Boolean(round.value?.firstUserId && round.value?.blindBoard?.length),
-)
-const firstSideUserId = computed(() => {
-  if (!round.value) return ''
-  return isBlind.value
-    ? round.value.firstUserId ?? round.value.blackUserId ?? ''
-    : round.value.blackUserId
-})
-const secondSideUserId = computed(() => {
-  if (!round.value) return ''
-  return isBlind.value
-    ? round.value.secondUserId ?? round.value.whiteUserId ?? ''
-    : round.value.whiteUserId
-})
-const firstSideName = computed(() =>
-  firstSideUserId.value ? nicknameFor(firstSideUserId.value) : '待定',
-)
-const secondSideName = computed(() =>
-  secondSideUserId.value ? nicknameFor(secondSideUserId.value) : '待定',
-)
-const gameId = computed(
-  () => round.value?.gameId || match.value?.gameId || 'heatmap-gomoku',
-)
-/** 两个实时竞技场共用一套窗口，但棋盘、HUD 与操作面板完全不同。 */
-const arenaMode = computed(() => isArenaScript(gameId.value))
-const arenaState = computed(() => (arenaMode.value ? (round.value?.state ?? null) : null))
-const heatmapState = computed<HeatmapState | null>(() =>
-  gameId.value === 'log-hotspot-arena'
-    ? ((arenaState.value as HeatmapState | null) ?? null)
-    : null,
-)
-const topologyState = computed<TopologyState | null>(() =>
-  gameId.value === 'topology-arena'
-    ? ((arenaState.value as TopologyState | null) ?? null)
-    : null,
-)
-const exerciseState = computed<ExerciseState | null>(() =>
-  gameId.value === 'cluster-patrol-arena'
-    ? ((arenaState.value as ExerciseState | null) ?? null)
-    : null,
-)
-const exerciseSelf = computed(
-  () =>
-    exerciseState.value?.actors.find((actor) => actor.userId === selfId.value) ?? null,
-)
-const playerNames = computed<Record<string, string>>(() => {
-  const names: Record<string, string> = {}
-  const value = match.value
-  if (!value) return names
-  if (value.player1UserId) {
-    names[value.player1UserId] = value.player1Nickname || value.player1UserId
-  }
-  if (value.player2UserId) {
-    names[value.player2UserId] = value.player2Nickname || value.player2UserId
-  }
-  return names
-})
-const isBlack = computed(() => Boolean(round.value && round.value.blackUserId === selfId.value))
-const myColor = computed(() => {
-  if (!participant.value || !round.value) return ''
-  if (isBlind.value) {
-    if (firstSideUserId.value === selfId.value) return '红方'
-    if (secondSideUserId.value === selfId.value) return '黑方'
-    return ''
-  }
-  if (!arenaMode.value) return isBlack.value ? '先手' : '后手'
-  if (gameId.value === 'topology-arena') {
-    return round.value.attackerUserId === selfId.value ? '故障注入方' : '稳态保障方'
-  }
-  if (gameId.value === 'cluster-patrol-arena') {
-    const team = exerciseSelf.value?.team
-    return team ? `${team} 队巡检员` : '巡检员'
-  }
-  return '排查方'
-})
-const arenaRemaining = computed(() => {
-  const endsAt = arenaState.value?.endsAt ?? round.value?.endsAt
-  if (!endsAt) return 0
-  return Math.max(0, Math.ceil((endsAt - now.value) / 1000))
-})
-const arenaInteractive = computed(
-  () =>
-    participant.value &&
-    store.status === 'online' &&
-    match.value?.status === 'RUNNING' &&
-    round.value?.status === 'RUNNING' &&
-    Boolean(arenaState.value) &&
-    !arenaState.value?.finished,
-)
-const blackName = computed(() =>
-  match.value && round.value
-    ? playerName(round.value.blackUserId, nicknameFor(round.value.blackUserId))
-    : '待定',
-)
-const whiteName = computed(() =>
-  match.value && round.value
-    ? playerName(round.value.whiteUserId, nicknameFor(round.value.whiteUserId))
-    : '待定',
-)
-const turnName = computed(() =>
-  match.value && round.value?.turnUserId
-    ? nicknameFor(round.value.turnUserId)
-    : '',
-)
-const isMyTurn = computed(
-  () =>
-    participant.value &&
-    round.value?.status === 'RUNNING' &&
-    round.value.turnUserId === selfId.value,
-)
-const boardInteractive = computed(
-  () => isMyTurn.value && match.value?.status === 'RUNNING',
-)
-const readyUserIds = computed(() => round.value?.readyUserIds ?? [])
-const canReady = computed(
-  () =>
-    participant.value &&
-    store.status === 'online' &&
-    (match.value?.status === 'READY' ||
-      (match.value?.status === 'RUNNING' && round.value?.status === 'REST')),
-)
-const restSeconds = computed(() => {
-  if (!round.value?.restUntil) return 0
-  return Math.max(0, Math.ceil((round.value.restUntil - now.value) / 1000))
-})
-const moveSeconds = computed(() => {
-  if (!round.value || round.value.status !== 'RUNNING' || !round.value.turnUserId) return 0
-  return Math.max(
-    0,
-    Math.ceil((round.value.lastMoveAt + MOVE_TIMEOUT_SECONDS * 1000 - now.value) / 1000),
-  )
-})
-const maxGames = computed(() => {
-  if (match.value?.stage === 'LEAGUE') return 1
-  const format = tournament.value?.format ?? 'BO1'
-  return format === 'BO5' ? 5 : format === 'BO3' ? 3 : 1
-})
-const gameLabel = computed(() => {
-  if (!round.value) return maxGames.value > 1 ? `BO${maxGames.value}` : 'BO1'
-  if (isBlind.value) return `第 ${round.value.gameNo} 局`
-  return `第 ${round.value.gameNo} / ${maxGames.value} 阶段`
-})
-const stateLabel = computed(() => {
-  if (!match.value) return ''
-  if (match.value.status === 'FINISHED') return '已结束'
-  if (match.value.status === 'READY') return '等待双方就绪'
-  if (round.value?.status === 'REST') return '阶段间隔'
-  if (round.value?.status === 'RUNNING') return '执行中'
-  return '就绪中'
-})
-const winnerName = computed(() => {
-  const value = match.value
-  const winnerId = arenaState.value?.winnerUserId || value?.winnerUserId
-  if (!winnerId) return ''
-  if (!value) return playerNames.value[winnerId] ?? winnerId
-  if (winnerId === value.player1UserId) return value.player1Nickname || winnerId
-  if (winnerId === value.player2UserId) return value.player2Nickname || winnerId
-  return playerNames.value[winnerId] ?? winnerId
-})
-const resultReason = computed(
-  () => arenaState.value?.finishReason || store.lastResult?.reason || '',
-)
-const blindActionText = computed(() => {
-  const event = store.lastBlindAction
-  const value = match.value
-  if (!isBlind.value || !event || !value || event.matchId !== value.id) return ''
-  const actor = nicknameFor(event.userId)
-  if (event.action === 'REVEAL') {
-    return `${actor} 翻开了 ${pieceLabel(event.pieceColor, event.pieceType)}`
-  }
-  const moved = pieceLabel(event.pieceColor, event.pieceType)
-  const captured =
-    event.capturedPieceType && event.capturedPieceColor
-      ? `，吃掉 ${pieceLabel(event.capturedPieceColor, event.capturedPieceType)}`
-      : ''
-  const result =
-    event.result === 'WIN'
-      ? ' · 将帅被吃'
-      : event.result === 'DRAW'
-        ? ' · 将帅见面'
-        : ''
-  return `${actor} 移动 ${moved}${captured}${result}`
-})
-const chatClosed = computed(
-  () =>
-    tournament.value?.status === 'FINISHED' || tournament.value?.status === 'CANCELLED',
-)
-const chatMessages = computed(() =>
-  store.chatMessages.filter((message) => message.channel === channel.value),
-)
-const privateTabVisible = computed(() => participant.value)
-const chatHint = computed(() => {
-  if (chatClosed.value) return '演练已结束，聊天记录仅供回看'
-  if (channel.value === 'PLAYER_DM') return '仅双方成员可见，结束后仍可回看'
-  return '公开频道 · 所有查看者可见'
-})
-const chatPlaceholder = computed(() => {
-  if (chatClosed.value) return '演练已结束，无法发送消息'
-  if (channel.value === 'PLAYER_DM') return '与对方私聊…'
-  return '和频道里的成员聊聊…'
-})
-const readyState = computed(() => {
-  if (!match.value) return ''
-  if (match.value.status === 'READY') {
-    return isBlind.value
-      ? '双方确认就绪后开始，随机分配红黑'
-      : '双方确认就绪后开始执行，随机分配先手'
-  }
-  if (round.value?.status === 'REST') {
-    return readyUserIds.value.length
-      ? `已就绪：${readyUserIds.value.map(nicknameFor).join('、')}`
-      : '双方可选择立即继续，或等待间隔结束'
-  }
-  return ''
-})
-const firstGameLabel = computed(() =>
-  match.value?.firstGameId ? scriptShortLabel(match.value.firstGameId) : '待抽取',
-)
-const ownsFirstGame = computed(
-  () =>
-    Boolean(
-      match.value &&
-        selfId.value &&
-        match.value.gameChooserUserId === selfId.value &&
-        !match.value.startedAt &&
-        (match.value.status === 'READY' || match.value.status === 'PENDING'),
-    ),
-)
-const bothReady = computed(() => {
-  const value = match.value
-  if (!value) return false
-  return (
-    readyUserIds.value.includes(value.player1UserId ?? '') &&
-    readyUserIds.value.includes(value.player2UserId ?? '')
-  )
-})
-
-function nicknameFor(userId: string | null): string {
-  if (!userId) return '待定'
-  const value = match.value
-  if (value?.player1UserId === userId) return value.player1Nickname || userId
-  if (value?.player2UserId === userId) return value.player2Nickname || userId
-  return userId
-}
-
-function colorFor(userId: string | null): string {
-  if (!userId || !round.value) return ''
-  if (isBlind.value) {
-    if (firstSideUserId.value === userId) return '红'
-    if (secondSideUserId.value === userId) return '黑'
-    return ''
-  }
-  if (gameId.value === 'topology-arena') {
-    return round.value.attackerUserId === userId ? '攻' : '守'
-  }
-  if (gameId.value === 'cluster-patrol-arena') {
-    return (
-      exerciseState.value?.actors.find((actor) => actor.userId === userId)?.team ??
-      (round.value.blackUserId === userId ? '1' : '2')
-    )
-  }
-  if (arenaMode.value) {
-    return round.value.blackUserId === userId ? '1' : '2'
-  }
-  if (round.value.blackUserId === userId) return 'A'
-  if (round.value.whiteUserId === userId) return 'B'
-  return ''
-}
-
-function chipClass(userId: string | null): string {
-  if (!userId || !round.value) return ''
-  if (isBlind.value) {
-    if (firstSideUserId.value === userId) return 'is-red'
-    if (secondSideUserId.value === userId) return 'is-black-side'
-    return ''
-  }
-  if (round.value.blackUserId === userId) return 'is-black'
-  if (round.value.whiteUserId === userId) return 'is-white'
-  return ''
-}
-
-function hasReady(userId: string | null): boolean {
-  return Boolean(userId && readyUserIds.value.includes(userId))
-}
-
-function isWinner(userId: string | null): boolean {
-  return Boolean(userId && match.value?.winnerUserId === userId)
-}
-
-async function scrollChat() {
-  await nextTick()
-  if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
-}
-
-function sendChat() {
-  const text = chatInput.value.trim()
-  if (!text || chatClosed.value) return
-  actionError.value = ''
-  void store.sendChat(text, channel.value).then((ok) => {
-    if (ok) {
-      chatInput.value = ''
-      void scrollChat()
-    }
+function submitChat(text: string) {
+  void sendChat(text).then((ok) => {
+    if (ok) chatPanel.value?.clearDraft()
   })
 }
-
-function ready() {
-  actionError.value = ''
-  if (!store.ready()) actionError.value = store.lastError
-}
-
-function chooseGame() {
-  if (!drawChoice.value) return
-  actionError.value = ''
-  if (!store.chooseGame(drawChoice.value)) actionError.value = store.lastError
-}
-
-function place(x: number, y: number) {
-  if (!boardInteractive.value) return
-  actionError.value = ''
-  if (!store.placeStone(x, y)) actionError.value = store.lastError
-}
-
-function arenaAction(action: GameArenaAction) {
-  if (!arenaInteractive.value) return
-  actionError.value = ''
-  if (!store.sendArenaAction(action)) actionError.value = store.lastError
-}
-
-function exerciseInput(input: ExerciseInput) {
-  if (!arenaInteractive.value) return
-  actionError.value = ''
-  if (!store.sendExerciseInput(input)) actionError.value = store.lastError
-}
-
-function openBoardWindow() {
-  boardExpanded.value = true
-}
-
-function closeBoardWindow() {
-  boardExpanded.value = false
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape' || !boardExpanded.value) return
-  event.preventDefault()
-  closeBoardWindow()
-}
-
-function reveal(x: number, y: number) {
-  if (!boardInteractive.value) return
-  actionError.value = ''
-  if (!store.revealPiece(x, y)) actionError.value = store.lastError
-}
-
-function move(fromX: number, fromY: number, toX: number, toY: number) {
-  if (!boardInteractive.value) return
-  actionError.value = ''
-  if (!store.movePiece(fromX, fromY, toX, toY)) actionError.value = store.lastError
-}
-
-function resign() {
-  if (!participant.value || resigning.value) return
-  if (!window.confirm('确认终止本轮？本轮将判定为失败。')) return
-  resigning.value = true
-  actionError.value = ''
-  if (!store.resign()) {
-    actionError.value = store.lastError
-    resigning.value = false
-  }
-}
-
-watch(
-  () => match.value?.status,
-  (status) => {
-    if (status === 'FINISHED') resigning.value = false
-  },
-)
-
-watch(
-  () => match.value?.firstGameId,
-  (gameId) => {
-    // 服务端抽签结果变化时同步下拉选中项；不覆盖用户已选但未提交的剧本。
-    if (gameId && !drawChoice.value) drawChoice.value = gameId
-  },
-  { immediate: true },
-)
-
-watch(
-  () => [channel.value, chatMessages.value.length],
-  () => void scrollChat(),
-)
-
-watch(privateTabVisible, (visible) => {
-  if (!visible && channel.value === 'PLAYER_DM') channel.value = 'PUBLIC'
-})
-
-onMounted(() => {
-  clockTimer = setInterval(() => {
-    now.value = Date.now()
-  }, 1000)
-  window.addEventListener('keydown', onKeydown)
-  void scrollChat()
-})
-
-onBeforeUnmount(() => {
-  if (clockTimer) clearInterval(clockTimer)
-  window.removeEventListener('keydown', onKeydown)
-})
 </script>
 
 <template>
@@ -552,6 +178,12 @@ onBeforeUnmount(() => {
               <div class="match-window__player-main">
                 <b>{{ playerName(match.player1UserId, match.player1Nickname) }}</b>
                 <span v-if="hasReady(match.player1UserId)" class="match-window__ready">已就绪</span>
+                <BlindLossRow
+                  v-if="isBlind"
+                  :color="player1BlindColor"
+                  :groups="player1BlindColor ? lostByColor[player1BlindColor] : []"
+                  align="left"
+                />
               </div>
               <strong>{{ match.player1Score }}</strong>
             </div>
@@ -573,6 +205,12 @@ onBeforeUnmount(() => {
               <div class="match-window__player-main">
                 <b>{{ playerName(match.player2UserId, match.player2Nickname) }}</b>
                 <span v-if="hasReady(match.player2UserId)" class="match-window__ready">已就绪</span>
+                <BlindLossRow
+                  v-if="isBlind"
+                  :color="player2BlindColor"
+                  :groups="player2BlindColor ? lostByColor[player2BlindColor] : []"
+                  align="right"
+                />
               </div>
               <span class="match-window__chip" :class="chipClass(match.player2UserId)">
                 {{ colorFor(match.player2UserId) || '·' }}
@@ -801,65 +439,22 @@ onBeforeUnmount(() => {
           </p>
         </section>
 
-        <aside v-if="!isDuel" class="match-window__chat">
-          <header class="match-window__chat-head">
-            <div class="match-window__tabs">
-              <button
-                type="button"
-                :class="{ 'is-active': channel === 'PUBLIC' }"
-                @click="channel = 'PUBLIC'"
-              >
-                公开频道
-              </button>
-              <button
-                v-if="privateTabVisible"
-                type="button"
-                :class="{ 'is-active': channel === 'PLAYER_DM' }"
-                @click="channel = 'PLAYER_DM'"
-              >
-                双方私聊
-              </button>
-            </div>
-            <span class="match-window__chat-hint">{{ chatHint }}</span>
-          </header>
-
-          <div ref="chatBody" class="match-window__messages">
-            <div v-if="chatLoading" class="match-window__chat-empty">正在同步聊天记录…</div>
-            <div v-else-if="chatMessages.length === 0" class="match-window__chat-empty">
-              {{ channel === 'PLAYER_DM' ? '还没有私聊消息，先和对方打个招呼吧' : '暂时没有消息' }}
-            </div>
-            <div
-              v-for="message in chatMessages"
-              :key="message.id"
-              class="match-window__message"
-              :class="{ 'is-self': message.fromUserId === selfId }"
-            >
-              <div class="match-window__message-meta">
-                <b>{{ message.fromNickname }}</b>
-                <span>{{ formatClock(message.createdAt) }}</span>
-              </div>
-              <p>{{ message.content }}</p>
-            </div>
-            <p v-if="chatError" class="match-window__chat-error">{{ chatError }}</p>
-          </div>
-
-          <form class="match-window__composer" @submit.prevent="sendChat">
-            <input
-              v-model="chatInput"
-              type="text"
-              :placeholder="chatPlaceholder"
-              :disabled="chatClosed || store.chatSending"
-              maxlength="1000"
-            />
-            <button
-              type="submit"
-              class="match-window__send"
-              :disabled="chatClosed || store.chatSending || !chatInput.trim()"
-            >
-              发送
-            </button>
-          </form>
-        </aside>
+        <MatchChatPanel
+          v-if="!isDuel"
+          ref="chatPanel"
+          :channel="channel"
+          :messages="chatMessages"
+          :loading="chatLoading"
+          :error="chatError"
+          :closed="chatClosed"
+          :sending="store.chatSending"
+          :hint="chatHint"
+          :placeholder="chatPlaceholder"
+          :private-tab-visible="privateTabVisible"
+          :self-id="selfId"
+          @update:channel="channel = $event"
+          @send="submitChat"
+        />
       </div>
     </div>
 
@@ -919,902 +514,5 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
-.match-window {
-  position: fixed;
-  inset: 0;
-  /* 高于演练调度台（1200），保证从调度台进入对局时调度台保留在下一层。 */
-  z-index: 1300;
-  display: grid;
-  place-items: center;
-  padding: 22px;
-  background: rgba(3, 5, 8, 0.74);
-  backdrop-filter: blur(5px);
-}
-
-.match-window__panel {
-  display: flex;
-  flex-direction: column;
-  width: min(1220px, 100%);
-  /* 固定窗口高度：聊天消息在内部滚动，不再把窗口越撑越长 */
-  height: min(760px, 92vh);
-  max-height: 94vh;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 18%, var(--fm-border));
-  border-radius: 4px;
-  background: var(--fm-panel);
-  box-shadow: var(--fm-shadow);
-}
-
-/* 约战没有聊天区，保持内容自适应高度 */
-.match-window__panel.is-duel {
-  height: auto;
-}
-
-.match-window__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--fm-border);
-  background: color-mix(in srgb, var(--fm-bg) 35%, transparent);
-}
-
-.match-window__title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.match-window__mark {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
-  border-radius: 3px;
-  background: var(--fm-panel-2);
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.match-window__eyebrow {
-  overflow: hidden;
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 7.5px;
-  letter-spacing: 0.1em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.match-window__title h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 1px 0 0;
-  color: var(--fm-text);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.match-window__format {
-  padding: 1px 6px;
-  border: 1px solid var(--fm-border);
-  border-radius: 9px;
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 8px;
-}
-
-.match-window__head-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.match-window__mode {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  color: var(--fm-text-dim);
-  font-size: 9.5px;
-}
-
-.match-window__dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--fm-text-muted);
-}
-
-.match-window__dot.is-live {
-  background: var(--fm-ok);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fm-ok) 16%, transparent);
-}
-
-.match-window__close {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-dim);
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.match-window__close:hover {
-  border-color: var(--fm-err);
-  color: var(--fm-err);
-}
-
-.match-window__loading,
-.match-window__error {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 320px;
-  color: var(--fm-text-muted);
-  font-size: 11px;
-}
-
-.match-window__error {
-  color: var(--fm-err);
-}
-
-.match-window__error button {
-  padding: 4px 10px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text);
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.match-window__body {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.match-window__body.is-duel {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.match-window__game {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  padding: 10px 16px 14px;
-  overflow-y: auto;
-}
-
-.match-window__scoreboard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.match-window__player {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 5px 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--fm-bg) 45%, transparent);
-}
-
-.match-window__player--right {
-  justify-content: flex-end;
-  text-align: right;
-}
-
-.match-window__player.is-turn {
-  border-color: color-mix(in srgb, var(--fm-accent) 34%, var(--fm-border));
-  background: color-mix(in srgb, var(--fm-accent) 5%, transparent);
-}
-
-.match-window__player.is-winner {
-  border-color: color-mix(in srgb, var(--fm-ok) 36%, var(--fm-border));
-}
-
-.match-window__player.is-self {
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--fm-accent) 40%, transparent);
-}
-
-.match-window__chip {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 21px;
-  height: 21px;
-  border: 1px solid var(--fm-border);
-  border-radius: 50%;
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 8px;
-}
-
-.match-window__chip.is-black {
-  border-color: color-mix(in srgb, #6f9fec 45%, var(--fm-border));
-  background: color-mix(in srgb, #6f9fec 12%, transparent);
-  color: #9dbcf2;
-}
-
-.match-window__chip.is-white {
-  border-color: color-mix(in srgb, #48bfae 45%, var(--fm-border));
-  background: color-mix(in srgb, #48bfae 12%, transparent);
-  color: #7ad5c8;
-}
-
-.match-window__chip.is-red {
-  border-color: color-mix(in srgb, #e06666 55%, var(--fm-border));
-  background: color-mix(in srgb, #e06666 12%, transparent);
-  color: #f08a8a;
-}
-
-.match-window__chip.is-black-side {
-  border-color: color-mix(in srgb, #d0d6e0 45%, var(--fm-border));
-  background: color-mix(in srgb, #d0d6e0 10%, transparent);
-  color: #d0d6e0;
-}
-
-.match-window__player-main {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.match-window__player-main b {
-  overflow: hidden;
-  color: var(--fm-text);
-  font-size: 10px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.match-window__player-main span {
-  color: var(--fm-text-muted);
-  font-size: 8px;
-}
-
-.match-window__player strong {
-  flex: none;
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.match-window__vs {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
-
-.match-window__vs em {
-  color: var(--fm-warn);
-  font-size: 11px;
-  font-style: normal;
-  letter-spacing: 0;
-}
-
-.match-window__draw {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 6px 8px;
-  border: 1px solid color-mix(in srgb, var(--fm-warn) 38%, var(--fm-border));
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--fm-warn) 6%, transparent);
-}
-
-.match-window__draw-info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.match-window__draw-info span {
-  color: var(--fm-warn);
-  font-size: 9.5px;
-  font-weight: 600;
-}
-
-.match-window__draw-info em {
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 8px;
-  font-style: normal;
-}
-
-.match-window__draw-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.match-window__draw-options button {
-  padding: 3px 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-muted);
-  font-size: 9px;
-  cursor: pointer;
-}
-
-.match-window__draw-options button:hover {
-  border-color: color-mix(in srgb, var(--fm-warn) 48%, transparent);
-  color: var(--fm-text-dim);
-}
-
-.match-window__draw-options button.is-active {
-  border-color: var(--fm-warn);
-  background: color-mix(in srgb, var(--fm-warn) 14%, transparent);
-  color: var(--fm-warn);
-}
-
-.match-window__statusbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 27px;
-  padding: 4px 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--fm-bg) 30%, transparent);
-}
-
-.match-window__hint {
-  flex: 1;
-  color: var(--fm-text-dim);
-  font-size: 9px;
-}
-
-.match-window__hint b {
-  color: var(--fm-ok);
-}
-
-.match-window__clock {
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 12px;
-}
-
-.match-window__clock.is-danger {
-  color: var(--fm-err);
-  animation: match-clock 1s ease-in-out infinite;
-}
-
-@keyframes match-clock {
-  50% {
-    opacity: 0.45;
-  }
-}
-
-.match-window__primary,
-.match-window__ghost,
-.match-window__send {
-  flex: none;
-  padding: 4px 10px;
-  border: 1px solid var(--fm-accent);
-  border-radius: var(--fm-radius);
-  background: color-mix(in srgb, var(--fm-accent) 12%, transparent);
-  color: var(--fm-accent);
-  font-size: 9.5px;
-  cursor: pointer;
-}
-
-.match-window__primary:hover:not(:disabled),
-.match-window__send:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--fm-accent) 22%, transparent);
-}
-
-.match-window__ghost {
-  border-color: var(--fm-border);
-  background: transparent;
-  color: var(--fm-text-muted);
-}
-
-.match-window__ghost:hover:not(:disabled) {
-  border-color: var(--fm-err);
-  color: var(--fm-err);
-}
-
-.match-window__primary:disabled,
-.match-window__ghost:disabled,
-.match-window__send:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.match-window__finished {
-  color: var(--fm-ok);
-  font-family: var(--fm-mono);
-  font-size: 8px;
-  letter-spacing: 0.1em;
-}
-
-.match-window__result {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border: 1px solid color-mix(in srgb, var(--fm-ok) 40%, transparent);
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--fm-ok) 6%, transparent);
-}
-
-.match-window__result-title {
-  color: var(--fm-ok);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.match-window__result-score {
-  color: var(--fm-text);
-  font-family: var(--fm-mono);
-  font-size: 11px;
-}
-
-.match-window__result-note {
-  margin-left: auto;
-  color: var(--fm-text-muted);
-  font-size: 8.5px;
-}
-
-.match-window__arena-loading {
-  display: grid;
-  place-items: center;
-  min-height: 180px;
-  border: 1px dashed var(--fm-border);
-  border-radius: 3px;
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-}
-
-.match-window__spectator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border: 1px dashed color-mix(in srgb, var(--fm-accent) 32%, transparent);
-  border-radius: 3px;
-  color: var(--fm-accent);
-  font-size: 9px;
-}
-
-.match-window__duel-note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px dashed color-mix(in srgb, var(--fm-warn) 34%, transparent);
-  border-radius: 3px;
-  color: var(--fm-warn);
-  font-size: 8.5px;
-}
-
-.match-window__blind-action {
-  margin: 0;
-  padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 24%, var(--fm-border));
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--fm-accent) 4%, transparent);
-  color: var(--fm-text-dim);
-  font-size: 9px;
-}
-
-.match-window__footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 8px;
-}
-
-.match-window__footer span + span::before {
-  margin-right: 10px;
-  color: var(--fm-border);
-  content: '·';
-}
-
-.match-window__expand {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 2px 6px;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--fm-text-muted);
-  font-family: inherit;
-  font-size: 8px;
-  cursor: pointer;
-}
-
-.match-window__expand:hover {
-  border-color: color-mix(in srgb, var(--fm-accent) 32%, var(--fm-border));
-  color: var(--fm-accent);
-}
-
-.match-window__action-error {
-  margin: 0;
-  padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--fm-err) 35%, transparent);
-  border-radius: 3px;
-  color: var(--fm-err);
-  font-size: 9.5px;
-}
-
-.match-window__chat {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  border-left: 1px solid var(--fm-border);
-  background: color-mix(in srgb, var(--fm-bg) 32%, transparent);
-}
-
-.match-window__chat-head {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--fm-border);
-}
-
-.match-window__tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.match-window__tabs button {
-  padding: 4px 9px;
-  border: 1px solid transparent;
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-  cursor: pointer;
-}
-
-.match-window__tabs button.is-active {
-  border-color: color-mix(in srgb, var(--fm-accent) 30%, var(--fm-border));
-  background: color-mix(in srgb, var(--fm-accent) 7%, transparent);
-  color: var(--fm-accent);
-}
-
-.match-window__chat-hint {
-  color: var(--fm-text-muted);
-  font-size: 8px;
-}
-
-.match-window__messages {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  padding: 10px 12px;
-  overflow-y: auto;
-}
-
-.match-window__chat-empty {
-  padding: 22px 6px;
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-  text-align: center;
-}
-
-.match-window__message {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-width: 94%;
-}
-
-.match-window__message.is-self {
-  align-self: flex-end;
-}
-
-.match-window__message-meta {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--fm-text-muted);
-  font-size: 8px;
-}
-
-.match-window__message-meta b {
-  color: var(--fm-text-dim);
-  font-weight: 500;
-}
-
-.match-window__message p {
-  margin: 0;
-  padding: 5px 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: 3px;
-  background: var(--fm-panel);
-  color: var(--fm-text-dim);
-  font-size: 10px;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.match-window__message.is-self p {
-  border-color: color-mix(in srgb, var(--fm-accent) 30%, transparent);
-  background: color-mix(in srgb, var(--fm-accent) 7%, transparent);
-  color: var(--fm-text);
-}
-
-.match-window__chat-error {
-  margin: 0;
-  color: var(--fm-err);
-  font-size: 9px;
-}
-
-.match-window__composer {
-  display: flex;
-  gap: 7px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--fm-border);
-}
-
-.match-window__composer input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-bg);
-  color: var(--fm-text);
-  font-size: 10px;
-  outline: none;
-}
-
-.match-window__composer input:focus {
-  border-color: var(--fm-accent);
-}
-
-.match-window__send {
-  height: 28px;
-}
-
-.board-window {
-  position: fixed;
-  inset: 0;
-  z-index: 1400;
-  background: rgba(3, 5, 8, 0.82);
-  backdrop-filter: blur(5px);
-}
-
-.board-window__panel {
-  --board-window-inset: clamp(10px, 3vw, 36px);
-
-  position: absolute;
-  top: var(--board-window-inset);
-  left: var(--board-window-inset);
-  display: flex;
-  flex-direction: column;
-  width: min(
-    1180px,
-    calc(100vw - var(--board-window-inset) - var(--board-window-inset))
-  );
-  height: min(
-    900px,
-    calc(100vh - var(--board-window-inset) - var(--board-window-inset))
-  );
-  min-width: 380px;
-  min-height: 320px;
-  max-width: calc(100vw - var(--board-window-inset) - var(--board-window-inset));
-  max-height: calc(100vh - var(--board-window-inset) - var(--board-window-inset));
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 24%, var(--fm-border));
-  border-radius: 4px;
-  background: var(--fm-panel);
-  box-shadow: var(--fm-shadow);
-  resize: both;
-}
-
-.board-window__head {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--fm-border);
-  background: color-mix(in srgb, var(--fm-bg) 38%, transparent);
-}
-
-.board-window__title {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-
-.board-window__mark {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 42px;
-  height: 24px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 38%, var(--fm-border));
-  border-radius: 3px;
-  background: var(--fm-panel-2);
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 9px;
-  font-weight: 600;
-}
-
-.board-window__eyebrow {
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 7.5px;
-  letter-spacing: 0.1em;
-}
-
-.board-window__title b {
-  display: block;
-  overflow: hidden;
-  margin-top: 1px;
-  color: var(--fm-text);
-  font-size: 10.5px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.board-window__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.board-window__status {
-  color: var(--fm-text-dim);
-  font-family: var(--fm-mono);
-  font-size: 8px;
-  white-space: nowrap;
-}
-
-.board-window__hint {
-  color: var(--fm-text-muted);
-  font-size: 8px;
-  white-space: nowrap;
-}
-
-.board-window__close {
-  width: 27px;
-  height: 27px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-dim);
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.board-window__close:hover {
-  border-color: var(--fm-err);
-  color: var(--fm-err);
-}
-
-.board-window__stage {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  padding: 6px 10px 10px;
-}
-
-.board-window__stage :deep(.gomoku) {
-  flex: 1;
-  min-height: 0;
-}
-
-@media (max-width: 980px) {
-  .match-window {
-    padding: 10px;
-  }
-
-  .match-window__body {
-    grid-template-columns: 1fr;
-    overflow-y: auto;
-  }
-
-  .match-window__game {
-    overflow: visible;
-  }
-
-  .match-window__chat {
-    min-height: 300px;
-    border-top: 1px solid var(--fm-border);
-    border-left: 0;
-  }
-
-  .match-window__messages {
-    min-height: 160px;
-  }
-}
-
-@media (max-width: 620px) {
-  .match-window__scoreboard {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .match-window__vs {
-    display: none;
-  }
-
-  .match-window__head {
-    align-items: flex-start;
-  }
-
-  .match-window__mode {
-    display: none;
-  }
-}
-
-@media (max-width: 720px) {
-  .board-window__panel {
-    --board-window-inset: 8px;
-
-    width: calc(100vw - var(--board-window-inset) - var(--board-window-inset));
-    height: calc(100vh - var(--board-window-inset) - var(--board-window-inset));
-    min-width: 0;
-    min-height: 0;
-    max-width: calc(100vw - var(--board-window-inset) - var(--board-window-inset));
-    max-height: calc(100vh - var(--board-window-inset) - var(--board-window-inset));
-    resize: none;
-  }
-
-  .board-window__head {
-    padding: 6px 8px;
-  }
-
-  .board-window__hint {
-    display: none;
-  }
-
-  .board-window__stage {
-    padding: 4px 6px 6px;
-  }
-}
-</style>
+<style scoped src="./match-window.css"></style>
+<style scoped src="./match-window-chat.css"></style>

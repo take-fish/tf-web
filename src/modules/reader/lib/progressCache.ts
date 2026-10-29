@@ -1,4 +1,4 @@
-import type { ReadingProgress } from '../types'
+import type { ReadingProgress } from '@/types/reader'
 
 export const PROGRESS_STORAGE_PREFIX = 'fm.reader.progress.v1.'
 

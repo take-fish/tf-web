@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import BlindXiangqiBoard from '../components/BlindXiangqiBoard.vue'
-import type { BlindPieceView } from '../types'
+import type { BlindPieceView } from '@/types/games'
 
 function mountBoard(pieces: BlindPieceView[]) {
   return mount(BlindXiangqiBoard, {

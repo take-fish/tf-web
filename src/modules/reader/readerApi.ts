@@ -24,7 +24,7 @@ import type {
   ShelfDetail,
   ShareLink,
   UserStats,
-} from './types'
+} from '@/types/reader'
 
 function query(params: Record<string, string | number | null | undefined>): string {
   const search = new URLSearchParams()

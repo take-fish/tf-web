@@ -10,7 +10,7 @@ import {
   pieceLabel,
 } from '../lib/blindXiangqi'
 import type { BlindCell } from '../lib/blindXiangqi'
-import type { BlindPieceColor, BlindPieceView, GameMove } from '../types'
+import type { BlindPieceColor, BlindPieceView, GameMove } from '@/types/games'
 
 const props = withDefaults(
   defineProps<{

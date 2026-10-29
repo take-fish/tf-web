@@ -4,10 +4,16 @@ import {
   canMove,
   colorOfPlayer,
   legalTargets,
+  lostPiecesByColor,
   pieceAt,
   pieceGlyph,
 } from '../lib/blindXiangqi'
-import type { BlindPieceColor, BlindPieceType, BlindPieceView } from '../types'
+import type {
+  BlindPieceColor,
+  BlindPieceType,
+  BlindPieceView,
+  GameMove,
+} from '@/types/games'
 
 function revealed(
   x: number,
@@ -99,6 +105,39 @@ describe('盲棋前端规则提示', () => {
     expect(
       canMove([revealed(4, 4, 'RED', 'SOLDIER')], 'RED', 4, 4, 4, 5),
     ).toBe(false)
+  })
+
+  it('按颜色统计已损失棋子并合并重复兵种', () => {
+    const moves: GameMove[] = [
+      {
+        moveNo: 1, userId: 'u1', x: 0, y: 0,
+        capturedPieceType: 'CHARIOT', capturedPieceColor: 'RED',
+      },
+      {
+        moveNo: 2, userId: 'u1', x: 0, y: 0,
+        capturedPieceType: 'SOLDIER', capturedPieceColor: 'RED',
+      },
+      {
+        moveNo: 3, userId: 'u2', x: 0, y: 0,
+        capturedPieceType: 'CANNON', capturedPieceColor: 'BLACK',
+      },
+      {
+        moveNo: 4, userId: 'u2', x: 0, y: 0,
+        capturedPieceType: 'SOLDIER', capturedPieceColor: 'RED',
+      },
+      {
+        moveNo: 5, userId: 'u2', x: 0, y: 0,
+        capturedPieceType: null, capturedPieceColor: null,
+      },
+    ]
+
+    const lost = lostPiecesByColor(moves)
+
+    expect(lost.RED).toEqual([
+      { pieceType: 'CHARIOT', count: 1 },
+      { pieceType: 'SOLDIER', count: 2 },
+    ])
+    expect(lost.BLACK).toEqual([{ pieceType: 'CANNON', count: 1 }])
   })
 
   it('棋子字符、坐标查找与红黑归属', () => {

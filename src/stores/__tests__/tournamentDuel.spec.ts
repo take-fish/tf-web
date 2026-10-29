@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { writeAuth } from '@/lib/authToken'
-import type { AuthUser } from '@/modules/auth/types'
+import type { AuthUser } from '@/types/auth'
 import type {
   GameArenaStateEvent,
   GameBlindActionEvent,
@@ -10,7 +10,7 @@ import type {
   GameRound,
   GameTournament,
   HeatmapState,
-} from '@/modules/games/types'
+} from '@/types/games'
 import { useTournamentStore } from '@/stores/tournament'
 
 const { socketState, MockGameSocketClient } = vi.hoisted(() => {

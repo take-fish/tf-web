@@ -8,10 +8,17 @@ import BreakoutCanvas from '@/modules/games/components/BreakoutCanvas.vue'
 import ExerciseLobby from '@/modules/games/components/ExerciseLobby.vue'
 import GamePanel from '@/modules/games/components/GamePanel.vue'
 import LeaderboardPanel from '@/modules/games/components/LeaderboardPanel.vue'
+import MatchRecordsPanel from '@/modules/games/components/MatchRecordsPanel.vue'
 import MatchWindow from '@/modules/games/components/MatchWindow.vue'
 import MetricChart from '@/modules/games/components/MetricChart.vue'
 import TournamentBracket from '@/modules/games/components/TournamentBracket.vue'
-import { fetchOverallLeaderboard, submitScore } from '@/modules/games/gameApi'
+import {
+  fetchAdminLeaderboard,
+  fetchAdminMatchRecords,
+  fetchMatchRecords,
+  fetchOverallLeaderboard,
+  submitScore,
+} from '@/modules/games/gameApi'
 import { GAMES } from '@/modules/games/gameRegistry'
 import { ARENA_SCRIPTS } from '@/modules/games/lib/arenaScripts'
 import {
@@ -28,7 +35,7 @@ import {
   topologyOption,
 } from '@/modules/games/lib/chartOptions'
 import type { EChartsCoreOption } from 'echarts/core'
-import type { ArenaGameId, LeaderboardEntry } from '@/modules/games/types'
+import type { ArenaGameId, LeaderboardEntry, MatchRecordPreview } from '@/types/games'
 import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSkinStore } from '@/stores/skin'
@@ -54,7 +61,13 @@ const notice = ref('')
 const leaderboard = ref<LeaderboardEntry[]>([])
 const leaderboardLoading = ref(false)
 const leaderboardError = ref('')
+const records = ref<MatchRecordPreview[]>([])
+const recordsLoading = ref(false)
+const recordsError = ref('')
 const selectedTournamentId = ref('')
+/** 管理员是特殊玩家：同一套页面，权限码命中才多出对应管理入口。 */
+const canManageLeaderboard = computed(() => auth.hasPermission('game.leaderboard.manage'))
+const canManageRecords = computed(() => auth.hasPermission('game.record.manage'))
 
 const playableCount = computed(() => GAMES.filter((game) => game.playable).length)
 const pendingCount = computed(() => GAMES.length - playableCount.value)
@@ -143,12 +156,33 @@ async function loadLeaderboard() {
   leaderboardError.value = ''
   try {
     // 冠军榜只由赛事冠亚军结算，采样小游戏不再写入总积分。
-    leaderboard.value = await fetchOverallLeaderboard(10)
+    // 管理员读管理台榜单，才能看到被下架的行与展示权重。
+    leaderboard.value = canManageLeaderboard.value
+      ? await fetchAdminLeaderboard('', 20)
+      : await fetchOverallLeaderboard(10)
   } catch (error) {
     leaderboardError.value = formatApiError(error, '排行服务暂不可用')
   } finally {
     leaderboardLoading.value = false
   }
+}
+
+async function loadRecords() {
+  recordsLoading.value = true
+  recordsError.value = ''
+  try {
+    records.value = canManageRecords.value
+      ? await fetchAdminMatchRecords(12)
+      : await fetchMatchRecords(8)
+  } catch (error) {
+    recordsError.value = formatApiError(error, '赛事记录暂不可用')
+  } finally {
+    recordsLoading.value = false
+  }
+}
+
+function onRecordsUpdated(next: MatchRecordPreview[]) {
+  records.value = next
 }
 
 async function onGameFinish(score: number) {
@@ -267,6 +301,7 @@ onMounted(() => {
   refreshCharts()
   refreshTimer = setInterval(refreshCharts, 2000)
   void loadLeaderboard()
+  void loadRecords()
   void tournamentStore.refreshLobby()
 })
 
@@ -461,12 +496,37 @@ onBeforeUnmount(() => {
       </template>
     </section>
 
+    <section class="games__tourneys games__records">
+      <header class="games__tourneys-head">
+        <div class="games__tourneys-title">
+          <span class="games__tourneys-mark">R</span>
+          <div>
+            <b>赛事记录</b>
+            <span>RECORDS / 只展示对阵与比分预览</span>
+          </div>
+        </div>
+        <div class="games__tourneys-actions">
+          <span class="games__tourneys-count">{{ records.length }} 条</span>
+          <button type="button" class="games__refresh" @click="loadRecords">刷新记录</button>
+        </div>
+      </header>
+      <MatchRecordsPanel
+        :records="records"
+        :loading="recordsLoading"
+        :error="recordsError"
+        :admin="canManageRecords"
+        @updated="onRecordsUpdated"
+      />
+    </section>
+
     <div class="games__bottom">
       <section class="games__bottom-panel">
         <LeaderboardPanel
           :entries="leaderboard"
           :loading="leaderboardLoading"
           :error="leaderboardError"
+          :admin="canManageLeaderboard"
+          @saved="loadLeaderboard"
         />
       </section>
       <section class="games__bottom-panel games__tasks">
@@ -508,589 +568,4 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
-.games {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  max-width: 1500px;
-  margin: 0 auto;
-  padding: 16px 18px 22px;
-}
-
-.games__head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.games__title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.games__logo {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 36%, var(--fm-border));
-  border-radius: 3px;
-  background: var(--fm-panel-2);
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.games__eyebrow {
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.09em;
-}
-
-.games__title h1 {
-  margin-top: 2px;
-  color: var(--fm-text);
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.games__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.games__pill {
-  padding: 4px 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel);
-  color: var(--fm-text-dim);
-  font-size: 9.5px;
-}
-
-.games__updated {
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 9px;
-}
-
-.games__refresh {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 25px;
-  padding: 0 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel);
-  color: var(--fm-text-dim);
-  font-size: 9.5px;
-  cursor: pointer;
-}
-
-.games__refresh:hover {
-  border-color: var(--fm-accent);
-  color: var(--fm-text);
-}
-
-.games__connect {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 25px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 55%, transparent);
-  border-radius: var(--fm-radius);
-  background: color-mix(in srgb, var(--fm-accent) 12%, transparent);
-  color: var(--fm-accent);
-  font-size: 9.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.games__connect:hover {
-  background: color-mix(in srgb, var(--fm-accent) 22%, transparent);
-}
-
-.games__connect em {
-  min-width: 15px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--fm-err);
-  color: #fff;
-  font-size: 8px;
-  font-style: normal;
-  line-height: 14px;
-  text-align: center;
-}
-
-.games__pill--live {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.games__live-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--fm-text-muted);
-}
-
-.games__live-dot.is-online {
-  background: var(--fm-ok);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fm-ok) 16%, transparent);
-}
-
-.games__my-match {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 26%, var(--fm-border));
-  border-radius: 3px;
-  background: var(--fm-panel);
-}
-
-.games__my-match-icon {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 24px;
-  height: 24px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 36%, var(--fm-border));
-  border-radius: 3px;
-  background: var(--fm-panel-2);
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.games__my-match > div {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.games__my-match b {
-  color: var(--fm-text);
-  font-size: 11px;
-}
-
-.games__my-match span {
-  overflow: hidden;
-  color: var(--fm-text-muted);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.games__tourneys {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--fm-border);
-  border-radius: 3px;
-  background: var(--fm-panel);
-}
-
-.games__tourneys-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.games__tourneys-title {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.games__tourneys-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 32%, var(--fm-border));
-  border-radius: 3px;
-  background: var(--fm-panel-2);
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.games__tourneys-title > div {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.games__tourneys-title b {
-  color: var(--fm-text);
-  font-size: 12px;
-}
-
-.games__tourneys-title span {
-  color: var(--fm-text-muted);
-  font-size: 8.5px;
-}
-
-.games__tourneys-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.games__tourneys-count {
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 8.5px;
-}
-
-.games__tourneys-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 14px 12px;
-  border: 1px dashed var(--fm-border);
-  border-radius: 3px;
-  color: var(--fm-text-muted);
-  font-size: 10px;
-}
-
-.games__tourneys-empty p {
-  margin: 0;
-  line-height: 1.6;
-}
-
-.games__tournaments-tabs,
-.games__tournament-tabs {
-  display: flex;
-  gap: 6px;
-  padding-bottom: 2px;
-  overflow-x: auto;
-}
-
-.games__tournament-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex: none;
-  height: 27px;
-  padding: 0 10px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-  cursor: pointer;
-}
-
-.games__tournament-tab:hover {
-  border-color: color-mix(in srgb, var(--fm-accent) 45%, transparent);
-  color: var(--fm-text-dim);
-}
-
-.games__tournament-tab.is-active {
-  border-color: var(--fm-accent);
-  background: color-mix(in srgb, var(--fm-accent) 12%, transparent);
-  color: var(--fm-text);
-}
-
-.games__tournament-name {
-  font-weight: 600;
-}
-
-.games__tournament-type {
-  padding: 0 4px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 32%, transparent);
-  border-radius: 2px;
-  color: color-mix(in srgb, var(--fm-accent) 78%, var(--fm-text-muted));
-  font-family: var(--fm-mono);
-  font-size: 7.5px;
-  white-space: nowrap;
-}
-
-.games__tournament-type.is-series {
-  border-color: color-mix(in srgb, var(--fm-ok) 32%, transparent);
-  color: color-mix(in srgb, var(--fm-ok) 82%, var(--fm-text-muted));
-}
-
-.games__tournament-tab em {
-  padding: 0 4px;
-  border-radius: 2px;
-  background: var(--fm-panel-2, rgba(255, 255, 255, 0.06));
-  color: var(--fm-text-muted);
-  font-size: 8px;
-  font-style: normal;
-}
-
-.games__scripts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 8px;
-}
-
-.games__script {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border: 1px solid var(--fm-border);
-  border-radius: 3px;
-  background: var(--fm-panel);
-  color: var(--fm-text-muted);
-  text-align: left;
-  cursor: pointer;
-}
-
-.games__script:hover {
-  border-color: color-mix(in srgb, var(--fm-accent) 48%, transparent);
-}
-
-.games__script.is-active {
-  border-color: var(--fm-accent);
-  background: color-mix(in srgb, var(--fm-accent) 9%, transparent);
-}
-
-.games__script-tag {
-  flex: none;
-  padding: 2px 5px;
-  border: 1px solid color-mix(in srgb, var(--fm-accent) 30%, transparent);
-  border-radius: 2px;
-  color: color-mix(in srgb, var(--fm-accent) 76%, var(--fm-text-muted));
-  font-family: var(--fm-mono);
-  font-size: 7px;
-  letter-spacing: 0.08em;
-}
-
-.games__script-main {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.games__script-main b {
-  color: var(--fm-text);
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.games__script-main em {
-  overflow: hidden;
-  color: var(--fm-text-muted);
-  font-size: 8px;
-  font-style: normal;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.games__script-duration {
-  flex: none;
-  color: var(--fm-text-dim);
-  font-family: var(--fm-mono);
-  font-size: 8px;
-}
-
-.games__grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.games__cell {
-  min-width: 0;
-}
-
-.games__bottom {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  gap: 10px;
-}
-
-.games__bottom-panel {
-  min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--fm-border);
-  border-radius: 3px;
-  background: var(--fm-panel);
-}
-
-.games__tasks-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.games__tasks-head span {
-  color: var(--fm-text);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.games__tasks-head em {
-  color: var(--fm-text-muted);
-  font-size: 9px;
-  font-style: normal;
-}
-
-.games__task-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.games__task {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 2px;
-  border-bottom: 1px solid var(--fm-border);
-  font-size: 10px;
-}
-
-.games__task:last-child {
-  border-bottom: 0;
-}
-
-.games__task-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--fm-text-muted);
-}
-
-.games__task-dot.is-playable {
-  background: var(--fm-ok);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fm-ok) 15%, transparent);
-}
-
-.games__task-name {
-  width: 84px;
-  color: var(--fm-text);
-}
-
-.games__task-metric {
-  flex: 1;
-  overflow: hidden;
-  color: var(--fm-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.games__task-state {
-  color: var(--fm-text-dim);
-  font-family: var(--fm-mono);
-  font-size: 8.5px;
-}
-
-.games__stage {
-  position: fixed;
-  inset: 0;
-  z-index: 700;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(3px);
-}
-
-.games__stage-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: min(1080px, 100%);
-  max-height: 92vh;
-  padding: 14px 16px 16px;
-  overflow-y: auto;
-  border: 1px solid var(--fm-border);
-  border-radius: 5px;
-  background: var(--fm-panel);
-  box-shadow: var(--fm-shadow);
-}
-
-.games__stage-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.games__stage-head b {
-  display: block;
-  margin-top: 2px;
-  color: var(--fm-text);
-  font-size: 14px;
-}
-
-.games__close {
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-dim);
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.games__close:hover {
-  border-color: var(--fm-err);
-  color: var(--fm-err);
-}
-
-.games__notice {
-  position: fixed;
-  right: 20px;
-  bottom: 44px;
-  z-index: 800;
-  padding: 8px 12px;
-  border: 1px solid var(--fm-accent);
-  border-radius: 4px;
-  background: var(--fm-panel);
-  color: var(--fm-accent);
-  font-size: 10.5px;
-  box-shadow: var(--fm-shadow);
-}
-
-@media (max-width: 1100px) {
-  .games__cell {
-    grid-column: span 6 !important;
-  }
-
-  .games__bottom {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 760px) {
-  .games__cell {
-    grid-column: span 12 !important;
-  }
-
-  .games__head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-</style>
+<style scoped src="./game-view.css"></style>

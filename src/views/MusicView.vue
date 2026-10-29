@@ -1,56 +1,28 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
-import { formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
-import { useSkinStore } from '@/stores/skin'
 import {
-  addTrackToPlaylist,
-  approveAccessRequest,
-  cancelAccessRequest,
   createCategory,
-  createPlaylist,
   deleteTrack,
   fetchCategories,
-  fetchMyAccessRequests,
   fetchMyTracks,
-  fetchPlaylist,
-  fetchPlaylists,
-  fetchReceivedAccessRequests,
   fetchSharedTracks,
   fetchTracks,
   importTrack,
-  previewSharedTrack,
-  recordPlayback,
-  rejectAccessRequest,
-  requestAccess,
-  revokeAccessRequest,
   shareTrack,
   updateTrack,
 } from '@/modules/music/musicApi'
-import { usePlayerStore } from '@/modules/music/playerStore'
-import type {
-  AccessRequest,
-  Category,
-  ContentStatus,
-  Playlist,
-  PlaylistDetail,
-  Track,
-} from '@/modules/music/types'
-
-interface PlayLogLine {
-  key: number
-  time: string
-  level: 'INFO' | 'WARN' | 'ERROR' | 'OK'
-  text: string
-}
+import type { Category, ContentStatus, Track } from '@/types/music'
+import { errorText } from './music/music-helpers'
+import MusicRequestsDialog from './music/MusicRequestsDialog.vue'
+import { useMusicAccess } from './music/useMusicAccess'
+import { useMusicConsole } from './music/useMusicConsole'
 
 const auth = useAuthStore()
 const settings = useSettingsStore()
-const skinStore = useSkinStore()
-const player = usePlayerStore()
 
 const mode = ref<'public' | 'private' | 'shared'>('public')
 const tracks = ref<Track[]>([])
@@ -59,18 +31,6 @@ const categoryFilter = ref<number | null>(null)
 const searchQuery = ref('')
 const loading = ref(false)
 const error = ref('')
-const notice = ref('')
-
-const playlists = ref<Playlist[]>([])
-const activePlaylist = ref<PlaylistDetail | null>(null)
-const playlistDraft = ref('')
-
-const shareTokenInput = ref('')
-const sharePreview = ref<Track | null>(null)
-const sharePreviewToken = ref('')
-const applying = ref(false)
-const applyMessage = ref('')
-const applyError = ref('')
 
 const shareOpen = ref(false)
 const shareToken = ref('')
@@ -95,18 +55,39 @@ const editStatus = ref<ContentStatus>('VISIBLE')
 const editError = ref('')
 const savingEdit = ref(false)
 
-const playlistPickerOpen = ref(false)
-const requestsOpen = ref(false)
-const receivedRequests = ref<AccessRequest[]>([])
-const myRequests = ref<AccessRequest[]>([])
-
-const logs = ref<PlayLogLine[]>([])
-const consoleEl = ref<HTMLDivElement | null>(null)
 const categoryDraft = ref('')
 const categoryEditorOpen = ref(false)
+const currentEditId = ref<number | null>(null)
 
-let noticeTimer: ReturnType<typeof setTimeout> | undefined
-let logSeq = 0
+const {
+  player,
+  currentTrack,
+  progressPercent,
+  statusLabel,
+  statusTone,
+  notice,
+  logs,
+  consoleEl,
+  playlists,
+  activePlaylist,
+  playlistDraft,
+  playlistPickerOpen,
+  showNotice,
+  log,
+  clock,
+  sizeText,
+  playTrack,
+  primaryAction,
+  restart,
+  onSeek,
+  onVolume,
+  loadPlaylists,
+  selectPlaylist,
+  submitPlaylist,
+  openPlaylistPicker,
+  addToPlaylist,
+  disposeNotice,
+} = useMusicConsole(tracks, error)
 
 const canUploadPublic = computed(() => auth.hasPermission('music.public.upload'))
 const canManagePrivate = computed(() => auth.hasPermission('music.private.manage'))
@@ -114,61 +95,6 @@ const canManageCategory = computed(() => auth.hasPermission('music.category.mana
 const canImport = computed(() =>
   mode.value === 'private' ? canManagePrivate.value : canUploadPublic.value,
 )
-const pendingIncoming = computed(
-  () => receivedRequests.value.filter((item) => item.status === 'PENDING').length,
-)
-const currentTrack = computed(() => player.currentTrack)
-const progressPercent = computed(() => Math.round(player.progress * 100))
-const statusLabel = computed(() => {
-  const labels: Record<string, string> = {
-    idle: '空闲',
-    loading: '缓冲中',
-    playing: '播放中',
-    paused: '已暂停',
-    ended: '播放完成',
-    error: '播放失败',
-  }
-  return labels[player.status] ?? '空闲'
-})
-const statusTone = computed(() => {
-  if (player.status === 'error') return 'err'
-  if (player.status === 'ended') return 'ok'
-  if (player.status === 'playing' || player.status === 'loading') return 'warn'
-  return 'idle'
-})
-
-function errorText(value: unknown): string {
-  return formatApiError(value)
-}
-
-function showNotice(message: string) {
-  notice.value = message
-  if (noticeTimer) clearTimeout(noticeTimer)
-  noticeTimer = setTimeout(() => {
-    notice.value = ''
-  }, 2600)
-}
-
-function log(level: PlayLogLine['level'], text: string) {
-  const now = new Date()
-  const time = now.toLocaleTimeString('zh-CN', { hour12: false })
-  logs.value.push({ key: ++logSeq, time, level, text })
-  if (logs.value.length > 120) logs.value.splice(0, logs.value.length - 120)
-}
-
-function clock(seconds: number): string {
-  const safe = Math.max(0, Math.round(seconds || 0))
-  const minutes = Math.floor(safe / 60)
-  const rest = safe % 60
-  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
-}
-
-function sizeText(bytes: number): string {
-  if (!bytes) return '—'
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
 async function loadCategories() {
   try {
     categories.value = await fetchCategories()
@@ -201,6 +127,26 @@ async function loadTracks() {
   }
 }
 
+const {
+  shareTokenInput,
+  sharePreview,
+  applying,
+  applyMessage,
+  applyError,
+  requestsOpen,
+  receivedRequests,
+  myRequests,
+  lookupShare,
+  submitAccessRequest,
+  openRequests,
+  refreshRequests,
+  decideRequest,
+} = useMusicAccess({ mode, error, loadTracks, showNotice })
+
+const pendingIncoming = computed(
+  () => receivedRequests.value.filter((item) => item.status === 'PENDING').length,
+)
+
 async function switchMode(next: 'public' | 'private' | 'shared') {
   if (mode.value === next) return
   mode.value = next
@@ -217,104 +163,6 @@ async function submitCategory() {
     categoryDraft.value = ''
     categoryEditorOpen.value = false
     await loadCategories()
-  } catch (value) {
-    error.value = errorText(value)
-  }
-}
-
-function record(action: string, position = player.position) {
-  const track = currentTrack.value
-  if (!track) return
-  void recordPlayback(track.id, action, position).catch(() => {
-    // 播放埋点失败不影响主流程
-  })
-}
-
-async function playTrack(track: Track) {
-  if (currentTrack.value?.id === track.id && player.status !== 'error') {
-    player.toggle()
-    record(player.status === 'paused' ? 'resume' : 'pause')
-    log('INFO', `${player.status === 'paused' ? 'resume' : 'pause'} ${track.title}`)
-    return
-  }
-  log('INFO', `GET /api/v1/music/tracks/${track.id}/stream`)
-  log('INFO', `track "${track.title}" scope=${track.scope} owner=${track.ownerNickname || '—'}`)
-  await player.play(track)
-  if (player.status === 'error') {
-    log('ERROR', player.errorMessage || '音频加载失败')
-    return
-  }
-  log('OK', 'stream ready · Range 已启用')
-  record('start', 0)
-}
-
-function primaryAction() {
-  if (!currentTrack.value) {
-    if (tracks.value[0]) void playTrack(tracks.value[0])
-    return
-  }
-  player.toggle()
-  record(player.status === 'paused' ? 'pause' : 'resume')
-}
-
-function restart() {
-  if (!currentTrack.value) return
-  void player.play(currentTrack.value).then(() => record('start', 0))
-}
-
-function onSeek(event: Event) {
-  const ratio = Number((event.target as HTMLInputElement).value) / 1000
-  player.seek(ratio)
-  record('seek')
-}
-
-function onVolume(event: Event) {
-  settings.update({ volume: Number((event.target as HTMLInputElement).value) })
-}
-
-async function loadPlaylists() {
-  try {
-    playlists.value = await fetchPlaylists()
-    if (playlists.value[0]) await selectPlaylist(playlists.value[0].id)
-  } catch {
-    playlists.value = []
-    activePlaylist.value = null
-  }
-}
-
-async function selectPlaylist(playlistId: number) {
-  try {
-    activePlaylist.value = await fetchPlaylist(playlistId)
-  } catch (value) {
-    error.value = errorText(value)
-  }
-}
-
-async function submitPlaylist() {
-  const name = playlistDraft.value.trim()
-  if (!name) return
-  try {
-    const created = await createPlaylist(name)
-    playlistDraft.value = ''
-    await loadPlaylists()
-    await selectPlaylist(created.id)
-  } catch (value) {
-    error.value = errorText(value)
-  }
-}
-
-function openPlaylistPicker() {
-  playlistPickerOpen.value = true
-  void loadPlaylists()
-}
-
-async function addToPlaylist(playlistId: number) {
-  if (!currentTrack.value) return
-  try {
-    await addTrackToPlaylist(playlistId, currentTrack.value.id)
-    playlistPickerOpen.value = false
-    if (activePlaylist.value?.playlist.id === playlistId) await selectPlaylist(playlistId)
-    showNotice('已加入歌单')
   } catch (value) {
     error.value = errorText(value)
   }
@@ -424,8 +272,6 @@ async function submitEdit() {
   }
 }
 
-const currentEditId = ref<number | null>(null)
-
 function openEditFor(track: Track) {
   currentEditId.value = track.id
   openEdit(track)
@@ -442,104 +288,6 @@ async function removeTrack(track: Track) {
   }
 }
 
-async function lookupShare() {
-  const token = shareTokenInput.value.trim()
-  if (!token) return
-  error.value = ''
-  applyError.value = ''
-  try {
-    sharePreview.value = await previewSharedTrack(token)
-    sharePreviewToken.value = token
-  } catch (value) {
-    sharePreview.value = null
-    error.value = errorText(value)
-  }
-}
-
-async function submitAccessRequest() {
-  if (!sharePreview.value || applying.value) return
-  applying.value = true
-  applyError.value = ''
-  try {
-    await requestAccess(sharePreview.value.id, sharePreviewToken.value, applyMessage.value)
-    sharePreview.value = null
-    shareTokenInput.value = ''
-    applyMessage.value = ''
-    await loadTracks()
-    showNotice('申请已提交，等待所有者处理')
-  } catch (value) {
-    applyError.value = errorText(value)
-  } finally {
-    applying.value = false
-  }
-}
-
-async function openRequests() {
-  requestsOpen.value = true
-  await refreshRequests()
-}
-
-async function refreshRequests() {
-  try {
-    const [received, mine] = await Promise.all([
-      fetchReceivedAccessRequests(),
-      fetchMyAccessRequests(),
-    ])
-    receivedRequests.value = received
-    myRequests.value = mine
-  } catch (value) {
-    error.value = errorText(value)
-  }
-}
-
-async function decideRequest(
-  request: AccessRequest,
-  action: 'approve' | 'reject' | 'revoke' | 'cancel',
-) {
-  try {
-    if (action === 'approve') await approveAccessRequest(request.id)
-    else if (action === 'reject') await rejectAccessRequest(request.id)
-    else if (action === 'revoke') await revokeAccessRequest(request.id)
-    else await cancelAccessRequest(request.id)
-    await refreshRequests()
-    if (mode.value === 'shared') await loadTracks()
-  } catch (value) {
-    error.value = errorText(value)
-  }
-}
-
-watch(
-  () => settings.state.volume,
-  (value) => player.setVolume(value),
-)
-
-watch(
-  () => skinStore.bossActive,
-  (active) => {
-    if (active) player.pause()
-  },
-)
-
-watch(
-  () => player.status,
-  (status) => {
-    if (status === 'ended') {
-      record('complete')
-      log('OK', `完成播放 ${currentTrack.value?.title ?? ''}`)
-    } else if (status === 'error' && player.errorMessage) {
-      log('ERROR', player.errorMessage)
-    }
-  },
-)
-
-watch(
-  () => logs.value.length,
-  async () => {
-    await nextTick()
-    if (consoleEl.value) consoleEl.value.scrollTop = consoleEl.value.scrollHeight
-  },
-)
-
 onMounted(async () => {
   player.setVolume(settings.state.volume)
   log('INFO', 'player initialized · auth from user center')
@@ -549,7 +297,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   player.pause()
-  if (noticeTimer) clearTimeout(noticeTimer)
+  disposeNotice()
 })
 </script>
 
@@ -973,53 +721,13 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="requestsOpen" class="overlay" @click.self="requestsOpen = false">
-      <div class="sheet music__requests">
-        <header class="sheet__head">
-          <div>
-            <h2>访问申请</h2>
-            <p>私有曲目仅所有者可批准，管理员不可绕过。</p>
-          </div>
-          <button type="button" class="icon-button" @click="requestsOpen = false">×</button>
-        </header>
-        <div class="music__requests-body">
-          <section>
-            <h3>收到的申请 <em>{{ receivedRequests.length }}</em></h3>
-            <div
-              v-for="item in receivedRequests"
-              :key="`in-${item.id}`"
-              class="music__request"
-            >
-              <div class="music__request-main">
-                <b>{{ item.trackTitle }}</b>
-                <span>{{ item.requesterNickname }} · {{ item.status }}</span>
-                <p v-if="item.message">{{ item.message }}</p>
-              </div>
-              <div class="music__request-actions">
-                <button v-if="item.status === 'PENDING'" class="music__mini" @click="decideRequest(item, 'approve')">批准</button>
-                <button v-if="item.status === 'PENDING'" class="music__mini" @click="decideRequest(item, 'reject')">拒绝</button>
-                <button v-if="item.status === 'APPROVED'" class="music__mini" @click="decideRequest(item, 'revoke')">撤销</button>
-              </div>
-            </div>
-            <p v-if="receivedRequests.length === 0" class="music__empty">暂无收到的申请</p>
-          </section>
-          <section>
-            <h3>我发出的申请 <em>{{ myRequests.length }}</em></h3>
-            <div v-for="item in myRequests" :key="`out-${item.id}`" class="music__request">
-              <div class="music__request-main">
-                <b>{{ item.trackTitle }}</b>
-                <span>所有者 {{ item.ownerNickname }} · {{ item.status }}</span>
-                <p v-if="item.decisionMessage">回复：{{ item.decisionMessage }}</p>
-              </div>
-              <div class="music__request-actions">
-                <button v-if="item.status === 'PENDING'" class="music__mini" @click="decideRequest(item, 'cancel')">取消</button>
-              </div>
-            </div>
-            <p v-if="myRequests.length === 0" class="music__empty">暂无申请记录</p>
-          </section>
-        </div>
-      </div>
-    </div>
+    <MusicRequestsDialog
+      v-if="requestsOpen"
+      :received="receivedRequests"
+      :mine="myRequests"
+      @close="requestsOpen = false"
+      @decide="decideRequest"
+    />
 
     <div v-if="error" class="music__error-bar">{{ error }}</div>
     <div v-if="notice" class="music__notice">{{ notice }}</div>
@@ -1027,822 +735,5 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
-.music {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  background: var(--fm-bg);
-}
-
-.music__head {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 12px;
-  min-height: 38px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--fm-border);
-  background: var(--fm-panel);
-  font-size: 10.5px;
-}
-
-.music__crumbs {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--fm-text-muted);
-  white-space: nowrap;
-}
-
-.music__crumbs b {
-  overflow: hidden;
-  max-width: 260px;
-  color: var(--fm-text);
-  font-weight: 600;
-  text-overflow: ellipsis;
-}
-
-.music__build {
-  padding: 1px 5px;
-  border-radius: 2px;
-  background: var(--fm-panel-2);
-  color: var(--fm-text-dim);
-  font-family: var(--fm-mono);
-  font-size: 9px;
-}
-
-.music__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--fm-text-dim);
-  font-size: 9.5px;
-  white-space: nowrap;
-}
-
-.music__status i {
-  background: currentColor;
-}
-
-.music__status--ok {
-  color: var(--fm-ok);
-}
-
-.music__status--warn {
-  color: var(--fm-warn);
-}
-
-.music__status--err {
-  color: var(--fm-err);
-}
-
-.music__head-spacer {
-  flex: 1;
-}
-
-.music__volume {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-  white-space: nowrap;
-}
-
-.music__volume input {
-  width: 80px;
-}
-
-.music__volume em {
-  width: 30px;
-  font-style: normal;
-  text-align: right;
-}
-
-.music__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 25px;
-  padding: 0 9px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel-2);
-  color: var(--fm-text-dim);
-  font-size: 10px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.music__btn:hover {
-  border-color: var(--fm-accent);
-  color: var(--fm-text);
-}
-
-.music__btn--primary {
-  border-color: var(--fm-accent);
-  background: var(--fm-accent-soft);
-  color: var(--fm-accent);
-}
-
-.music__badge {
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--fm-accent);
-  color: var(--fm-on-accent);
-  font-size: 8.5px;
-  font-style: normal;
-}
-
-.music__body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.music__side {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  width: 246px;
-  padding: 8px;
-  overflow-y: auto;
-  border-right: 1px solid var(--fm-border);
-  background: var(--fm-panel);
-}
-
-.music__side-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 6px 6px;
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.music__side-head--sub {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid var(--fm-border);
-}
-
-.music__side-head em {
-  padding: 0 5px;
-  border-radius: 8px;
-  background: var(--fm-panel-2);
-  color: var(--fm-text-dim);
-  font-style: normal;
-}
-
-.music__tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 3px;
-  margin: 0 4px 6px;
-}
-
-.music__tab {
-  height: 24px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-muted);
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.music__tab.is-active {
-  border-color: var(--fm-accent);
-  background: var(--fm-accent-soft);
-  color: var(--fm-accent);
-}
-
-.music__filter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 0 4px 6px;
-}
-
-.music__filter input,
-.music__filter select {
-  flex: 1;
-  min-width: 0;
-  height: 25px;
-  padding: 0 6px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel-2);
-  color: var(--fm-text);
-  font-size: 10.5px;
-  outline: none;
-}
-
-.music__filter input:focus,
-.music__filter select:focus {
-  border-color: var(--fm-accent);
-}
-
-.music__filter > button[type='submit'] {
-  height: 25px;
-  padding: 0 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel-2);
-  color: var(--fm-text-dim);
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.music__filter-inline {
-  display: flex;
-  flex-basis: 100%;
-  gap: 4px;
-}
-
-.music__filter-inline button {
-  flex: none;
-  height: 25px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--fm-radius);
-  background: var(--fm-accent);
-  color: var(--fm-on-accent);
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.music__mini {
-  height: 22px;
-  padding: 0 7px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-dim);
-  font-size: 9.5px;
-  cursor: pointer;
-}
-
-.music__mini:hover {
-  border-color: var(--fm-accent);
-  color: var(--fm-text);
-}
-
-.music__mini--danger:hover {
-  border-color: var(--fm-err);
-  color: var(--fm-err);
-}
-
-.music__track {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-dim);
-  font-size: 11.5px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.music__track:hover {
-  background: var(--fm-hover);
-  color: var(--fm-text);
-}
-
-.music__track.is-active {
-  background: var(--fm-active);
-  color: var(--fm-text);
-}
-
-.music__track-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--fm-border);
-  border-radius: 50%;
-  color: var(--fm-text-muted);
-}
-
-.music__track-icon.is-playing {
-  border-color: var(--fm-accent);
-  color: var(--fm-accent);
-}
-
-.music__track-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.music__track-body b {
-  overflow: hidden;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.music__track-body em {
-  overflow: hidden;
-  color: var(--fm-text-muted);
-  font-size: 9px;
-  font-style: normal;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.music__track-owner {
-  flex: none;
-  color: var(--fm-text-muted);
-  font-size: 8.5px;
-}
-
-.music__side-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 10px 4px 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--fm-border);
-}
-
-.music__empty {
-  padding: 6px 8px;
-  color: var(--fm-text-muted);
-  font-size: 10px;
-  line-height: 1.6;
-}
-
-.music__console-panel {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.music__console-head {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 12px;
-  min-height: 46px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--fm-border);
-  background: var(--fm-panel);
-}
-
-.music__job {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.music__job b {
-  overflow: hidden;
-  color: var(--fm-text);
-  font-size: 12.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.music__job span {
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-}
-
-.music__progress-label {
-  color: var(--fm-accent);
-  font-family: var(--fm-mono);
-  font-size: 11px;
-}
-
-.music__time {
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 9.5px;
-}
-
-.music__bar {
-  flex: none;
-  height: 3px;
-  background: var(--fm-panel-2);
-}
-
-.music__bar i {
-  display: block;
-  height: 100%;
-  background: var(--fm-text-muted);
-  transition: width 0.2s linear;
-}
-
-.music__bar--warn {
-  background: var(--fm-accent) !important;
-}
-
-.music__bar--ok {
-  background: var(--fm-ok) !important;
-}
-
-.music__bar--err {
-  background: var(--fm-err) !important;
-}
-
-.music__console {
-  flex: 1;
-  min-height: 0;
-  padding: 14px;
-  overflow-y: auto;
-  background: var(--fm-bg);
-  font-family: var(--fm-mono);
-  font-size: 11px;
-  line-height: 1.8;
-}
-
-.music__log {
-  display: flex;
-  gap: 8px;
-  color: var(--fm-text-dim);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.music__log time {
-  flex: none;
-  color: var(--fm-text-muted);
-}
-
-.music__log-level {
-  flex: none;
-}
-
-.music__log--info .music__log-level {
-  color: var(--fm-link);
-}
-
-.music__log--ok .music__log-level {
-  color: var(--fm-ok);
-}
-
-.music__log--warn .music__log-level {
-  color: var(--fm-warn);
-}
-
-.music__log--error {
-  color: var(--fm-err);
-}
-
-.music__log-cursor {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-  color: var(--fm-text-muted);
-}
-
-.music__caret {
-  width: 7px;
-  height: 13px;
-  background: var(--fm-text-dim);
-  animation: music-caret 1.1s steps(1) infinite;
-}
-
-@keyframes music-caret {
-  50% {
-    opacity: 0;
-  }
-}
-
-.music__controls {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 0 14px;
-  border-top: 1px solid var(--fm-border);
-  background: var(--fm-panel);
-}
-
-.music__primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--fm-radius);
-  background: var(--fm-accent);
-  color: var(--fm-on-accent);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.music__primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.music__seek {
-  flex: 1;
-  max-width: 420px;
-}
-
-.music__controls-spacer {
-  flex: 1;
-}
-
-.music__shortcut {
-  color: var(--fm-text-muted);
-  font-family: var(--fm-mono);
-  font-size: 9px;
-  white-space: nowrap;
-}
-
-.music__rail {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  width: 260px;
-  padding: 8px;
-  overflow-y: auto;
-  border-left: 1px solid var(--fm-border);
-  background: var(--fm-panel);
-}
-
-.music__rail-form {
-  display: flex;
-  gap: 4px;
-  margin: 0 4px 6px;
-}
-
-.music__rail-form input {
-  flex: 1;
-  min-width: 0;
-  height: 25px;
-  padding: 0 6px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel-2);
-  color: var(--fm-text);
-  font-size: 10.5px;
-  outline: none;
-}
-
-.music__rail-form button {
-  flex: none;
-  width: 26px;
-  height: 25px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel-2);
-  color: var(--fm-text-dim);
-  cursor: pointer;
-}
-
-.music__playlist,
-.music__playlist-track {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--fm-radius);
-  background: transparent;
-  color: var(--fm-text-dim);
-  font-size: 11px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.music__playlist:hover,
-.music__playlist-track:hover {
-  background: var(--fm-hover);
-  color: var(--fm-text);
-}
-
-.music__playlist.is-active,
-.music__playlist-track.is-active {
-  background: var(--fm-active);
-  color: var(--fm-text);
-}
-
-.music__playlist span,
-.music__playlist-track span {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.music__playlist em,
-.music__playlist-track em {
-  flex: none;
-  color: var(--fm-text-muted);
-  font-size: 8.5px;
-  font-style: normal;
-}
-
-.music__playlist-track {
-  padding-left: 18px;
-}
-
-.music__sheet {
-  width: min(560px, 100%);
-}
-
-.music__sheet-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px 22px;
-}
-
-.music__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  color: var(--fm-text-dim);
-  font-size: 11.5px;
-}
-
-.music__row input:not([type='file']),
-.music__row select {
-  width: 280px;
-  height: 29px;
-  padding: 0 9px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel-2);
-  color: var(--fm-text);
-  font-size: 11.5px;
-  outline: none;
-}
-
-.music__sheet-body textarea {
-  resize: vertical;
-  padding: 8px 9px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel-2);
-  color: var(--fm-text);
-  font-size: 11.5px;
-  line-height: 1.6;
-  outline: none;
-}
-
-.music__hint {
-  margin: 0;
-  color: var(--fm-text-muted);
-  font-size: 11px;
-  line-height: 1.7;
-}
-
-.music__error {
-  color: var(--fm-err);
-  font-size: 11px;
-}
-
-.music__requests {
-  width: min(680px, 100%);
-}
-
-.music__requests-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-height: min(62vh, 560px);
-  padding: 16px 22px;
-  overflow-y: auto;
-}
-
-.music__requests-body h3 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 6px;
-  color: var(--fm-text-dim);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.music__requests-body h3 em {
-  padding: 0 5px;
-  border-radius: 8px;
-  background: var(--fm-panel-2);
-  color: var(--fm-text-muted);
-  font-style: normal;
-}
-
-.music__request {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-  padding: 8px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-}
-
-.music__request-main {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.music__request-main b {
-  color: var(--fm-text);
-  font-size: 11.5px;
-}
-
-.music__request-main span {
-  color: var(--fm-text-muted);
-  font-size: 9.5px;
-}
-
-.music__request-main p {
-  margin: 0;
-  color: var(--fm-text-dim);
-  font-size: 10.5px;
-}
-
-.music__request-actions {
-  display: flex;
-  flex: none;
-  gap: 4px;
-}
-
-.music__error-bar {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  max-width: 420px;
-  padding: 8px 12px;
-  border: 1px solid var(--fm-err);
-  border-radius: var(--fm-radius);
-  background: color-mix(in srgb, var(--fm-err) 12%, var(--fm-panel));
-  color: var(--fm-err);
-  font-size: 11px;
-  z-index: 30;
-}
-
-.music__notice {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  padding: 8px 12px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel);
-  color: var(--fm-text);
-  font-size: 11px;
-  z-index: 31;
-}
-
-.music__loading {
-  position: fixed;
-  right: 16px;
-  top: 48px;
-  padding: 6px 10px;
-  border: 1px solid var(--fm-border);
-  border-radius: var(--fm-radius);
-  background: var(--fm-panel);
-  color: var(--fm-text-muted);
-  font-size: 10px;
-  z-index: 30;
-}
-
-@media (max-width: 1180px) {
-  .music__rail {
-    width: 220px;
-  }
-
-  .music__side {
-    width: 210px;
-  }
-}
-
-@media (max-width: 980px) {
-  .music__rail {
-    display: none;
-  }
-}
-</style>
+<style scoped src="./music-view.css"></style>
+<style scoped src="./music-view-2.css"></style>

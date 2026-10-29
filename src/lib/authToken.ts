@@ -1,4 +1,4 @@
-import type { AuthUser } from '@/modules/auth/types'
+import type { AuthUser } from '@/types/auth'
 
 export const AUTH_STORAGE_KEY = 'fm.auth.v1'
 

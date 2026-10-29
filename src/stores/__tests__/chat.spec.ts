@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { writeAuth } from '@/lib/authToken'
-import type { AuthUser } from '@/modules/auth/types'
+import type { AuthUser } from '@/types/auth'
 import {
   DEFAULT_CHAT_GROUP_ID,
   chatGroupStorageKey,

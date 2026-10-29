@@ -2,7 +2,8 @@ import type {
   BlindPieceColor,
   BlindPieceType,
   BlindPieceView,
-} from '../types'
+  GameMove,
+} from '@/types/games'
 
 export const BLIND_WIDTH = 9
 export const BLIND_HEIGHT = 10
@@ -10,6 +11,50 @@ export const BLIND_HEIGHT = 10
 export interface BlindCell {
   x: number
   y: number
+}
+
+export interface LostPieceGroup {
+  pieceType: BlindPieceType
+  count: number
+}
+
+/** 固定展示顺序：将/帅 → 车 → 炮 → 马 → 象 → 士 → 兵/卒。 */
+const LOST_PIECE_ORDER: readonly BlindPieceType[] = [
+  'GENERAL',
+  'CHARIOT',
+  'CANNON',
+  'HORSE',
+  'ELEPHANT',
+  'ADVISOR',
+  'SOLDIER',
+]
+
+/**
+ * 从当前小局公开棋谱统计双方已损失棋子。
+ * 被吃棋子的颜色与兵种在吃子时已经公开，不涉及反面棋身份泄露。
+ */
+export function lostPiecesByColor(
+  moves: readonly GameMove[],
+): Record<BlindPieceColor, LostPieceGroup[]> {
+  const counters: Record<BlindPieceColor, Map<BlindPieceType, number>> = {
+    RED: new Map(),
+    BLACK: new Map(),
+  }
+  for (const move of moves) {
+    const color = move.capturedPieceColor
+    const type = move.capturedPieceType
+    if (!color || !type) continue
+    counters[color].set(type, (counters[color].get(type) ?? 0) + 1)
+  }
+  const groupsFor = (color: BlindPieceColor): LostPieceGroup[] =>
+    LOST_PIECE_ORDER.filter((type) => counters[color].has(type)).map((type) => ({
+      pieceType: type,
+      count: counters[color].get(type) ?? 0,
+    }))
+  return {
+    RED: groupsFor('RED'),
+    BLACK: groupsFor('BLACK'),
+  }
 }
 
 /** 前端仅用于选棋与落点提示；服务端仍是唯一裁判。 */

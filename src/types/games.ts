@@ -5,6 +5,16 @@ export interface LeaderboardEntry {
   championships: number
   runnerUps: number
   points: number
+  /** 以下字段只在管理员接口返回：管理台需要看到被下架的行与展示权重。 */
+  gameId?: string | null
+  matches?: number
+  wins?: number
+  losses?: number
+  bestScore?: number
+  visible?: boolean
+  displayOrder?: number
+  managedBy?: string | null
+  managedAt?: number | null
 }
 
 export interface LeaderboardResponse {
@@ -12,6 +22,29 @@ export interface LeaderboardResponse {
   entries: LeaderboardEntry[]
 }
 
+/** 比赛记录预览：只含对阵与比分，小局与落子仍然走比赛详情接口。 */
+export interface MatchRecordPreview {
+  matchId: string
+  tournamentId: string
+  tournamentName: string | null
+  gameId: string | null
+  kind: GameKind | null
+  roundNo: number
+  slotNo: number
+  stage: GameStage | null
+  status: MatchStatus | null
+  player1UserId: string | null
+  player1Nickname: string | null
+  player2UserId: string | null
+  player2Nickname: string | null
+  player1Score: number
+  player2Score: number
+  winnerUserId: string | null
+  createdAt: number
+  finishedAt: number | null
+  visible: boolean
+  displayOrder: number
+}
 export interface ScoreResponse {
   bestScore: number
   rank: number

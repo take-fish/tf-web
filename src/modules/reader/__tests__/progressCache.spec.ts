@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { ReadingProgress } from '../types'
+import type { ReadingProgress } from '@/types/reader'
 import {
   PROGRESS_STORAGE_PREFIX,
   clearLocalProgress,
