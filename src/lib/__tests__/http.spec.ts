@@ -79,7 +79,7 @@ describe('业务服务返回 401 时不误判登录态', () => {
 
   it('下游服务 401 但用户中台会话有效时保留登录态', async () => {
     storeAuth('tok-live')
-    const expired = vi.fn()
+    const expired = vi.fn<() => void>()
     window.addEventListener(AUTH_EXPIRED_EVENT, expired)
     vi.stubGlobal(
       'fetch',
@@ -99,7 +99,7 @@ describe('业务服务返回 401 时不误判登录态', () => {
 
   it('用户中台确认会话失效时清登录态并广播', async () => {
     storeAuth('tok-dead')
-    const expired = vi.fn()
+    const expired = vi.fn<() => void>()
     window.addEventListener(AUTH_EXPIRED_EVENT, expired)
     vi.stubGlobal(
       'fetch',
@@ -115,7 +115,7 @@ describe('业务服务返回 401 时不误判登录态', () => {
 
   it('重新登录后旧请求的 401 不会清掉新会话', async () => {
     storeAuth('tok-old')
-    const expired = vi.fn()
+    const expired = vi.fn<() => void>()
     window.addEventListener(AUTH_EXPIRED_EVENT, expired)
     vi.stubGlobal(
       'fetch',
