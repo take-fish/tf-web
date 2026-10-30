@@ -24,6 +24,7 @@ export type IconName =
   | 'plus'
   | 'external'
   | 'shield'
+  | 'spark'
 
 const ICONS: Record<IconName, readonly string[]> = {
   overview: ['M2.5 8.5 8 3l5.5 5.5', 'M4 7.5V13h8V7.5', 'M6.5 13V9.5h3V13'],
@@ -53,6 +54,8 @@ const ICONS: Record<IconName, readonly string[]> = {
   plus: ['M8 3v10', 'M3 8h10'],
   external: ['M6 3H3v10h10V10', 'M9 2h5v5', 'M14 2 7.5 8.5'],
   shield: ['M8 1.5 13 3.5v4.5c0 3-2.2 5.3-5 6.5-2.8-1.2-5-3.5-5-6.5V3.5z', 'M5.5 8l1.8 1.8 3.5-3.6'],
+  // Agent 入口：四角星芒，弱化成线性图标风格
+  spark: ['M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8 6.6 6.6z'],
 }
 
 withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 16 })

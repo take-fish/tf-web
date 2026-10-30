@@ -50,6 +50,24 @@ const router = createRouter({
       meta: { title: 'Pipeline' },
     },
     {
+      path: '/agent',
+      name: 'agent',
+      component: () => import('../views/agent/AgentChatView.vue'),
+      meta: { title: 'FishMatrix Agent' },
+    },
+    {
+      path: '/agent/kb',
+      name: 'agent-kb',
+      component: () => import('../views/agent/KbView.vue'),
+      meta: { title: 'Agent 知识库' },
+    },
+    {
+      path: '/agent/admin',
+      name: 'agent-admin',
+      component: () => import('../views/agent/AdminView.vue'),
+      meta: { title: 'Agent 管理台', requiresAdmin: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },
@@ -89,6 +107,11 @@ router.beforeEach(async (to) => {
     if (!auth.hasToken) {
       return { name: 'login', query: { redirect: to.fullPath } }
     }
+  }
+
+  // 管理台只对管理员开放；前端只负责隐藏入口，真正的校验在 tf-agent 侧
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return { name: 'home' }
   }
 
   return true
