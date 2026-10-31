@@ -286,7 +286,7 @@ onBeforeUnmount(() => controller?.abort())
           </button>
         </nav>
         <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
-        <button v-if="auth.isAdmin" class="agent__ghost" title="试衣间：改 Agent 的样子" @click="router.push('/agent/profile')">试衣间</button>
+        <button v-if="auth.hasPermission('agent.profile.manage')" class="agent__ghost" title="试衣间：改 Agent 的样子" @click="router.push('/agent/profile')">试衣间</button>
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
       </div>
     </header>

@@ -65,13 +65,13 @@ const router = createRouter({
       path: '/agent/profile',
       name: 'agent-profile',
       component: () => import('../views/agent/AgentProfileView.vue'),
-      meta: { title: 'Agent 试衣间', requiresAdmin: true },
+      meta: { title: 'Agent 试衣间', requiresPermission: 'agent.profile.manage' },
     },
     {
       path: '/agent/admin',
       name: 'agent-admin',
       component: () => import('../views/agent/AdminView.vue'),
-      meta: { title: 'Agent 管理台', requiresAdmin: true },
+      meta: { title: 'Agent 管理台', requiresPermission: 'agent.console.view' },
     },
     {
       path: '/:pathMatch(.*)*',
@@ -115,8 +115,9 @@ router.beforeEach(async (to) => {
     }
   }
 
-  // 管理台只对管理员开放；前端只负责隐藏入口，真正的校验在 tf-agent 侧
-  if (to.meta.requiresAdmin && !auth.isAdmin) {
+  // 按用户中台下发的权限码拦路由（前端只负责隐藏入口，真正的校验在 tf-agent 侧）
+  const required = to.meta.requiresPermission as string | undefined
+  if (required && !auth.hasPermission(required)) {
     return { name: 'home' }
   }
 
