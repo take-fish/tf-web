@@ -44,6 +44,7 @@ const query = ref('')
 const loading = ref(false)
 const reindexing = ref(false)
 const error = ref('')
+const kbsError = ref(false)
 const notice = ref('')
 
 const newKbName = ref('')
@@ -93,11 +94,14 @@ function flash(message: string) {
 }
 
 async function refreshKbs() {
+  kbsError.value = false
   try {
     kbs.value = (await listKbs()).data
     if (!activeKb.value && kbs.value.length) activeKb.value = kbs.value[0]!.id
     if (activeKb.value) await refreshDocs()
   } catch (err) {
+    // 加载失败时别把「没有知识库」当空状态展示，否则会误导
+    kbsError.value = true
     error.value = formatApiError(err, '知识库加载失败')
   }
 }
@@ -392,7 +396,7 @@ onMounted(async () => {
             <span v-if="item.pending_review" class="badge badge--warn">{{ item.pending_review }} 待审</span>
           </li>
           <li v-if="!kbs.length" class="kb__muted">
-            {{ isAdmin ? '还没有知识库，点右上角新建' : '管理员还没有创建知识库' }}
+            {{ kbsError ? '知识库加载失败，请点上方「重试」' : isAdmin ? '还没有知识库，点右上角新建' : '管理员还没有创建知识库' }}
           </li>
         </ul>
       </aside>
@@ -513,7 +517,7 @@ onMounted(async () => {
       </main>
 
       <main v-else class="kb__main kb__main--empty">
-        {{ isAdmin ? '选择左侧知识库，或先新建一个' : '等待管理员创建并开放知识库' }}
+        {{ kbsError ? '知识库加载失败，请点上方「重试」' : isAdmin ? '选择左侧知识库，或先新建一个' : '等待管理员创建并开放知识库' }}
       </main>
     </div>
   </section>
