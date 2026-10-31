@@ -48,7 +48,6 @@ const input = ref('')
 const sending = ref(false)
 const sessionId = ref('')
 const scene = ref('kb')
-const env = ref<'prod' | 'test'>('prod')
 const status = ref<StatusInfo | null>(null)
 const scenes = ref<{ name: string; title: string; tools: string[] }[]>([])
 const scroller = ref<HTMLElement | null>(null)
@@ -185,7 +184,7 @@ async function send() {
   controller = new AbortController()
   try {
     await streamChat(
-      { message: text, session_id: sessionId.value, scene: scene.value, env: env.value },
+      { message: text, session_id: sessionId.value, scene: scene.value },
       (event) => applyEvent(assistant, event),
       controller.signal,
     )
@@ -260,10 +259,6 @@ onBeforeUnmount(() => controller?.abort())
             {{ tab.label }}
           </button>
         </nav>
-        <select v-model="env" class="agent__select" title="目标环境">
-          <option value="prod">prod</option>
-          <option value="test">test</option>
-        </select>
         <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
       </div>
@@ -393,7 +388,6 @@ onBeforeUnmount(() => controller?.abort())
   align-items: center;
 }
 
-.agent__select,
 .agent__ghost {
   background: #2d2d30;
   color: inherit;
