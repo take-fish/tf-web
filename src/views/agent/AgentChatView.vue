@@ -1,11 +1,10 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
   confirmAction,
   fetchProfile,
-  fetchScenes,
   fetchStatus,
   streamChat,
   type AgentEvent,
@@ -53,40 +52,15 @@ const messages = ref<ChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
 const sessionId = ref('')
-const scene = ref('kb')
 const status = ref<StatusInfo | null>(null)
 const profile = ref<AgentProfile | null>(null)
 const auth = useAuthStore()
 const metaError = ref('')
-const scenes = ref<{ name: string; title: string; tools: string[] }[]>([])
 const scroller = ref<HTMLElement | null>(null)
 const router = useRouter()
 let controller: AbortController | null = null
 let msgSeq = 1
 
-/** 二级 tab：对话放最前且是默认场景；后端场景名仍是 kb / ops / release。 */
-const SCENE_LABELS: Record<string, string> = { kb: '对话', ops: '运维排障', release: '发布操作' }
-const SCENE_ORDER = ['kb', 'ops', 'release']
-
-const sceneTabs = computed(() => {
-  const source = scenes.value.length
-    ? scenes.value
-    : SCENE_ORDER.map((name) => ({ name, title: SCENE_LABELS[name] ?? name, tools: [] }))
-  return [...source]
-    .sort((a, b) => {
-      const left = SCENE_ORDER.indexOf(a.name)
-      const right = SCENE_ORDER.indexOf(b.name)
-      return (left === -1 ? 99 : left) - (right === -1 ? 99 : right)
-    })
-    .map((item) => ({ name: item.name, label: SCENE_LABELS[item.name] ?? item.title }))
-})
-
-function switchScene(name: string) {
-  if (scene.value === name) return
-  scene.value = name
-  sessionId.value = ''
-  messages.value = []
-}
 
 const statusText = computed(() => {
   if (!status.value) return '检测中…'
@@ -97,16 +71,18 @@ const statusText = computed(() => {
   return parts.join(' · ')
 })
 
-const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
-  kb: ['发布流程是什么？回滚怎么做？', '测试环境出问题，第一步看什么？', '知识库里的值班手册怎么写的？'],
-  ops: ['tf-game 最近半小时有报错吗？trace_id 是 7d3f…', '发布流程是什么？回滚怎么做？', 'tf-web 最新的流水线跑成功了吗？'],
-  release: ['把 tf-game 在测试环境重启一下', '发布流程是什么？回滚怎么做？'],
-}
+const FALLBACK_SUGGESTIONS = [
+  '发布流程是什么？回滚怎么做？',
+  '测试环境出问题，第一步看什么？',
+  'tf-game 最近半小时有报错吗？',
+  '把 tf-game 在测试环境重启一下',
+]
 
 const emptySuggestions = computed(() => {
   const configured = profile.value?.suggestions ?? []
-  return configured.length ? configured : (FALLBACK_SUGGESTIONS[scene.value] ?? FALLBACK_SUGGESTIONS.kb!)
+  return configured.length ? configured : FALLBACK_SUGGESTIONS
 })
+
 const canSend = computed(() => input.value.trim().length > 0 && !sending.value)
 
 function scrollToBottom() {
@@ -122,11 +98,6 @@ async function loadMeta() {
   } catch (error) {
     status.value = null
     metaError.value = formatApiError(error, '模型状态获取失败')
-  }
-  try {
-    scenes.value = (await fetchScenes()).data
-  } catch {
-    scenes.value = []
   }
   try {
     profile.value = (await fetchProfile()).data
@@ -210,7 +181,7 @@ async function send(preset?: string) {
   controller = new AbortController()
   try {
     await streamChat(
-      { message: text, session_id: sessionId.value, scene: scene.value },
+      { message: text, session_id: sessionId.value },
       (event) => applyEvent(assistant, event),
       controller.signal,
     )
@@ -273,18 +244,6 @@ onBeforeUnmount(() => controller?.abort())
         <span v-if="profile?.show_status_bar !== false" class="agent__sub">{{ statusText }}</span>
       </div>
       <div class="agent__controls">
-        <nav class="agent__tabs" aria-label="二级场景">
-          <button
-            v-for="tab in sceneTabs"
-            :key="tab.name"
-            class="agent__tab"
-            :class="{ 'is-active': scene === tab.name }"
-            :title="tab.label"
-            @click="switchScene(tab.name)"
-          >
-            {{ tab.label }}
-          </button>
-        </nav>
         <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
         <button v-if="auth.hasPermission('agent.profile.manage')" class="agent__ghost" title="试衣间：改 Agent 的样子" @click="router.push('/agent/profile')">试衣间</button>
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
@@ -305,7 +264,7 @@ onBeforeUnmount(() => controller?.abort())
         />
         <p v-if="profile?.tagline" class="agent__tagline">{{ profile.tagline }}</p>
         <p class="agent__greeting">
-          {{ profile?.greeting || (scene === 'kb' ? '可以直接问知识库里的内容：' : '可以问我：') }}
+          {{ profile?.greeting || '你可以直接说想查什么、想做什么，我来判断用哪个工具。' }}
         </p>
         <div class="agent__chips">
           <button v-for="(item, index) in emptySuggestions" :key="index" class="agent__chip" :title="item" @click="send(item)">
@@ -439,35 +398,6 @@ onBeforeUnmount(() => controller?.abort())
 .agent__ghost:hover {
   border-color: #4a4a4a;
   background: #333337;
-}
-
-.agent__tabs {
-  display: inline-flex;
-  padding: 2px;
-  gap: 2px;
-  border: 1px solid #3c3c3c;
-  border-radius: 6px;
-  background: #232326;
-}
-
-.agent__tab {
-  border: none;
-  background: transparent;
-  color: #8b949e;
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.agent__tab:hover {
-  color: #d4d4d4;
-}
-
-.agent__tab.is-active {
-  background: #2d6cdf;
-  color: #fff;
 }
 
 .agent__stream {
