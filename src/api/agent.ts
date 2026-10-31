@@ -107,6 +107,29 @@ export async function confirmAction(confirmId: string): Promise<ConfirmResult> {
   return { ok: events.some((e) => e.type === 'done'), text, events }
 }
 
+export interface SessionSummary {
+  id: string
+  title: string
+  scene: string
+  message_count: number
+  updated_at: string | null
+}
+
+export interface SessionDetail extends SessionSummary {
+  messages: { role: string; content: string }[]
+}
+
+export function listSessions(limit = 20): Promise<{ code: number; data: SessionSummary[] }> {
+  return getJson(`${BASE}/sessions?limit=${limit}`)
+}
+
+export function getSession(sessionId: string): Promise<{ code: number; data: SessionDetail }> {
+  return getJson(`${BASE}/sessions/${sessionId}`)
+}
+
+export function removeSession(sessionId: string): Promise<{ code: number; msg: string }> {
+  return deleteJson(`${BASE}/sessions/${sessionId}`)
+}
 export interface StatusInfo {
   llm: { ok: boolean; model: string; base_url: string; error: string }
   db: { ok: boolean }

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -6,14 +6,19 @@ import {
   confirmAction,
   fetchProfile,
   fetchStatus,
+  getSession,
+  listSessions,
+  removeSession,
   streamChat,
   type AgentEvent,
   type AgentProfile,
+  type SessionSummary,
   type StatusInfo,
 } from '@/api/agent'
 import AgentAvatar from '@/components/agent/AgentAvatar.vue'
 import ErrorBanner from '@/components/ErrorBanner.vue'
 import { formatApiError } from '@/lib/http'
+import { pushToast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/auth'
 
 defineOptions({ name: 'AgentChatView' })
@@ -56,6 +61,9 @@ const status = ref<StatusInfo | null>(null)
 const profile = ref<AgentProfile | null>(null)
 const auth = useAuthStore()
 const metaError = ref('')
+const sessions = ref<SessionSummary[]>([])
+const showHistory = ref(false)
+const historyLoading = ref(false)
 const scroller = ref<HTMLElement | null>(null)
 const router = useRouter()
 let controller: AbortController | null = null
@@ -232,6 +240,52 @@ function resetSession() {
   messages.value = []
 }
 
+/** 打开/关闭历史会话抽屉。 */
+async function openHistory() {
+  showHistory.value = !showHistory.value
+  if (!showHistory.value) return
+  historyLoading.value = true
+  try {
+    sessions.value = (await listSessions(30)).data
+  } catch (err) {
+    pushToast(formatApiError(err, '历史会话加载失败'))
+    sessions.value = []
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+/** 载入历史会话，继续在同一个 session 里对话。 */
+async function resumeSession(item: SessionSummary) {
+  try {
+    const { data } = await getSession(item.id)
+    sessionId.value = data.id
+    messages.value = data.messages
+      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .map((message) => ({
+        id: msgSeq++,
+        role: message.role as 'user' | 'assistant',
+        content: message.content,
+        tools: [],
+      }))
+    showHistory.value = false
+    scrollToBottom()
+  } catch (err) {
+    pushToast(formatApiError(err, '会话载入失败'))
+  }
+}
+
+async function deleteSession(item: SessionSummary) {
+  try {
+    await removeSession(item.id)
+    sessions.value = sessions.value.filter((session) => session.id !== item.id)
+    if (sessionId.value === item.id) resetSession()
+    pushToast('会话已删除', 'success')
+  } catch (err) {
+    pushToast(formatApiError(err, '删除会话失败'))
+  }
+}
+
 onBeforeUnmount(() => controller?.abort())
 </script>
 
@@ -244,11 +298,33 @@ onBeforeUnmount(() => controller?.abort())
         <span v-if="profile?.show_status_bar !== false" class="agent__sub">{{ statusText }}</span>
       </div>
       <div class="agent__controls">
+        <button class="agent__ghost" title="历史会话" @click="openHistory">历史会话</button>
         <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
         <button v-if="auth.hasPermission('agent.profile.manage')" class="agent__ghost" title="试衣间：改 Agent 的样子" @click="router.push('/agent/profile')">试衣间</button>
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
       </div>
     </header>
+
+    <div v-if="showHistory" class="history">
+      <header class="history__head">
+        <strong>历史会话</strong>
+        <span class="history__hint">{{ sessions.length }} 条</span>
+        <button class="btn btn--sm" @click="showHistory = false">关闭</button>
+      </header>
+      <p v-if="historyLoading" class="history__empty">加载中…</p>
+      <p v-else-if="!sessions.length" class="history__empty">还没有历史会话，聊一句就会出现在这里。</p>
+      <ul v-else class="history__list">
+        <li v-for="item in sessions" :key="item.id" :class="{ 'is-active': item.id === sessionId }">
+          <button class="history__item" @click="resumeSession(item)">
+            <span class="history__title">{{ item.title }}</span>
+            <span class="history__meta">
+              {{ item.message_count }} 条消息 · {{ item.updated_at?.replace('T', ' ').slice(0, 16) }}
+            </span>
+          </button>
+          <button class="history__del" title="删除会话" @click="deleteSession(item)">×</button>
+        </li>
+      </ul>
+    </div>
 
     <ErrorBanner v-if="metaError" :message="metaError" retryable @retry="loadMeta" @close="metaError = ''" />
 
@@ -671,4 +747,100 @@ onBeforeUnmount(() => controller?.abort())
 .btn--ghost {
   background: transparent;
 }
+.history {
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  background: #252526;
+  margin: 10px 16px 0;
+  padding: 10px 12px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.history__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.history__hint {
+  color: #8b8b8b;
+  font-size: 11px;
+  flex: 1;
+}
+
+.history__empty {
+  margin: 0;
+  color: #8b8b8b;
+  font-size: 12px;
+}
+
+.history__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history__list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.history__list li.is-active {
+  border-color: #58a6ff;
+}
+
+.history__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.history__title {
+  font-size: 13px;
+  color: #dbe3ea;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.history__meta {
+  font-size: 11px;
+  color: #8b8b8b;
+}
+
+.history__del {
+  border: 1px solid #3c3c3c;
+  background: transparent;
+  color: #9da7b3;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.history__del:hover {
+  color: #f85149;
+  border-color: #f85149;
+}
+
 </style>
