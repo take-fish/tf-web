@@ -193,6 +193,7 @@ export interface KbDoc {
   kb_id: string
   category_id: string | null
   title: string
+  source?: string
   format: string
   size_bytes: number
   status: KbDocStatus
@@ -204,6 +205,8 @@ export interface KbDoc {
   error: string
   created_by: number | null
   created_at: string | null
+  /** 详情接口才返回的正文 */
+  content?: string
 }
 
 export interface KbChunk {
@@ -276,6 +279,18 @@ export function reindexKb(kbId: string): Promise<{ code: number; data: { queued:
 
 export function rebuildDoc(kbId: string, docId: string): Promise<{ code: number }> {
   return postJson(`${BASE}/kb/${kbId}/docs/${docId}/rebuild`, {})
+}
+
+export function getDoc(kbId: string, docId: string): Promise<{ code: number; data: KbDoc }> {
+  return getJson(`${BASE}/kb/${kbId}/docs/${docId}`)
+}
+
+export function updateDoc(
+  kbId: string,
+  docId: string,
+  payload: { title?: string; content?: string },
+): Promise<{ code: number; data: KbDoc }> {
+  return putJson(`${BASE}/kb/${kbId}/docs/${docId}`, payload)
 }
 
 export function removeDoc(kbId: string, docId: string): Promise<{ code: number }> {
