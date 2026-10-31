@@ -163,8 +163,6 @@ export interface KbItem {
   doc_count: number
   approved_count: number
   pending_review: number
-  /** 对普通用户是否可见（默认 true） */
-  visible?: boolean
   created_at: string | null
 }
 
@@ -207,6 +205,8 @@ export interface KbDoc {
   created_at: string | null
   /** 详情接口才返回的正文 */
   content?: string
+  /** 对普通用户是否可见（默认 true），仅管理员可改 */
+  visible?: boolean
 }
 
 export interface KbChunk {
@@ -235,7 +235,7 @@ export function createKb(name: string, description = ''): Promise<{ code: number
 
 export function updateKb(
   kbId: string,
-  payload: { name?: string; description?: string; visible?: boolean },
+  payload: { name?: string; description?: string },
 ): Promise<{ code: number; data: { id: string; name: string; description: string; visible: boolean } }> {
   return patchJson(`${BASE}/kb/${kbId}`, payload)
 }
@@ -288,7 +288,7 @@ export function getDoc(kbId: string, docId: string): Promise<{ code: number; dat
 export function updateDoc(
   kbId: string,
   docId: string,
-  payload: { title?: string; content?: string },
+  payload: { title?: string; content?: string; visible?: boolean },
 ): Promise<{ code: number; data: KbDoc }> {
   return putJson(`${BASE}/kb/${kbId}/docs/${docId}`, payload)
 }

@@ -10,7 +10,6 @@ import {
   listDocs,
   listKbs,
   updateDoc,
-  updateKb,
   rebuildDoc,
   reindexKb,
   removeCategory,
@@ -313,17 +312,16 @@ function formatSize(bytes: number | undefined): string {
   return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
-/** 管理员切换"对普通用户可见"，默认可见。 */
-async function onToggleVisible() {
-  if (!active.value) return
-  const next = !active.value.visible
+/** 管理员切换单个文件对普通用户是否可见（默认可见）。 */
+async function onToggleDocVisible(doc: KbDoc) {
+  const next = doc.visible === false
   try {
-    await updateKb(active.value.id, { visible: next })
-    active.value.visible = next
-    flash(next ? '已设为对普通用户可见' : '已对普通用户隐藏')
-    await refreshKbs()
+    const { data } = await updateDoc(activeKb.value, doc.id, { visible: next })
+    doc.visible = data.visible
+    if (detailDoc.value?.id === doc.id) detailDoc.value = { ...detailDoc.value, visible: data.visible }
+    flash(next ? '已设为对普通用户可见' : '已对普通用户隐藏该文件')
   } catch (err) {
-    error.value = formatApiError(err, '切换可见性失败')
+    error.value = formatApiError(err, '切换文件可见性失败')
   }
 }
 
@@ -393,14 +391,6 @@ onMounted(async () => {
       </div>
       <div class="kb__actions">
         <template v-if="isAdmin">
-          <button
-            class="btn"
-            :disabled="!activeKb"
-            :title="active?.visible ? '当前对普通用户可见，点击隐藏' : '当前对普通用户隐藏，点击恢复可见'"
-            @click="onToggleVisible"
-          >
-            {{ active?.visible ? '可见：开' : '可见：关' }}
-          </button>
           <button class="btn" @click="showNewKb = !showNewKb">新建知识库</button>
           <button class="btn" @click="showCategories = !showCategories">分类管理</button>
           <button class="btn" :disabled="!activeKb || reindexing" @click="onReindex">
@@ -449,7 +439,6 @@ onMounted(async () => {
               <span class="kb__side-name">{{ item.name }}</span>
               <span class="kb__muted">{{ item.approved_count }}/{{ item.doc_count }} 篇</span>
             </button>
-            <span v-if="isAdmin && item.visible === false" class="badge badge--warn">已隐藏</span>
             <span v-if="item.pending_review" class="badge badge--warn">{{ item.pending_review }} 待审</span>
           </li>
           <li v-if="!kbs.length" class="kb__muted">
@@ -522,6 +511,7 @@ onMounted(async () => {
               <td class="kb__doc-name">
                   <span class="kb__file">{{ (doc.format || 'txt').toUpperCase() }}</span>
                   <span class="kb__doc-title">{{ doc.title }}</span>
+                  <span v-if="isAdmin && doc.visible === false" class="badge badge--warn">已隐藏</span>
                   <span v-if="doc.source" class="kb__doc-file">{{ doc.source }}</span>
                 </td>
               <td class="kb__muted">{{ categoryName(doc.category_id) }}</td>
@@ -536,6 +526,13 @@ onMounted(async () => {
               <td class="kb__row-actions" @click.stop>
                 <button class="btn btn--sm" @click="onViewDoc(doc)">详情</button>
                 <template v-if="isAdmin">
+                  <button
+                    class="btn btn--sm"
+                    :title="doc.visible === false ? '恢复对普通用户可见' : '对普通用户隐藏'"
+                    @click="onToggleDocVisible(doc)"
+                  >
+                    {{ doc.visible === false ? '显示' : '隐藏' }}
+                  </button>
                   <button class="btn btn--sm" :disabled="doc.review_status !== 'approved'" @click="onRebuild(doc)">
                     重建
                   </button>
@@ -568,6 +565,7 @@ onMounted(async () => {
             <div><dt>大小</dt><dd>{{ formatSize(detailDoc.size_bytes) }}</dd></div>
             <div><dt>分类</dt><dd>{{ categoryName(detailDoc.category_id) }}</dd></div>
             <div><dt>块数</dt><dd>{{ detailDoc.chunk_count }}</dd></div>
+            <div><dt>可见性</dt><dd>{{ detailDoc.visible === false ? '已隐藏（仅管理员可见）' : '可见' }}</dd></div>
             <div><dt>上传时间</dt><dd>{{ detailDoc.created_at?.replace('T', ' ').slice(0, 16) }}</dd></div>
             <div v-if="detailDoc.review_note"><dt>审核备注</dt><dd>{{ detailDoc.review_note }}</dd></div>
           </dl>
