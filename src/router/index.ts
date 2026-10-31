@@ -62,6 +62,12 @@ const router = createRouter({
       meta: { title: 'Agent 知识库' },
     },
     {
+      path: '/agent/profile',
+      name: 'agent-profile',
+      component: () => import('../views/agent/AgentProfileView.vue'),
+      meta: { title: 'Agent 试衣间', requiresAdmin: true },
+    },
+    {
       path: '/agent/admin',
       name: 'agent-admin',
       component: () => import('../views/agent/AdminView.vue'),

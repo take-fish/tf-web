@@ -4,12 +4,16 @@ import { useRouter } from 'vue-router'
 
 import {
   confirmAction,
+  fetchProfile,
   fetchScenes,
   fetchStatus,
   streamChat,
   type AgentEvent,
+  type AgentProfile,
   type StatusInfo,
 } from '@/api/agent'
+import AgentAvatar from '@/components/agent/AgentAvatar.vue'
+import { useAuthStore } from '@/stores/auth'
 
 defineOptions({ name: 'AgentChatView' })
 
@@ -49,6 +53,8 @@ const sending = ref(false)
 const sessionId = ref('')
 const scene = ref('kb')
 const status = ref<StatusInfo | null>(null)
+const profile = ref<AgentProfile | null>(null)
+const auth = useAuthStore()
 const scenes = ref<{ name: string; title: string; tools: string[] }[]>([])
 const scroller = ref<HTMLElement | null>(null)
 const router = useRouter()
@@ -88,6 +94,16 @@ const statusText = computed(() => {
   return parts.join(' · ')
 })
 
+const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
+  kb: ['发布流程是什么？回滚怎么做？', '测试环境出问题，第一步看什么？', '知识库里的值班手册怎么写的？'],
+  ops: ['tf-game 最近半小时有报错吗？trace_id 是 7d3f…', '发布流程是什么？回滚怎么做？', 'tf-web 最新的流水线跑成功了吗？'],
+  release: ['把 tf-game 在测试环境重启一下', '发布流程是什么？回滚怎么做？'],
+}
+
+const emptySuggestions = computed(() => {
+  const configured = profile.value?.suggestions ?? []
+  return configured.length ? configured : (FALLBACK_SUGGESTIONS[scene.value] ?? FALLBACK_SUGGESTIONS.kb!)
+})
 const canSend = computed(() => input.value.trim().length > 0 && !sending.value)
 
 function scrollToBottom() {
@@ -106,6 +122,11 @@ async function loadMeta() {
     scenes.value = (await fetchScenes()).data
   } catch {
     scenes.value = []
+  }
+  try {
+    profile.value = (await fetchProfile()).data
+  } catch {
+    profile.value = null
   }
 }
 
@@ -172,8 +193,8 @@ function applyEvent(message: ChatMessage, event: AgentEvent) {
   }
 }
 
-async function send() {
-  const text = input.value.trim()
+async function send(preset?: string) {
+  const text = (preset ?? input.value).trim()
   if (!text || sending.value) return
   input.value = ''
   sending.value = true
@@ -243,8 +264,8 @@ onBeforeUnmount(() => controller?.abort())
     <header class="agent__bar">
       <div class="agent__title">
         <span class="agent__dot" :class="{ 'is-off': !status?.llm?.ok }" />
-        <strong>FishMatrix Agent</strong>
-        <span class="agent__sub">{{ statusText }}</span>
+        <strong>{{ profile?.name || 'FishMatrix Agent' }}</strong>
+        <span v-if="profile?.show_status_bar !== false" class="agent__sub">{{ statusText }}</span>
       </div>
       <div class="agent__controls">
         <nav class="agent__tabs" aria-label="二级场景">
@@ -260,23 +281,30 @@ onBeforeUnmount(() => controller?.abort())
           </button>
         </nav>
         <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
+        <button v-if="auth.isAdmin" class="agent__ghost" title="试衣间：改 Agent 的样子" @click="router.push('/agent/profile')">试衣间</button>
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
       </div>
     </header>
 
     <div ref="scroller" class="agent__stream">
       <div v-if="messages.length === 0" class="agent__empty">
-        <p>{{ scene === 'kb' ? '可以直接问知识库里的内容：' : '可以问我：' }}</p>
-        <ul v-if="scene === 'kb'">
-          <li>发布流程是什么？回滚怎么做？</li>
-          <li>测试环境出问题，第一步看什么？</li>
-          <li>知识库里的值班手册怎么写的？</li>
-        </ul>
-        <ul v-else>
-          <li>tf-game 最近半小时有报错吗？trace_id 是 7d3f…</li>
-          <li>发布流程是什么？回滚怎么做？</li>
-          <li>tf-web 最新的流水线跑成功了吗？</li>
-        </ul>
+        <AgentAvatar
+          v-if="profile"
+          :style="profile.avatar.style"
+          :primary="profile.avatar.primary"
+          :accent="profile.avatar.accent"
+          :size="profile.avatar.size"
+          :spin="profile.avatar.spin"
+        />
+        <p v-if="profile?.tagline" class="agent__tagline">{{ profile.tagline }}</p>
+        <p class="agent__greeting">
+          {{ profile?.greeting || (scene === 'kb' ? '可以直接问知识库里的内容：' : '可以问我：') }}
+        </p>
+        <div class="agent__chips">
+          <button v-for="(item, index) in emptySuggestions" :key="index" class="agent__chip" :title="item" @click="send(item)">
+            {{ item }}
+          </button>
+        </div>
       </div>
 
       <article v-for="message in messages" :key="message.id" class="msg" :class="`msg--${message.role}`">
@@ -329,7 +357,7 @@ onBeforeUnmount(() => controller?.abort())
       />
       <div class="agent__send">
         <button v-if="sending" class="btn btn--ghost" @click="stop">停止</button>
-        <button class="btn btn--primary" :disabled="!canSend" @click="send">发送</button>
+        <button class="btn btn--primary" :disabled="!canSend" @click="send()">发送</button>
       </div>
     </footer>
   </section>
@@ -447,15 +475,53 @@ onBeforeUnmount(() => controller?.abort())
 
 .agent__empty {
   margin: auto;
-  max-width: 520px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   color: #8b949e;
   font-size: 13px;
   line-height: 1.8;
+  text-align: center;
+  padding: 12px 0 4px;
 }
 
-.agent__empty ul {
-  margin: 8px 0 0;
-  padding-left: 18px;
+.agent__tagline {
+  margin: 0;
+  font-size: 12px;
+  color: #6e7681;
+  letter-spacing: 0.04em;
+}
+
+.agent__greeting {
+  margin: 0;
+  max-width: 460px;
+  color: #b8c0c8;
+}
+
+.agent__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.agent__chip {
+  border: 1px solid #30363d;
+  background: #161b22;
+  color: #b8c0c8;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.agent__chip:hover {
+  border-color: #58a6ff;
+  color: #e6edf3;
 }
 
 .msg {

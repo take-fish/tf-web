@@ -129,6 +129,32 @@ export function fetchStatus(): Promise<{ code: number; data: StatusInfo }> {
   return getJson('/api/v1/agent/status')
 }
 
+/** Agent 展示配置：名称 / 3D 形象 / 问候语 / 推荐问题 */
+export interface AgentAvatarConfig {
+  style: 'orb' | 'cube' | 'ring'
+  primary: string
+  accent: string
+  size: number
+  spin: boolean
+}
+
+export interface AgentProfile {
+  name: string
+  tagline: string
+  avatar: AgentAvatarConfig
+  greeting: string
+  suggestions: string[]
+  theme: string
+  show_status_bar: boolean
+}
+
+export function fetchProfile(): Promise<{ code: number; data: AgentProfile }> {
+  return getJson(`${BASE}/profile`)
+}
+
+export function saveProfile(profile: AgentProfile): Promise<{ code: number; data: AgentProfile }> {
+  return putJson(`${BASE}/profile`, profile)
+}
 export function fetchScenes(): Promise<{ code: number; data: { name: string; title: string; tools: string[] }[] }> {
   return getJson('/api/v1/agent/scenes')
 }
