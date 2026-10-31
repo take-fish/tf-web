@@ -117,7 +117,10 @@ export async function confirmAction(confirmId: string): Promise<ConfirmResult> {
 export interface StatusInfo {
   llm: { ok: boolean; model: string; base_url: string; error: string }
   db: { ok: boolean }
-  qdrant: { ok: boolean; url: string }
+  /** 向量库状态：backend 目前固定 es（Qdrant 已下线） */
+  vector?: { backend: string; endpoint: string; index: string; ok: boolean; hybrid: boolean }
+  /** 旧字段，后端保留兼容；新代码读 vector */
+  qdrant?: { ok: boolean; url: string }
   tools: number
   embedding: { model: string; dim: number }
 }

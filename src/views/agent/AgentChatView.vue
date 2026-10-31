@@ -85,7 +85,7 @@ const statusText = computed(() => {
   const parts: string[] = []
   parts.push(status.value.llm.ok ? `模型 ${status.value.llm.model}` : '模型不可用')
   parts.push(status.value.db.ok ? '审计库 OK' : '审计库不可用')
-  parts.push(status.value.qdrant.ok ? '向量库 OK' : '向量库不可用')
+  parts.push((status.value.vector ?? status.value.qdrant)?.ok ? `向量库 OK（${status.value.vector?.backend ?? 'es'}）` : '向量库不可用')
   return parts.join(' · ')
 })
 
