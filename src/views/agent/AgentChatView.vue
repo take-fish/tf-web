@@ -13,6 +13,8 @@ import {
   type StatusInfo,
 } from '@/api/agent'
 import AgentAvatar from '@/components/agent/AgentAvatar.vue'
+import ErrorBanner from '@/components/ErrorBanner.vue'
+import { formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 
 defineOptions({ name: 'AgentChatView' })
@@ -55,6 +57,7 @@ const scene = ref('kb')
 const status = ref<StatusInfo | null>(null)
 const profile = ref<AgentProfile | null>(null)
 const auth = useAuthStore()
+const metaError = ref('')
 const scenes = ref<{ name: string; title: string; tools: string[] }[]>([])
 const scroller = ref<HTMLElement | null>(null)
 const router = useRouter()
@@ -113,10 +116,12 @@ function scrollToBottom() {
 }
 
 async function loadMeta() {
+  metaError.value = ''
   try {
     status.value = (await fetchStatus()).data
-  } catch {
+  } catch (error) {
     status.value = null
+    metaError.value = formatApiError(error, '模型状态获取失败')
   }
   try {
     scenes.value = (await fetchScenes()).data
@@ -211,7 +216,7 @@ async function send(preset?: string) {
     )
   } catch (error) {
     if ((error as Error).name !== 'AbortError') {
-      assistant.error = (error as Error).message
+      assistant.error = formatApiError(error, '对话失败')
     }
   } finally {
     assistant.pending = false
@@ -234,7 +239,7 @@ async function doConfirm(message: ChatMessage) {
     message.confirm.result = result.text || (result.ok ? '已执行' : '执行失败')
   } catch (error) {
     message.confirm.state = 'failed'
-    message.confirm.result = (error as Error).message
+    message.confirm.result = formatApiError(error, '执行失败')
   }
   scrollToBottom()
 }
@@ -285,6 +290,8 @@ onBeforeUnmount(() => controller?.abort())
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
       </div>
     </header>
+
+    <ErrorBanner v-if="metaError" :message="metaError" retryable @retry="loadMeta" @close="metaError = ''" />
 
     <div ref="scroller" class="agent__stream">
       <div v-if="messages.length === 0" class="agent__empty">

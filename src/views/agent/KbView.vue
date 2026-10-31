@@ -23,6 +23,7 @@ import {
   type KbHit,
   type KbItem,
 } from '@/api/agent'
+import ErrorBanner from '@/components/ErrorBanner.vue'
 import { formatApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 
@@ -327,7 +328,7 @@ onMounted(async () => {
       </div>
     </header>
 
-    <p v-if="error" class="kb__error" @click="error = ''">{{ error }}</p>
+    <ErrorBanner v-if="error" :message="error" retryable @retry="refreshKbs" @close="error = ''" />
     <p v-if="notice" class="kb__notice">{{ notice }}</p>
 
     <div v-if="showNewKb && isAdmin" class="kb__panel">
