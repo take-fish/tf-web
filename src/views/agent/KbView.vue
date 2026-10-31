@@ -4,10 +4,12 @@ import { computed, onMounted, ref } from 'vue'
 import {
   createCategory,
   createKb,
+  getDoc,
   listCategories,
   listChunks,
   listDocs,
   listKbs,
+  updateDoc,
   updateKb,
   rebuildDoc,
   reindexKb,
@@ -46,6 +48,12 @@ const reindexing = ref(false)
 const error = ref('')
 const kbsError = ref(false)
 const notice = ref('')
+
+// 文档编辑
+const editing = ref(false)
+const editTitle = ref('')
+const editContent = ref('')
+const saving = ref(false)
 
 const newKbName = ref('')
 const newCategory = ref('')
@@ -246,14 +254,63 @@ async function onDeleteDoc(doc: KbDoc) {
   }
 }
 
-/** 点文档看详情：元信息 + 正文切块（所有用户都能看）。 */
+/** 点文档看详情：元信息 + 正文（可编辑） + 正文切块（所有用户都能看）。 */
 async function onViewDoc(doc: KbDoc) {
   try {
-    chunks.value = (await listChunks(activeKb.value, doc.id)).data
-    detailDoc.value = doc
+    const [detail, chunkList] = await Promise.all([getDoc(activeKb.value, doc.id), listChunks(activeKb.value, doc.id)])
+    detailDoc.value = detail.data
+    chunks.value = chunkList.data
+    editing.value = false
   } catch (err) {
     error.value = formatApiError(err, '读取文档详情失败')
   }
+}
+
+/** 上传者本人或知识库管理员可以编辑正文。 */
+function canEditDoc(doc: KbDoc | null): boolean {
+  if (!doc) return false
+  return isAdmin.value || doc.created_by === auth.user?.id
+}
+
+function onStartEdit() {
+  if (!detailDoc.value) return
+  editTitle.value = detailDoc.value.title
+  editContent.value = detailDoc.value.content ?? ''
+  editing.value = true
+}
+
+function onCancelEdit() {
+  editing.value = false
+  editTitle.value = ''
+  editContent.value = ''
+}
+
+async function onSaveEdit() {
+  if (!detailDoc.value || saving.value) return
+  saving.value = true
+  try {
+    const { data } = await updateDoc(activeKb.value, detailDoc.value.id, {
+      title: editTitle.value.trim() || detailDoc.value.title,
+      content: editContent.value,
+    })
+    detailDoc.value = data
+    editing.value = false
+    await refreshDocs()
+    chunks.value = (await listChunks(activeKb.value, data.id)).data
+    flash(data.review_status === 'approved' ? '已保存，正在重新切块入库' : '已保存，等待管理员重新审核')
+  } catch (err) {
+    error.value = formatApiError(err, '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+/** 文件体积展示。 */
+function formatSize(bytes: number | undefined): string {
+  const value = bytes ?? 0
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
 /** 管理员切换"对普通用户可见"，默认可见。 */
@@ -462,7 +519,11 @@ onMounted(async () => {
           </thead>
           <tbody>
             <tr v-for="doc in visibleDocs" :key="doc.id" class="kb__row" @click="onViewDoc(doc)">
-              <td class="kb__doc-name">{{ doc.title }}</td>
+              <td class="kb__doc-name">
+                  <span class="kb__file">{{ (doc.format || 'txt').toUpperCase() }}</span>
+                  <span class="kb__doc-title">{{ doc.title }}</span>
+                  <span v-if="doc.source" class="kb__doc-file">{{ doc.source }}</span>
+                </td>
               <td class="kb__muted">{{ categoryName(doc.category_id) }}</td>
               <td>
                 <span class="badge" :class="`badge--${docState(doc).tone}`">{{ docState(doc).text }}</span>
@@ -496,15 +557,34 @@ onMounted(async () => {
               <strong>{{ detailDoc.title }}</strong>
               <span class="badge" :class="`badge--${docState(detailDoc).tone}`">{{ docState(detailDoc).text }}</span>
             </div>
-            <button class="btn btn--sm" @click="detailDoc = null">关闭</button>
+            <div class="kb__detail-actions">
+              <button v-if="canEditDoc(detailDoc) && !editing" class="btn btn--sm" @click="onStartEdit">编辑</button>
+              <button class="btn btn--sm" @click="detailDoc = null">关闭</button>
+            </div>
           </header>
           <dl class="kb__detail-meta">
+            <div v-if="detailDoc.source"><dt>文件</dt><dd>{{ detailDoc.source }}</dd></div>
+            <div><dt>格式</dt><dd>{{ (detailDoc.format || 'txt').toUpperCase() }}</dd></div>
+            <div><dt>大小</dt><dd>{{ formatSize(detailDoc.size_bytes) }}</dd></div>
             <div><dt>分类</dt><dd>{{ categoryName(detailDoc.category_id) }}</dd></div>
             <div><dt>块数</dt><dd>{{ detailDoc.chunk_count }}</dd></div>
             <div><dt>上传时间</dt><dd>{{ detailDoc.created_at?.replace('T', ' ').slice(0, 16) }}</dd></div>
             <div v-if="detailDoc.review_note"><dt>审核备注</dt><dd>{{ detailDoc.review_note }}</dd></div>
           </dl>
-          <div class="kb__detail-body">
+          <div v-if="editing" class="kb__editor">
+            <input v-model="editTitle" class="kb__editor-title" maxlength="200" placeholder="文档标题" />
+            <textarea v-model="editContent" class="kb__editor-body" rows="14" placeholder="文档正文（支持 Markdown 标题切块）" />
+            <div class="kb__editor-actions">
+              <span class="kb__muted">
+                保存后{{ detailDoc.review_status === 'approved' ? '会自动重新切块入库' : '会回到待审核' }}
+              </span>
+              <button class="btn btn--sm" :disabled="saving" @click="onCancelEdit">取消</button>
+              <button class="btn btn--sm btn--primary" :disabled="saving" @click="onSaveEdit">
+                {{ saving ? '保存中…' : '保存' }}
+              </button>
+            </div>
+          </div>
+          <div v-else class="kb__detail-body">
             <p class="kb__muted">{{ chunks.length ? `正文切块（${chunks.length} 块，可据此核对检索命中）` : '这篇文档还没有切块（等审核通过后才会入库）' }}</p>
             <ol class="kb__chunk-list">
               <li v-for="chunk in chunks" :key="chunk.id">
@@ -974,6 +1054,71 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 1.6;
   color: #c8c8c8;
+}
+
+.kb__file {
+  display: inline-block;
+  min-width: 34px;
+  padding: 1px 5px;
+  margin-right: 6px;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  background: #1e1e1e;
+  color: #9da7b3;
+  font-size: 10px;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.kb__doc-title {
+  color: #e6edf3;
+}
+
+.kb__doc-file {
+  display: block;
+  margin-left: 40px;
+  color: #6e7681;
+  font-size: 11px;
+}
+
+.kb__detail-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.kb__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.kb__editor-title {
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  color: inherit;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.kb__editor-body {
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  color: inherit;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+.kb__editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 
 </style>
