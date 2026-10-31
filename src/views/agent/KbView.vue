@@ -55,7 +55,10 @@ const showCategories = ref(false)
 
 const active = computed(() => kbs.value.find((item) => item.id === activeKb.value) ?? null)
 const pendingDocs = computed(() => docs.value.filter((doc) => doc.review_status === 'pending'))
-const visibleDocs = computed(() => docs.value.filter((doc) => doc.review_status !== 'pending'))
+// 管理员在待审核队列里处理 pending，表格只放处理过的；普通员工要能看到自己刚传的待审核文档
+const visibleDocs = computed(() =>
+  isAdmin.value ? docs.value.filter((doc) => doc.review_status !== 'pending') : docs.value,
+)
 
 const STATUS_TEXT: Record<string, string> = {
   waiting: '待审核',
