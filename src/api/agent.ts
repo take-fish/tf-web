@@ -163,6 +163,8 @@ export interface KbItem {
   doc_count: number
   approved_count: number
   pending_review: number
+  /** 对普通用户是否可见（默认 true） */
+  visible?: boolean
   created_at: string | null
 }
 
@@ -226,6 +228,13 @@ export function listKbs(): Promise<{ code: number; data: KbItem[] }> {
 
 export function createKb(name: string, description = ''): Promise<{ code: number; data: { id: string } }> {
   return postJson(`${BASE}/kb`, { name, description })
+}
+
+export function updateKb(
+  kbId: string,
+  payload: { name?: string; description?: string; visible?: boolean },
+): Promise<{ code: number; data: { id: string; name: string; description: string; visible: boolean } }> {
+  return patchJson(`${BASE}/kb/${kbId}`, payload)
 }
 
 export function removeKb(kbId: string): Promise<{ code: number; msg: string }> {

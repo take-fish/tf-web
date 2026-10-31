@@ -8,6 +8,7 @@ import {
   listChunks,
   listDocs,
   listKbs,
+  updateKb,
   rebuildDoc,
   reindexKb,
   removeCategory,
@@ -30,7 +31,7 @@ import { useAuthStore } from '@/stores/auth'
 defineOptions({ name: 'AgentKbView' })
 
 const auth = useAuthStore()
-const isAdmin = computed(() => auth.isAdmin)
+const isAdmin = computed(() => auth.hasPermission('agent.kb.manage'))
 
 const kbs = ref<KbItem[]>([])
 const categories = ref<KbCategory[]>([])
@@ -38,7 +39,7 @@ const activeKb = ref('')
 const docs = ref<KbDoc[]>([])
 const hits = ref<KbHit[]>([])
 const chunks = ref<KbChunk[]>([])
-const chunkDoc = ref<KbDoc | null>(null)
+const detailDoc = ref<KbDoc | null>(null)
 const query = ref('')
 const loading = ref(false)
 const reindexing = ref(false)
@@ -56,10 +57,8 @@ const showCategories = ref(false)
 
 const active = computed(() => kbs.value.find((item) => item.id === activeKb.value) ?? null)
 const pendingDocs = computed(() => docs.value.filter((doc) => doc.review_status === 'pending'))
-// 管理员在待审核队列里处理 pending，表格只放处理过的；普通员工要能看到自己刚传的待审核文档
-const visibleDocs = computed(() =>
-  isAdmin.value ? docs.value.filter((doc) => doc.review_status !== 'pending') : docs.value,
-)
+// 所有用户都能看到知识库里的全部文档（含待审核/被驳回），状态用徽标表达
+const visibleDocs = computed(() => docs.value)
 
 const STATUS_TEXT: Record<string, string> = {
   waiting: '待审核',
@@ -118,7 +117,7 @@ async function refreshCategories() {
 
 async function selectKb(id: string) {
   activeKb.value = id
-  chunkDoc.value = null
+  detailDoc.value = null
   hits.value = []
   chunks.value = []
   await refreshDocs()
@@ -235,7 +234,7 @@ async function onDeleteDoc(doc: KbDoc) {
   if (!window.confirm(`删除文档「${doc.title}」？`)) return
   try {
     await removeDoc(activeKb.value, doc.id)
-    if (chunkDoc.value?.id === doc.id) chunkDoc.value = null
+    if (detailDoc.value?.id === doc.id) detailDoc.value = null
     await refreshDocs()
     flash('文档已删除')
   } catch (err) {
@@ -243,12 +242,27 @@ async function onDeleteDoc(doc: KbDoc) {
   }
 }
 
-async function onViewChunks(doc: KbDoc) {
+/** 点文档看详情：元信息 + 正文切块（所有用户都能看）。 */
+async function onViewDoc(doc: KbDoc) {
   try {
     chunks.value = (await listChunks(activeKb.value, doc.id)).data
-    chunkDoc.value = doc
+    detailDoc.value = doc
   } catch (err) {
-    error.value = formatApiError(err, '读取切块失败')
+    error.value = formatApiError(err, '读取文档详情失败')
+  }
+}
+
+/** 管理员切换"对普通用户可见"，默认可见。 */
+async function onToggleVisible() {
+  if (!active.value) return
+  const next = !active.value.visible
+  try {
+    await updateKb(active.value.id, { visible: next })
+    active.value.visible = next
+    flash(next ? '已设为对普通用户可见' : '已对普通用户隐藏')
+    await refreshKbs()
+  } catch (err) {
+    error.value = formatApiError(err, '切换可见性失败')
   }
 }
 
@@ -311,13 +325,21 @@ onMounted(async () => {
         <p class="kb__hint">
           {{
             isAdmin
-              ? '管理员：建库 / 分类 / 审核 / 重建索引；审核通过的文档才会进入索引，被 agent 检索到。'
-              : '上传的文件先进待审核，管理员通过后才会进入知识库，对话时才用得上。'
+              ? '管理员：建库 / 分类 / 审核 / 重建索引，并可控制知识库对普通用户是否可见；审核通过的文档才会进入索引，被 agent 检索到。'
+              : '所有文档都能点开看详情；自己上传的文件先等管理员审核，通过后才会被 agent 检索到。'
           }}
         </p>
       </div>
       <div class="kb__actions">
         <template v-if="isAdmin">
+          <button
+            class="btn"
+            :disabled="!activeKb"
+            :title="active?.visible ? '当前对普通用户可见，点击隐藏' : '当前对普通用户隐藏，点击恢复可见'"
+            @click="onToggleVisible"
+          >
+            {{ active?.visible ? '可见：开' : '可见：关' }}
+          </button>
           <button class="btn" @click="showNewKb = !showNewKb">新建知识库</button>
           <button class="btn" @click="showCategories = !showCategories">分类管理</button>
           <button class="btn" :disabled="!activeKb || reindexing" @click="onReindex">
@@ -366,6 +388,7 @@ onMounted(async () => {
               <span class="kb__side-name">{{ item.name }}</span>
               <span class="kb__muted">{{ item.approved_count }}/{{ item.doc_count }} 篇</span>
             </button>
+            <span v-if="isAdmin && item.visible === false" class="badge badge--warn">已隐藏</span>
             <span v-if="item.pending_review" class="badge badge--warn">{{ item.pending_review }} 待审</span>
           </li>
           <li v-if="!kbs.length" class="kb__muted">
@@ -434,7 +457,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="doc in visibleDocs" :key="doc.id">
+            <tr v-for="doc in visibleDocs" :key="doc.id" class="kb__row" @click="onViewDoc(doc)">
               <td class="kb__doc-name">{{ doc.title }}</td>
               <td class="kb__muted">{{ categoryName(doc.category_id) }}</td>
               <td>
@@ -445,15 +468,14 @@ onMounted(async () => {
               </td>
               <td>{{ doc.chunk_count }}</td>
               <td class="kb__muted">{{ doc.created_at?.replace('T', ' ').slice(0, 16) }}</td>
-              <td class="kb__row-actions">
+              <td class="kb__row-actions" @click.stop>
+                <button class="btn btn--sm" @click="onViewDoc(doc)">详情</button>
                 <template v-if="isAdmin">
-                  <button class="btn btn--sm" @click="onViewChunks(doc)">切块</button>
                   <button class="btn btn--sm" :disabled="doc.review_status !== 'approved'" @click="onRebuild(doc)">
                     重建
                   </button>
                   <button class="btn btn--sm btn--danger" @click="onDeleteDoc(doc)">删除</button>
                 </template>
-                <span v-else class="kb__muted">{{ doc.review_status === 'rejected' ? '可修改后重新上传' : '—' }}</span>
               </td>
             </tr>
             <tr v-if="!visibleDocs.length">
@@ -464,17 +486,29 @@ onMounted(async () => {
           </tbody>
         </table>
 
-        <div v-if="isAdmin && chunkDoc" class="kb__chunks">
-          <header>
-            <span>切块预览 · {{ chunkDoc.title }}（{{ chunks.length }} 块）</span>
-            <button class="btn btn--sm" @click="chunkDoc = null">关闭</button>
+        <div v-if="detailDoc" class="kb__detail">
+          <header class="kb__detail-head">
+            <div>
+              <strong>{{ detailDoc.title }}</strong>
+              <span class="badge" :class="`badge--${docState(detailDoc).tone}`">{{ docState(detailDoc).text }}</span>
+            </div>
+            <button class="btn btn--sm" @click="detailDoc = null">关闭</button>
           </header>
-          <ol>
-            <li v-for="chunk in chunks" :key="chunk.id">
-              <span class="kb__seq">#{{ chunk.seq }}</span>
-              <pre>{{ chunk.text }}</pre>
-            </li>
-          </ol>
+          <dl class="kb__detail-meta">
+            <div><dt>分类</dt><dd>{{ categoryName(detailDoc.category_id) }}</dd></div>
+            <div><dt>块数</dt><dd>{{ detailDoc.chunk_count }}</dd></div>
+            <div><dt>上传时间</dt><dd>{{ detailDoc.created_at?.replace('T', ' ').slice(0, 16) }}</dd></div>
+            <div v-if="detailDoc.review_note"><dt>审核备注</dt><dd>{{ detailDoc.review_note }}</dd></div>
+          </dl>
+          <div class="kb__detail-body">
+            <p class="kb__muted">{{ chunks.length ? `正文切块（${chunks.length} 块，可据此核对检索命中）` : '这篇文档还没有切块（等审核通过后才会入库）' }}</p>
+            <ol class="kb__chunk-list">
+              <li v-for="chunk in chunks" :key="chunk.id">
+                <span class="kb__seq">#{{ chunk.seq }}</span>
+                <pre>{{ chunk.text }}</pre>
+              </li>
+            </ol>
+          </div>
         </div>
       </main>
 
@@ -863,4 +897,79 @@ onMounted(async () => {
   margin-left: 8px;
   font-size: 11px;
 }
+.kb__row {
+  cursor: pointer;
+}
+
+.kb__row:hover {
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.kb__detail {
+  margin-top: 14px;
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  background: #252526;
+  padding: 12px 14px;
+}
+
+.kb__detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kb__detail-head strong {
+  margin-right: 8px;
+}
+
+.kb__detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.kb__detail-meta div {
+  display: flex;
+  gap: 6px;
+}
+
+.kb__detail-meta dt {
+  color: #8b8b8b;
+}
+
+.kb__detail-meta dd {
+  margin: 0;
+  color: #d4d4d4;
+}
+
+.kb__chunk-list {
+  margin: 8px 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.kb__chunk-list li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.kb__chunk-list pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #c8c8c8;
+}
+
 </style>
