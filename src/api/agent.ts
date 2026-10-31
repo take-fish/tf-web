@@ -1,4 +1,4 @@
-import { deleteJson, getJson, postForm, postJson, putJson } from '@/lib/http'
+import { deleteJson, getJson, patchJson, postForm, postJson, putJson } from '@/lib/http'
 import { getAuthToken } from '@/lib/authToken'
 
 const BASE = '/api/v1/agent'
@@ -139,17 +139,46 @@ export interface KbItem {
   embedding_model: string
   dim: number
   doc_count: number
+  approved_count: number
+  pending_review: number
   created_at: string | null
 }
 
+export interface KbCategory {
+  id: string
+  name: string
+  description: string
+  sort: number
+  doc_count: number
+  created_at: string | null
+}
+
+/** 索引状态（status）与审核状态（review_status）是两个维度。 */
+export type KbDocStatus =
+  | 'waiting'
+  | 'pending'
+  | 'parsing'
+  | 'chunking'
+  | 'embedding'
+  | 'ready'
+  | 'failed'
+  | 'rejected'
+
 export interface KbDoc {
   id: string
+  kb_id: string
+  category_id: string | null
   title: string
   format: string
   size_bytes: number
-  status: 'pending' | 'parsing' | 'chunking' | 'embedding' | 'ready' | 'failed'
+  status: KbDocStatus
+  review_status: 'pending' | 'approved' | 'rejected'
+  review_note: string
+  reviewed_by: number | null
+  reviewed_at: string | null
   chunk_count: number
   error: string
+  created_by: number | null
   created_at: string | null
 }
 
@@ -181,15 +210,37 @@ export function removeKb(kbId: string): Promise<{ code: number; msg: string }> {
   return deleteJson(`${BASE}/kb/${kbId}`)
 }
 
-export function listDocs(kbId: string): Promise<{ code: number; data: KbDoc[] }> {
-  return getJson(`${BASE}/kb/${kbId}/docs`)
+export function listDocs(kbId: string, review = ''): Promise<{ code: number; data: KbDoc[] }> {
+  const suffix = review ? `?review=${encodeURIComponent(review)}` : ''
+  return getJson(`${BASE}/kb/${kbId}/docs${suffix}`)
 }
 
-export function uploadDoc(kbId: string, file: File, title = ''): Promise<{ code: number; data: { id: string } }> {
+export function uploadDoc(
+  kbId: string,
+  file: File,
+  title = '',
+  categoryId = '',
+): Promise<{ code: number; data: { id: string; status: string; review_status: string } }> {
   const form = new FormData()
   form.append('file', file)
   form.append('title', title || file.name.replace(/\.[^.]+$/, ''))
+  if (categoryId) form.append('category_id', categoryId)
   return postForm(`${BASE}/kb/${kbId}/docs`, form)
+}
+
+/** 管理员审核：approve 通过后自动建索引，reject 驳回后不进知识库。 */
+export function reviewDoc(
+  kbId: string,
+  docId: string,
+  action: 'approve' | 'reject',
+  note = '',
+): Promise<{ code: number; data: { id: string; review_status: string } }> {
+  return postJson(`${BASE}/kb/${kbId}/docs/${docId}/review`, { action, note })
+}
+
+/** 管理员：整库重建索引（只重建审核通过的文档）。 */
+export function reindexKb(kbId: string): Promise<{ code: number; data: { queued: number } }> {
+  return postJson(`${BASE}/kb/${kbId}/reindex`, {})
 }
 
 export function rebuildDoc(kbId: string, docId: string): Promise<{ code: number }> {
@@ -202,6 +253,29 @@ export function removeDoc(kbId: string, docId: string): Promise<{ code: number }
 
 export function listChunks(kbId: string, docId: string): Promise<{ code: number; data: KbChunk[] }> {
   return getJson(`${BASE}/kb/${kbId}/docs/${docId}/chunks`)
+}
+
+export function listCategories(): Promise<{ code: number; data: KbCategory[] }> {
+  return getJson(`${BASE}/kb/categories`)
+}
+
+export function createCategory(
+  name: string,
+  description = '',
+  sort = 0,
+): Promise<{ code: number; data: { id: string } }> {
+  return postJson(`${BASE}/kb/categories`, { name, description, sort })
+}
+
+export function updateCategory(
+  id: string,
+  payload: { name?: string; description?: string; sort?: number },
+): Promise<{ code: number }> {
+  return patchJson(`${BASE}/kb/categories/${id}`, payload)
+}
+
+export function removeCategory(id: string): Promise<{ code: number }> {
+  return deleteJson(`${BASE}/kb/categories/${id}`)
 }
 
 export function searchKb(query: string, kbIds: string[] = [], topK = 8): Promise<{ code: number; data: KbHit[] }> {
