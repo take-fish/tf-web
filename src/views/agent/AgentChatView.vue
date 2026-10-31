@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import {
   confirmAction,
@@ -46,13 +47,38 @@ const messages = ref<ChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
 const sessionId = ref('')
-const scene = ref('ops')
+const scene = ref('kb')
 const env = ref<'prod' | 'test'>('prod')
 const status = ref<StatusInfo | null>(null)
 const scenes = ref<{ name: string; title: string; tools: string[] }[]>([])
 const scroller = ref<HTMLElement | null>(null)
+const router = useRouter()
 let controller: AbortController | null = null
 let msgSeq = 1
+
+/** 二级 tab：对话放最前且是默认场景；后端场景名仍是 kb / ops / release。 */
+const SCENE_LABELS: Record<string, string> = { kb: '对话', ops: '运维排障', release: '发布操作' }
+const SCENE_ORDER = ['kb', 'ops', 'release']
+
+const sceneTabs = computed(() => {
+  const source = scenes.value.length
+    ? scenes.value
+    : SCENE_ORDER.map((name) => ({ name, title: SCENE_LABELS[name] ?? name, tools: [] }))
+  return [...source]
+    .sort((a, b) => {
+      const left = SCENE_ORDER.indexOf(a.name)
+      const right = SCENE_ORDER.indexOf(b.name)
+      return (left === -1 ? 99 : left) - (right === -1 ? 99 : right)
+    })
+    .map((item) => ({ name: item.name, label: SCENE_LABELS[item.name] ?? item.title }))
+})
+
+function switchScene(name: string) {
+  if (scene.value === name) return
+  scene.value = name
+  sessionId.value = ''
+  messages.value = []
+}
 
 const statusText = computed(() => {
   if (!status.value) return '检测中…'
@@ -222,21 +248,36 @@ onBeforeUnmount(() => controller?.abort())
         <span class="agent__sub">{{ statusText }}</span>
       </div>
       <div class="agent__controls">
-        <select v-model="scene" class="agent__select" title="场景">
-          <option v-for="item in scenes" :key="item.name" :value="item.name">{{ item.title }}</option>
-        </select>
+        <nav class="agent__tabs" aria-label="二级场景">
+          <button
+            v-for="tab in sceneTabs"
+            :key="tab.name"
+            class="agent__tab"
+            :class="{ 'is-active': scene === tab.name }"
+            :title="tab.label"
+            @click="switchScene(tab.name)"
+          >
+            {{ tab.label }}
+          </button>
+        </nav>
         <select v-model="env" class="agent__select" title="目标环境">
           <option value="prod">prod</option>
           <option value="test">test</option>
         </select>
+        <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
       </div>
     </header>
 
     <div ref="scroller" class="agent__stream">
       <div v-if="messages.length === 0" class="agent__empty">
-        <p>可以问我：</p>
-        <ul>
+        <p>{{ scene === 'kb' ? '可以直接问知识库里的内容：' : '可以问我：' }}</p>
+        <ul v-if="scene === 'kb'">
+          <li>发布流程是什么？回滚怎么做？</li>
+          <li>测试环境出问题，第一步看什么？</li>
+          <li>知识库里的值班手册怎么写的？</li>
+        </ul>
+        <ul v-else>
           <li>tf-game 最近半小时有报错吗？trace_id 是 7d3f…</li>
           <li>发布流程是什么？回滚怎么做？</li>
           <li>tf-web 最新的流水线跑成功了吗？</li>
@@ -360,6 +401,44 @@ onBeforeUnmount(() => controller?.abort())
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;
+}
+
+.agent__ghost {
+  cursor: pointer;
+}
+
+.agent__ghost:hover {
+  border-color: #4a4a4a;
+  background: #333337;
+}
+
+.agent__tabs {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  background: #232326;
+}
+
+.agent__tab {
+  border: none;
+  background: transparent;
+  color: #8b949e;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.agent__tab:hover {
+  color: #d4d4d4;
+}
+
+.agent__tab.is-active {
+  background: #2d6cdf;
+  color: #fff;
 }
 
 .agent__stream {

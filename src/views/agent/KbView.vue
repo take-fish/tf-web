@@ -2,45 +2,91 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  createCategory,
   createKb,
+  listCategories,
   listChunks,
   listDocs,
   listKbs,
   rebuildDoc,
+  reindexKb,
+  removeCategory,
   removeDoc,
   removeKb,
+  reviewDoc,
   searchKb,
+  updateCategory,
   uploadDoc,
+  type KbCategory,
   type KbChunk,
   type KbDoc,
   type KbHit,
   type KbItem,
 } from '@/api/agent'
 import { formatApiError } from '@/lib/http'
+import { useAuthStore } from '@/stores/auth'
 
 defineOptions({ name: 'AgentKbView' })
 
+const auth = useAuthStore()
+const isAdmin = computed(() => auth.isAdmin)
+
 const kbs = ref<KbItem[]>([])
-const activeKb = ref<string>('')
+const categories = ref<KbCategory[]>([])
+const activeKb = ref('')
 const docs = ref<KbDoc[]>([])
+const hits = ref<KbHit[]>([])
 const chunks = ref<KbChunk[]>([])
 const chunkDoc = ref<KbDoc | null>(null)
-const hits = ref<KbHit[]>([])
 const query = ref('')
 const loading = ref(false)
+const reindexing = ref(false)
 const error = ref('')
+const notice = ref('')
+
 const newKbName = ref('')
-const fileInput = ref<HTMLInputElement | null>(null)
+const newCategory = ref('')
 const uploadTitle = ref('')
+const uploadCategory = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+
+const showNewKb = ref(false)
+const showCategories = ref(false)
 
 const active = computed(() => kbs.value.find((item) => item.id === activeKb.value) ?? null)
-const statusText: Record<string, string> = {
+const pendingDocs = computed(() => docs.value.filter((doc) => doc.review_status === 'pending'))
+const visibleDocs = computed(() => docs.value.filter((doc) => doc.review_status !== 'pending'))
+
+const STATUS_TEXT: Record<string, string> = {
+  waiting: '待审核',
   pending: '排队中',
   parsing: '解析中',
   chunking: '切块中',
   embedding: '向量化中',
-  ready: '就绪',
-  failed: '失败',
+  ready: '已入库',
+  failed: '构建失败',
+  rejected: '已驳回',
+}
+
+function docState(doc: KbDoc): { text: string; tone: string } {
+  if (doc.review_status === 'pending') return { text: '待审核', tone: 'warn' }
+  if (doc.review_status === 'rejected') return { text: '已驳回', tone: 'danger' }
+  const text = STATUS_TEXT[doc.status] ?? doc.status
+  if (doc.status === 'ready') return { text, tone: 'ok' }
+  if (doc.status === 'failed') return { text, tone: 'danger' }
+  return { text, tone: 'pending' }
+}
+
+function categoryName(id: string | null): string {
+  if (!id) return '未分类'
+  return categories.value.find((item) => item.id === id)?.name ?? '未分类'
+}
+
+function flash(message: string) {
+  notice.value = message
+  window.setTimeout(() => {
+    if (notice.value === message) notice.value = ''
+  }, 4000)
 }
 
 async function refreshKbs() {
@@ -58,10 +104,19 @@ async function refreshDocs() {
   docs.value = (await listDocs(activeKb.value)).data
 }
 
+async function refreshCategories() {
+  try {
+    categories.value = (await listCategories()).data
+  } catch {
+    categories.value = []
+  }
+}
+
 async function selectKb(id: string) {
   activeKb.value = id
   chunkDoc.value = null
   hits.value = []
+  chunks.value = []
   await refreshDocs()
 }
 
@@ -71,8 +126,10 @@ async function onCreateKb() {
   try {
     const created = await createKb(newKbName.value.trim())
     newKbName.value = ''
+    showNewKb.value = false
     await refreshKbs()
     await selectKb(created.data.id)
+    flash('知识库已创建')
   } catch (err) {
     error.value = formatApiError(err, '创建知识库失败')
   } finally {
@@ -88,6 +145,7 @@ async function onDeleteKb() {
     activeKb.value = ''
     docs.value = []
     await refreshKbs()
+    flash('知识库已删除')
   } catch (err) {
     error.value = formatApiError(err, '删除知识库失败')
   }
@@ -96,13 +154,17 @@ async function onDeleteKb() {
 async function onPickFile(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  if (!file || !activeKb.value) return
+  if (!file) return
+  if (!activeKb.value) {
+    error.value = '请先选择知识库'
+    return
+  }
   loading.value = true
   try {
-    await uploadDoc(activeKb.value, file, uploadTitle.value)
+    await uploadDoc(activeKb.value, file, uploadTitle.value, uploadCategory.value)
     uploadTitle.value = ''
     await refreshDocs()
-    pollIngest()
+    flash(isAdmin.value ? '已上传，可在待审核列表里审核' : '已提交，等待管理员审核通过后进入知识库')
   } catch (err) {
     error.value = formatApiError(err, '上传失败')
   } finally {
@@ -111,14 +173,48 @@ async function onPickFile(event: Event) {
   }
 }
 
+async function onReview(doc: KbDoc, action: 'approve' | 'reject') {
+  let note = ''
+  if (action === 'reject') {
+    const input = window.prompt(`驳回「${doc.title}」，填写原因（可选）：`)
+    if (input === null) return
+    note = input
+  }
+  try {
+    await reviewDoc(activeKb.value, doc.id, action, note)
+    await refreshDocs()
+    flash(action === 'approve' ? '已通过，正在构建索引' : '已驳回')
+    if (action === 'approve') pollIngest()
+  } catch (err) {
+    error.value = formatApiError(err, '审核失败')
+  }
+}
+
 function pollIngest() {
   let tries = 0
   const timer = window.setInterval(async () => {
     tries += 1
     await refreshDocs().catch(() => undefined)
-    const busy = docs.value.some((doc) => ['pending', 'parsing', 'chunking', 'embedding'].includes(doc.status))
-    if (!busy || tries > 40) window.clearInterval(timer)
+    const busy = docs.value.some((doc) =>
+      ['pending', 'parsing', 'chunking', 'embedding'].includes(doc.status),
+    )
+    if (!busy || tries > 60) window.clearInterval(timer)
   }, 2000)
+}
+
+async function onReindex() {
+  if (!activeKb.value) return
+  reindexing.value = true
+  try {
+    const result = await reindexKb(activeKb.value)
+    await refreshDocs()
+    flash(`已提交重建：${result.data.queued} 篇文档排队构建索引`)
+    pollIngest()
+  } catch (err) {
+    error.value = formatApiError(err, '重建索引失败')
+  } finally {
+    reindexing.value = false
+  }
 }
 
 async function onRebuild(doc: KbDoc) {
@@ -137,17 +233,18 @@ async function onDeleteDoc(doc: KbDoc) {
     await removeDoc(activeKb.value, doc.id)
     if (chunkDoc.value?.id === doc.id) chunkDoc.value = null
     await refreshDocs()
+    flash('文档已删除')
   } catch (err) {
-    error.value = formatApiError(err, '删除失败')
+    error.value = formatApiError(err, '删除文档失败')
   }
 }
 
-async function showChunks(doc: KbDoc) {
+async function onViewChunks(doc: KbDoc) {
   try {
     chunks.value = (await listChunks(activeKb.value, doc.id)).data
     chunkDoc.value = doc
   } catch (err) {
-    error.value = formatApiError(err, '读取分块失败')
+    error.value = formatApiError(err, '读取切块失败')
   }
 }
 
@@ -155,7 +252,7 @@ async function onSearch() {
   if (!query.value.trim()) return
   loading.value = true
   try {
-    hits.value = (await searchKb(query.value.trim(), activeKb.value ? [activeKb.value] : [], 5)).data
+    hits.value = (await searchKb(query.value.trim(), activeKb.value ? [activeKb.value] : [])).data
   } catch (err) {
     error.value = formatApiError(err, '检索失败')
   } finally {
@@ -163,408 +260,566 @@ async function onSearch() {
   }
 }
 
-function fmtSize(bytes: number) {
-  if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+async function onCreateCategory() {
+  if (!newCategory.value.trim()) return
+  try {
+    await createCategory(newCategory.value.trim())
+    newCategory.value = ''
+    await refreshCategories()
+    flash('分类已创建')
+  } catch (err) {
+    error.value = formatApiError(err, '创建分类失败')
+  }
 }
 
-onMounted(refreshKbs)
+async function onRenameCategory(category: KbCategory) {
+  const name = window.prompt('新的分类名称', category.name)
+  if (!name || name.trim() === category.name) return
+  try {
+    await updateCategory(category.id, { name: name.trim() })
+    await refreshCategories()
+  } catch (err) {
+    error.value = formatApiError(err, '改名失败')
+  }
+}
+
+async function onDeleteCategory(category: KbCategory) {
+  if (!window.confirm(`删除分类「${category.name}」？文档不会被删除，只会变成未分类。`)) return
+  try {
+    await removeCategory(category.id)
+    await refreshCategories()
+    await refreshDocs()
+  } catch (err) {
+    error.value = formatApiError(err, '删除分类失败')
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([refreshKbs(), refreshCategories()])
+})
 </script>
 
 <template>
   <section class="kb">
-    <aside class="kb__list">
-      <div class="kb__list-head">
-        <span>知识库</span>
-        <button class="icon-btn" title="新建" @click="newKbName = newKbName || ' '">＋</button>
+    <header class="kb__top">
+      <div class="kb__title">
+        <h1>知识库</h1>
+        <p class="kb__hint">
+          {{
+            isAdmin
+              ? '管理员：建库 / 分类 / 审核 / 重建索引；审核通过的文档才会进入索引，被 agent 检索到。'
+              : '上传的文件先进待审核，管理员通过后才会进入知识库，对话时才用得上。'
+          }}
+        </p>
       </div>
-      <div class="kb__create">
-        <input v-model="newKbName" placeholder="新知识库名称" @keydown.enter="onCreateKb" />
-        <button class="btn btn--primary" :disabled="!newKbName.trim() || loading" @click="onCreateKb">建</button>
-      </div>
-      <ul class="kb__items">
-        <li
-          v-for="item in kbs"
-          :key="item.id"
-          class="kb__item"
-          :class="{ 'is-active': item.id === activeKb }"
-          @click="selectKb(item.id)"
-        >
-          <span class="kb__name">{{ item.name }}</span>
-          <span class="kb__count">{{ item.doc_count }} 篇</span>
-        </li>
-        <li v-if="!kbs.length" class="kb__none">还没有知识库</li>
-      </ul>
-    </aside>
-
-    <div class="kb__main">
-      <header class="kb__head">
-        <div>
-          <h2>{{ active?.name ?? '选择或新建知识库' }}</h2>
-          <p v-if="active" class="kb__desc">
-            {{ active.description || '未填写说明' }} · {{ active.embedding_model }}（{{ active.dim }} 维）
-          </p>
-        </div>
-        <div class="kb__head-actions">
-          <input ref="fileInput" type="file" accept=".md,.markdown,.txt,.pdf,.docx" hidden @change="onPickFile" />
-          <input v-model="uploadTitle" class="kb__title-input" placeholder="文档标题（可选）" />
-          <button class="btn btn--primary" :disabled="!activeKb || loading" @click="fileInput?.click()">
-            上传文档
+      <div class="kb__actions">
+        <template v-if="isAdmin">
+          <button class="btn" @click="showNewKb = !showNewKb">新建知识库</button>
+          <button class="btn" @click="showCategories = !showCategories">分类管理</button>
+          <button class="btn" :disabled="!activeKb || reindexing" @click="onReindex">
+            {{ reindexing ? '提交中…' : '重建索引' }}
           </button>
-          <button class="btn" :disabled="!activeKb" @click="onDeleteKb">删除库</button>
-        </div>
-      </header>
-
-      <p v-if="error" class="kb__error">{{ error }}</p>
-
-      <table class="kb__table">
-        <thead>
-          <tr>
-            <th>标题</th>
-            <th>格式</th>
-            <th>大小</th>
-            <th>状态</th>
-            <th>分块</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="doc in docs" :key="doc.id">
-            <td class="kb__doc-title">{{ doc.title }}</td>
-            <td>{{ doc.format }}</td>
-            <td>{{ fmtSize(doc.size_bytes) }}</td>
-            <td>
-              <span class="badge" :class="`badge--${doc.status}`">{{ statusText[doc.status] ?? doc.status }}</span>
-              <span v-if="doc.error" class="kb__doc-error" :title="doc.error">!</span>
-            </td>
-            <td>{{ doc.chunk_count }}</td>
-            <td class="kb__row-actions">
-              <button class="link-btn" @click="showChunks(doc)">分块</button>
-              <button class="link-btn" @click="onRebuild(doc)">重建</button>
-              <button class="link-btn link-btn--danger" @click="onDeleteDoc(doc)">删除</button>
-            </td>
-          </tr>
-          <tr v-if="!docs.length">
-            <td colspan="6" class="kb__none">还没有文档，支持 md / txt / pdf / docx</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="kb__search">
-        <input v-model="query" placeholder="检索测试：输入一句话看命中什么片段" @keydown.enter="onSearch" />
-        <button class="btn" :disabled="loading || !query.trim()" @click="onSearch">检索</button>
+          <button class="btn btn--danger" :disabled="!activeKb" @click="onDeleteKb">删除知识库</button>
+        </template>
       </div>
-      <ul v-if="hits.length" class="kb__hits">
-        <li v-for="(hit, index) in hits" :key="`${hit.doc_id}-${hit.seq}-${index}`">
-          <span class="kb__score">{{ hit.score.toFixed(3) }}</span>
-          <strong>{{ hit.title }}</strong>
-          <span class="kb__seq">第 {{ hit.seq + 1 }} 块</span>
-          <p>{{ hit.text.slice(0, 160) }}</p>
+    </header>
+
+    <p v-if="error" class="kb__error" @click="error = ''">{{ error }}</p>
+    <p v-if="notice" class="kb__notice">{{ notice }}</p>
+
+    <div v-if="showNewKb && isAdmin" class="kb__panel">
+      <input v-model="newKbName" placeholder="新知识库名称" @keydown.enter="onCreateKb" />
+      <button class="btn" :disabled="loading" @click="onCreateKb">创建</button>
+    </div>
+
+    <div v-if="showCategories && isAdmin" class="kb__panel kb__panel--column">
+      <div class="kb__cat-add">
+        <input v-model="newCategory" placeholder="新分类名称，例如：运维手册" @keydown.enter="onCreateCategory" />
+        <button class="btn" @click="onCreateCategory">添加分类</button>
+      </div>
+      <ul class="kb__cats">
+        <li v-for="category in categories" :key="category.id">
+          <span class="kb__cat-name">{{ category.name }}</span>
+          <span class="kb__muted">{{ category.doc_count }} 篇</span>
+          <button class="btn btn--sm" @click="onRenameCategory(category)">改名</button>
+          <button class="btn btn--sm btn--danger" @click="onDeleteCategory(category)">删除</button>
         </li>
+        <li v-if="!categories.length" class="kb__muted">还没有分类，可以按业务域建几个，比如"运维手册 / 发布规范 / 常见问题"</li>
       </ul>
+    </div>
 
-      <div v-if="chunkDoc" class="kb__chunks">
-        <header>
-          <span>分块预览：{{ chunkDoc.title }}（{{ chunks.length }} 块）</span>
-          <button class="icon-btn" @click="chunkDoc = null">✕</button>
-        </header>
-        <ol>
-          <li v-for="chunk in chunks" :key="chunk.id">
-            <span class="kb__seq">#{{ chunk.seq }}</span>
-            <pre>{{ chunk.text }}</pre>
+    <div class="kb__body">
+      <aside class="kb__side">
+        <div class="kb__side-title">知识库</div>
+        <ul>
+          <li
+            v-for="item in kbs"
+            :key="item.id"
+            class="kb__side-item"
+            :class="{ 'is-active': item.id === activeKb }"
+          >
+            <button class="kb__side-btn" @click="selectKb(item.id)">
+              <span class="kb__side-name">{{ item.name }}</span>
+              <span class="kb__muted">{{ item.approved_count }}/{{ item.doc_count }} 篇</span>
+            </button>
+            <span v-if="item.pending_review" class="badge badge--warn">{{ item.pending_review }} 待审</span>
           </li>
-        </ol>
-      </div>
+          <li v-if="!kbs.length" class="kb__muted">
+            {{ isAdmin ? '还没有知识库，点右上角新建' : '管理员还没有创建知识库' }}
+          </li>
+        </ul>
+      </aside>
+
+      <main v-if="active" class="kb__main">
+        <div class="kb__upload">
+          <input ref="fileInput" type="file" hidden @change="onPickFile" />
+          <input v-model="uploadTitle" class="kb__input" placeholder="标题（可选，默认用文件名）" />
+          <select v-model="uploadCategory" class="kb__input kb__input--sm">
+            <option value="">未分类</option>
+            <option v-for="category in categories" :key="category.id" :value="category.id">
+              {{ category.name }}
+            </option>
+          </select>
+          <button class="btn btn--primary" :disabled="loading" @click="fileInput?.click()">
+            选择文件上传
+          </button>
+          <span class="kb__muted">md / txt / pdf / docx，20MB 内</span>
+        </div>
+
+        <div v-if="isAdmin && pendingDocs.length" class="kb__review">
+          <div class="kb__review-head">待审核 {{ pendingDocs.length }} 篇</div>
+          <ul>
+            <li v-for="doc in pendingDocs" :key="doc.id">
+              <span class="kb__doc-name">{{ doc.title }}</span>
+              <span class="kb__muted">{{ categoryName(doc.category_id) }}</span>
+              <button class="btn btn--sm btn--primary" @click="onReview(doc, 'approve')">通过并入库</button>
+              <button class="btn btn--sm btn--danger" @click="onReview(doc, 'reject')">驳回</button>
+            </li>
+          </ul>
+        </div>
+
+        <div class="kb__search">
+          <input
+            v-model="query"
+            class="kb__input"
+            placeholder="在知识库里搜一段话，验证召回效果"
+            @keydown.enter="onSearch"
+          />
+          <button class="btn" :disabled="loading" @click="onSearch">检索</button>
+        </div>
+        <ul v-if="hits.length" class="kb__hits">
+          <li v-for="(hit, index) in hits" :key="`${hit.doc_id}-${hit.seq}-${index}`">
+            <div class="kb__hit-head">
+              <span class="kb__score">{{ hit.score.toFixed(3) }}</span>
+              <span>{{ hit.title }}</span>
+              <span class="kb__seq">#{{ hit.seq }}</span>
+            </div>
+            <pre>{{ hit.text.slice(0, 240) }}</pre>
+          </li>
+        </ul>
+
+        <table class="kb__docs">
+          <thead>
+            <tr>
+              <th>文档</th>
+              <th>分类</th>
+              <th>状态</th>
+              <th>块数</th>
+              <th>上传时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="doc in visibleDocs" :key="doc.id">
+              <td class="kb__doc-name">{{ doc.title }}</td>
+              <td class="kb__muted">{{ categoryName(doc.category_id) }}</td>
+              <td>
+                <span class="badge" :class="`badge--${docState(doc).tone}`">{{ docState(doc).text }}</span>
+                <span v-if="doc.review_status === 'approved' && doc.review_note" class="kb__muted">
+                  {{ doc.review_note }}
+                </span>
+              </td>
+              <td>{{ doc.chunk_count }}</td>
+              <td class="kb__muted">{{ doc.created_at?.replace('T', ' ').slice(0, 16) }}</td>
+              <td class="kb__row-actions">
+                <template v-if="isAdmin">
+                  <button class="btn btn--sm" @click="onViewChunks(doc)">切块</button>
+                  <button class="btn btn--sm" :disabled="doc.review_status !== 'approved'" @click="onRebuild(doc)">
+                    重建
+                  </button>
+                  <button class="btn btn--sm btn--danger" @click="onDeleteDoc(doc)">删除</button>
+                </template>
+                <span v-else class="kb__muted">{{ doc.review_status === 'rejected' ? '可修改后重新上传' : '—' }}</span>
+              </td>
+            </tr>
+            <tr v-if="!visibleDocs.length">
+              <td colspan="6" class="kb__muted">
+                还没有文档。{{ isAdmin ? '上传后记得在待审核列表里点通过。' : '上传文件后等管理员审核。' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="isAdmin && chunkDoc" class="kb__chunks">
+          <header>
+            <span>切块预览 · {{ chunkDoc.title }}（{{ chunks.length }} 块）</span>
+            <button class="btn btn--sm" @click="chunkDoc = null">关闭</button>
+          </header>
+          <ol>
+            <li v-for="chunk in chunks" :key="chunk.id">
+              <span class="kb__seq">#{{ chunk.seq }}</span>
+              <pre>{{ chunk.text }}</pre>
+            </li>
+          </ol>
+        </div>
+      </main>
+
+      <main v-else class="kb__main kb__main--empty">
+        {{ isAdmin ? '选择左侧知识库，或先新建一个' : '等待管理员创建并开放知识库' }}
+      </main>
     </div>
   </section>
 </template>
 
 <style scoped>
 .kb {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-  background: var(--fm-bg, #1e1e1e);
-  color: var(--fm-fg, #d4d4d4);
-}
-
-.kb__list {
-  border-right: 1px solid #3c3c3c;
-  background: #252526;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  gap: 12px;
+  height: 100%;
+  padding: 16px;
+  overflow: hidden;
 }
 
-.kb__list-head {
+.kb__top {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  font-size: 12px;
-  color: #8b949e;
-  border-bottom: 1px solid #3c3c3c;
-}
-
-.kb__create {
-  display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-}
-
-.kb__create input {
-  flex: 1;
-  min-width: 0;
-  background: #1e1e1e;
-  border: 1px solid #3c3c3c;
-  border-radius: 4px;
-  color: inherit;
-  padding: 4px 8px;
-  font-size: 12px;
-}
-
-.kb__items {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-}
-
-.kb__item {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  border-left: 2px solid transparent;
-}
-
-.kb__item:hover {
-  background: #2d2d30;
-}
-
-.kb__item.is-active {
-  background: #094771;
-  border-left-color: #4ea1ff;
-}
-
-.kb__count {
-  color: #8b949e;
-  font-size: 11px;
-}
-
-.kb__main {
-  padding: 16px 20px;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.kb__head {
-  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 12px;
 }
 
-.kb__head h2 {
+.kb__title h1 {
   margin: 0;
   font-size: 16px;
 }
 
-.kb__desc {
+.kb__hint {
   margin: 4px 0 0;
-  font-size: 12px;
   color: #8b949e;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-.kb__head-actions {
+.kb__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kb__error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #5a2b2b;
+  background: #3a2222;
+  color: #ffb3b3;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.kb__notice {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #2f5a37;
+  background: #223327;
+  color: #9ee6a8;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.kb__panel {
   display: flex;
   gap: 8px;
   align-items: center;
+  padding: 10px;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  background: #232323;
 }
 
-.kb__title-input {
+.kb__panel--column {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.kb__cat-add {
+  display: flex;
+  gap: 8px;
+}
+
+.kb__cats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kb__cats li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.kb__cat-name {
+  min-width: 120px;
+}
+
+.kb__body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.kb__side {
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  background: #232323;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.kb__side-title {
+  font-size: 12px;
+  color: #8b949e;
+  padding: 2px 6px 8px;
+}
+
+.kb__side ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kb__side-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+}
+
+.kb__side-item.is-active {
+  background: #2d2d30;
+}
+
+.kb__side-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+
+.kb__side-name {
+  font-size: 13px;
+}
+
+.kb__main {
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  background: #232323;
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kb__main--empty {
+  align-items: center;
+  justify-content: center;
+  color: #8b949e;
+  font-size: 13px;
+}
+
+.kb__upload {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kb__input {
+  flex: 1;
+  min-width: 160px;
   background: #1e1e1e;
   border: 1px solid #3c3c3c;
   border-radius: 4px;
   color: inherit;
-  padding: 5px 8px;
-  font-size: 12px;
-  width: 160px;
-}
-
-.btn {
-  border: 1px solid #3c3c3c;
-  background: #2d2d30;
-  color: inherit;
-  border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn--primary {
-  background: #0e639c;
-  border-color: #1177bb;
-  color: #fff;
-}
-
-.icon-btn {
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.kb__error {
-  color: #f85149;
+  padding: 6px 8px;
   font-size: 12px;
 }
 
-.kb__table {
-  width: 100%;
-  border-collapse: collapse;
+.kb__input--sm {
+  flex: 0 0 140px;
+  min-width: 120px;
+}
+
+.kb__review {
+  border: 1px solid #6b5218;
+  background: #332b17;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.kb__review-head {
   font-size: 12px;
+  color: #e3b341;
+  margin-bottom: 6px;
 }
 
-.kb__table th,
-.kb__table td {
-  text-align: left;
-  padding: 7px 8px;
-  border-bottom: 1px solid #2d2d30;
-}
-
-.kb__table th {
-  color: #8b949e;
-  font-weight: 500;
-}
-
-.kb__doc-title {
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.kb__doc-error {
-  color: #f85149;
-  margin-left: 6px;
-  cursor: help;
-}
-
-.badge {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: #2d2d30;
-  border: 1px solid #3c3c3c;
-}
-
-.badge--ready {
-  color: #3fb950;
-  border-color: #238636;
-}
-
-.badge--failed {
-  color: #f85149;
-  border-color: #8b2c25;
-}
-
-.badge--pending,
-.badge--parsing,
-.badge--chunking,
-.badge--embedding {
-  color: #d29922;
-  border-color: #9e6a03;
-}
-
-.kb__row-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.link-btn {
-  background: none;
-  border: 0;
-  color: #4ea1ff;
-  cursor: pointer;
+.kb__review ul {
+  list-style: none;
+  margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kb__review li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
-}
-
-.link-btn--danger {
-  color: #f85149;
-}
-
-.kb__none {
-  color: #8b949e;
-  text-align: center;
-  padding: 18px 0;
 }
 
 .kb__search {
   display: flex;
   gap: 8px;
-  margin-top: 18px;
-}
-
-.kb__search input {
-  flex: 1;
-  background: #1e1e1e;
-  border: 1px solid #3c3c3c;
-  border-radius: 4px;
-  color: inherit;
-  padding: 7px 10px;
-  font-size: 13px;
 }
 
 .kb__hits {
   list-style: none;
+  margin: 0;
   padding: 0;
-  margin: 12px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .kb__hits li {
   border: 1px solid #3c3c3c;
-  border-radius: 6px;
-  padding: 8px 10px;
-  background: #232323;
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: #1e1e1e;
+}
+
+.kb__hit-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.kb__hits pre {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #9cdcfe;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.kb__docs {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 12px;
 }
 
-.kb__hits p {
-  margin: 6px 0 0;
-  color: #9aa4ae;
-  white-space: pre-wrap;
+.kb__docs th,
+.kb__docs td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #2f2f2f;
+  vertical-align: middle;
 }
 
-.kb__score {
-  color: #3fb950;
-  margin-right: 8px;
-}
-
-.kb__seq {
+.kb__docs th {
   color: #8b949e;
-  margin-left: 8px;
+  font-weight: 500;
+}
+
+.kb__doc-name {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb__muted {
+  color: #8b949e;
+  font-size: 12px;
+}
+
+.kb__row-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
   font-size: 11px;
+  border: 1px solid transparent;
+}
+
+.badge--ok {
+  color: #3fb950;
+  border-color: #2f5a37;
+  background: #1c2b20;
+}
+
+.badge--warn {
+  color: #e3b341;
+  border-color: #6b5218;
+  background: #332b17;
+}
+
+.badge--danger {
+  color: #f85149;
+  border-color: #5a2b2b;
+  background: #3a2222;
+}
+
+.badge--pending {
+  color: #58a6ff;
+  border-color: #1f3f66;
+  background: #17253a;
 }
 
 .kb__chunks {
-  margin-top: 18px;
   border: 1px solid #3c3c3c;
   border-radius: 6px;
-  background: #232323;
+  background: #1e1e1e;
   max-height: 320px;
   display: flex;
   flex-direction: column;
@@ -592,5 +847,16 @@ onMounted(refreshKbs)
   white-space: pre-wrap;
   color: #9cdcfe;
   font-family: inherit;
+}
+
+.kb__score {
+  color: #3fb950;
+  margin-right: 8px;
+}
+
+.kb__seq {
+  color: #8b949e;
+  margin-left: 8px;
+  font-size: 11px;
 }
 </style>
