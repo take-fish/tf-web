@@ -10,6 +10,7 @@ import {
   type ToolCallRow,
   type ToolConfigRow,
 } from '@/api/agent'
+import ErrorBanner from '@/components/ErrorBanner.vue'
 import { formatApiError } from '@/lib/http'
 
 defineOptions({ name: 'AgentAdminView' })
@@ -87,6 +88,13 @@ function fmtTime(value: string | null) {
   return value ? value.replace('T', ' ').slice(0, 19) : '-'
 }
 
+async function loadAll() {
+  error.value = ''
+  if (tab.value === 'stats') await loadStats()
+  else if (tab.value === 'calls') await loadCalls()
+  else await loadTools()
+}
+
 onMounted(loadStats)
 </script>
 
@@ -101,7 +109,7 @@ onMounted(loadStats)
       </nav>
     </header>
 
-    <p v-if="error" class="admin__error">{{ error }}</p>
+    <ErrorBanner v-if="error" :message="error" retryable @retry="loadAll" @close="error = ''" />
 
     <div v-if="tab === 'stats'" class="admin__stats">
       <div class="stat">

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AgentAvatar from '@/components/agent/AgentAvatar.vue'
+import ErrorBanner from '@/components/ErrorBanner.vue'
 import { fetchProfile, saveProfile, type AgentProfile } from '@/api/agent'
 import { formatApiError } from '@/lib/http'
 
@@ -106,7 +107,7 @@ onMounted(load)
       </div>
     </header>
 
-    <p v-if="error" class="profile__error" @click="error = ''">{{ error }}</p>
+    <ErrorBanner v-if="error" :message="error" retryable @retry="load" @close="error = ''" />
     <p v-if="notice" class="profile__notice">{{ notice }}</p>
 
     <div class="profile__body">

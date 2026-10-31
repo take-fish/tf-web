@@ -1,4 +1,4 @@
-import { deleteJson, getJson, patchJson, postForm, postJson, putJson } from '@/lib/http'
+import { authFetch, deleteJson, getJson, patchJson, postForm, postJson, putJson, toApiError } from '@/lib/http'
 import { getAuthToken } from '@/lib/authToken'
 
 const BASE = '/api/v1/agent'
@@ -44,16 +44,9 @@ export async function streamChat(
   onEvent: (event: AgentEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(`${BASE}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(payload),
-    signal,
-  })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`对话请求失败（HTTP ${response.status}）${text ? `：${text.slice(0, 200)}` : ''}`)
-  }
+  // 走统一请求封装：带上 Authorization、401 会触发登录态失效流程、错误体按标准信封解析
+  const response = await authFetch(`${BASE}/chat`, { method: 'POST', body: JSON.stringify(payload), signal })
+  if (!response.ok) throw await toApiError(response)
   if (!response.body) throw new Error('当前浏览器不支持流式响应')
 
   const reader = response.body.getReader()

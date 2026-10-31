@@ -28,6 +28,20 @@ export class ApiError extends Error {
     this.timestamp = timestamp
     this.details = details
   }
+
+  /** 后端在 details.retryable 里标注「重试是否有意义」。 */
+  get retryable(): boolean {
+    return this.details?.retryable === true
+  }
+}
+
+const NETWORK_HINTS = ['failed to fetch', 'load failed', 'networkerror', 'network request failed', 'fetch failed']
+
+function isNetworkError(error: unknown): boolean {
+  if (error instanceof ApiError) return false
+  if (!(error instanceof Error)) return false
+  if (error.name === 'TypeError') return true
+  return NETWORK_HINTS.some((hint) => error.message.toLowerCase().includes(hint))
 }
 
 interface ErrorBody {
@@ -37,6 +51,20 @@ interface ErrorBody {
   requestId?: string
   timestamp?: string
   details?: Record<string, unknown>
+  /** 兼容 FastAPI 原生错误体（未按统一信封返回时） */
+  detail?: unknown
+}
+
+/** FastAPI 的 detail 可能是字符串，也可能是 [{loc, msg, type}] 数组。 */
+function detailToMessage(detail: unknown): string {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const first = detail.find((item) => item && typeof item === 'object' && 'msg' in item) as
+      | { msg?: unknown }
+      | undefined
+    if (first && typeof first.msg === 'string') return first.msg
+  }
+  return ''
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -49,7 +77,7 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(
     response.status,
     body.error ?? `HTTP_${response.status}`,
-    body.message ?? `请求失败（HTTP ${response.status}）`,
+    body.message || detailToMessage(body.detail) || `请求失败（HTTP ${response.status}）`,
     body.traceId ?? response.headers.get('X-Trace-ID') ?? undefined,
     body.requestId ?? response.headers.get('X-Request-ID') ?? undefined,
     body.timestamp,
@@ -78,12 +106,25 @@ export function errorReference(error: unknown): string {
   return ''
 }
 
-/** 错误文案统一附带可复制的链路编号。 */
+/**
+ * 错误文案统一附带可复制的链路编号，并按类型给出用户能理解的提示：
+ * 网络断 / 登录失效 / 无权限 / 服务异常 / 业务校验，其余原样展示后端文案。
+ */
 export function formatApiError(error: unknown, fallback = '操作失败'): string {
   if (error instanceof ApiError) {
-    const message = firstFieldMessage(error.details) || error.message || fallback
+    let message = firstFieldMessage(error.details) || error.message
+    if (error.status === 401) {
+      message = '登录已失效，请重新登录'
+    } else if (error.status >= 500 && (!message || message.startsWith('请求失败（HTTP'))) {
+      message = '服务暂时不可用，请稍后重试'
+    } else if (error.status === 403 && (!message || message.startsWith('请求失败（HTTP'))) {
+      message = '没有操作权限'
+    } else if (!message) {
+      message = fallback
+    }
     return appendErrorReference(message, error)
   }
+  if (isNetworkError(error)) return '网络连接失败，请检查网络后重试'
   const message = error instanceof Error && error.message ? error.message : fallback
   return appendErrorReference(message, error)
 }
@@ -130,7 +171,7 @@ async function sessionExpired(token: string | null): Promise<boolean> {
   }
 }
 
-async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const sentToken = getAuthToken()
   const headers = buildHeaders(init)
 
@@ -149,6 +190,11 @@ async function authFetch(path: string, init: RequestInit = {}): Promise<Response
     throw await parseError(response)
   }
   return response
+}
+
+/** 把非 2xx 响应转成 ApiError（SSE 这类自己发请求的地方复用，保证同样处理 401/编号）。 */
+export async function toApiError(response: Response): Promise<ApiError> {
+  return parseError(response)
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
