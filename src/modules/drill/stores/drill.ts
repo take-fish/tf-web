@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 
 import { AUGMENT_BY_ID, TRAIT_DEFS, UNIT_BY_ID, XP_TABLE } from '../core/content'
 import { createGame, dispatch } from '../core/engine'
+import type { BattleTrace } from '../core/combat'
 import type { Command } from '../core/engine'
 import {
   activeTiers,
@@ -198,6 +199,7 @@ export const useDrillStore = defineStore('drill', () => {
   const levelUpCost = 4
   const isPrep = computed(() => state.value.phase === 'PREP')
   const lastBattle = computed(() => state.value.lastBattle)
+const lastTrace = ref<BattleTrace | null>(null)
 
   watch(
     state,
@@ -217,6 +219,7 @@ export const useDrillStore = defineStore('drill', () => {
       error.value = result.error
       return false
     }
+    if (result.trace) lastTrace.value = result.trace
     state.value = result.state
     error.value = null
     return true
@@ -271,6 +274,7 @@ export const useDrillStore = defineStore('drill', () => {
     state.value = createGame(Date.now())
     elapsed.value = 0
     error.value = null
+    lastTrace.value = null
   }
 
   return {
@@ -281,6 +285,7 @@ export const useDrillStore = defineStore('drill', () => {
     paused,
     error,
     lastBattle,
+    lastTrace,
     rerollCost,
     levelUpCost,
     isPrep,

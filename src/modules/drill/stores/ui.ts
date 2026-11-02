@@ -6,6 +6,7 @@ export const useDrillUiStore = defineStore('drillUi', () => {
   const drawerUnitId = ref<string | null>(null)
   const meetingMode = ref(false)
   const reportOpen = ref(false)
+  const replayOpen = ref(false)
   const selectedAnnotationId = ref<string | null>(null)
   const toast = ref<string | null>(null)
 
@@ -29,6 +30,14 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     reportOpen.value = false
   }
 
+  function openReplay() {
+    replayOpen.value = true
+  }
+
+  function closeReplay() {
+    replayOpen.value = false
+  }
+
   function selectAnnotation(id: string | null) {
     selectedAnnotationId.value = id
   }
@@ -44,6 +53,7 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     drawerUnitId,
     meetingMode,
     reportOpen,
+    replayOpen,
     selectedAnnotationId,
     toast,
     openDrawer,
@@ -51,6 +61,8 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     toggleMeeting,
     openReport,
     closeReport,
+    openReplay,
+    closeReplay,
     selectAnnotation,
     notify,
   }

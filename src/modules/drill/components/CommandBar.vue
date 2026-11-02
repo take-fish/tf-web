@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDrillStore } from '../stores/drill'
+import { useDrillUiStore } from '../stores/ui'
 
 defineProps<{
   battleActive: boolean
@@ -12,6 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const drill = useDrillStore()
+const ui = useDrillUiStore()
 
 function reroll() {
   drill.reroll()
@@ -52,6 +54,15 @@ function buyXp() {
       </button>
       <button type="button" class="drill__ghost" :disabled="!battleActive" @click="emit('skip')">
         跳过
+      </button>
+      <button
+        type="button"
+        class="drill__ghost"
+        :disabled="!drill.lastTrace"
+        title="查看上一场校验的完整过程"
+        @click="ui.openReplay()"
+      >
+        回放
       </button>
     </div>
   </footer>

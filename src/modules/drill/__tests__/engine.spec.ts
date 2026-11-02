@@ -128,3 +128,45 @@ describe('drill engine', () => {
     expect(state.log.length).toBeGreaterThan(0)
   })
 })
+
+describe('替换与回放', () => {
+  it('待命席拖到场上实例：替换，不额外占人口', () => {
+    const state: GameState = {
+      ...createGame(77),
+      quotas: 100,
+      units: [
+        { uid: 'a', defId: 'shunfengyao', star: 1, zone: 'board', slot: 0, annotations: [] },
+        { uid: 'b', defId: 'zuoshen', star: 1, zone: 'board', slot: 1, annotations: [] },
+        { uid: 'c', defId: 'liangqiang', star: 1, zone: 'board', slot: 2, annotations: [] },
+        { uid: 'd', defId: 'jingyingqi', star: 1, zone: 'bench', slot: 0, annotations: [] },
+      ],
+    }
+    // 3 人口已满，替换仍应通过
+    const result = dispatch(state, { type: 'MOVE', uid: 'd', zone: 'board', slot: 1 })
+    expect(result.error).toBeUndefined()
+    expect(result.state.units.find((unit) => unit.uid === 'd')).toMatchObject({
+      zone: 'board',
+      slot: 1,
+    })
+    expect(result.state.units.find((unit) => unit.uid === 'b')).toMatchObject({
+      zone: 'bench',
+      slot: 0,
+    })
+  })
+
+  it('发起校验返回可回放的轨迹', () => {
+    const state: GameState = {
+      ...createGame(7),
+      units: [
+        { uid: 'a', defId: 'shunfengyao', star: 2, zone: 'board', slot: 0, annotations: [] },
+        { uid: 'b', defId: 'zuoshen', star: 2, zone: 'board', slot: 1, annotations: [] },
+      ],
+    }
+    const result = dispatch(state, { type: 'START_BATTLE' })
+    expect(result.error).toBeUndefined()
+    expect(result.trace?.frames.length ?? 0).toBeGreaterThan(0)
+    expect(result.trace?.units.length ?? 0).toBeGreaterThan(2)
+    expect(result.trace?.events.length ?? 0).toBeGreaterThan(0)
+    expect(result.trace?.duration ?? 0).toBeGreaterThan(0)
+  })
+})

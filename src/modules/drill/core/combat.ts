@@ -88,11 +88,52 @@ export interface BattleOutcome {
   ticks: number
   /** 每秒己方总生命占比 */
   curve: number[]
+  /** 回放用的快照与事件，仅调试/回放使用，不进存档 */
+  trace: BattleTrace
+}
+
+export interface TraceUnit {
+  uid: string
+  name: string
+  side: 'ally' | 'enemy'
+  defId: string
+  star: 1 | 2 | 3
+  col: number
+  row: number
+  maxHp: number
+}
+
+export interface TraceFrame {
+  t: number
+  units: { uid: string; col: number; row: number; hp: number; alive: boolean }[]
+}
+
+export interface TraceEvent {
+  t: number
+  kind: 'hit' | 'skill' | 'down' | 'revive'
+  uid: string
+  targetId?: string
+  amount?: number
+  hp?: number
+  text?: string
+}
+
+export interface BattleTrace {
+  units: TraceUnit[]
+  frames: TraceFrame[]
+  events: TraceEvent[]
+  duration: number
 }
 
 const DT = 0.1
 const MAX_TICKS = 200
 const ADJACENT = 1
+const MAX_EVENTS = 1500
+
+/** 回放录制器：模块级单例，simulateBattle 进入时挂上、退出时摘掉。 */
+let recorder: ((event: TraceEvent) => void) | null = null
+let attacker = ''
+let clock = 0
 
 function axial(col: number, row: number): { q: number; r: number } {
   return { q: col, r: row - (col - (col & 1)) / 2 }
@@ -199,6 +240,14 @@ function takeDamage(fighter: Fighter, raw: number, kind: 'phys' | 'magic' | 'tru
   fighter.hp -= amount
   fighter.mana = Math.min(100, fighter.mana + Math.min(15, amount / 12))
   if (fighter.hp <= 0) fighter.hp = 0
+  recorder?.({
+    t: clock,
+    kind: 'hit',
+    uid: attacker,
+    targetId: fighter.uid,
+    amount: Math.round(amount),
+    hp: Math.round(fighter.hp),
+  })
   return amount
 }
 
@@ -214,6 +263,21 @@ export function simulateBattle(
   ]
   const occupied = new Set<string>(fighters.map((fighter) => `${fighter.col},${fighter.row}`))
   const curve: number[] = []
+  const units: TraceUnit[] = fighters.map((fighter) => ({
+    uid: fighter.uid,
+    name: fighter.def.name,
+    side: fighter.side,
+    defId: fighter.def.id,
+    star: fighter.star,
+    col: fighter.col,
+    row: fighter.row,
+    maxHp: fighter.maxHp,
+  }))
+  const events: TraceEvent[] = []
+  const frames: TraceFrame[] = []
+  recorder = (event) => {
+    if (events.length < MAX_EVENTS) events.push(event)
+  }
   const allyMaxHp = allies.reduce((sum, input) => {
     const def = UNIT_BY_ID[input.defId]
     return sum + (def ? def.hp * starMult(input.star, def.cost) * (1 + allyMods.hp) : 0)
@@ -223,6 +287,7 @@ export function simulateBattle(
   for (let tick = 0; tick < MAX_TICKS; tick += 1) {
     ticks = tick + 1
     const elapsed = ticks * DT
+    clock = elapsed
     const aliveAllies = living(fighters, 'ally')
     const aliveEnemies = living(fighters, 'enemy')
     if (aliveAllies.length === 0 || aliveEnemies.length === 0) break
@@ -260,6 +325,7 @@ export function simulateBattle(
       fighter.attackCd += effective(fighter, 'as', elapsed) * DT
       if (fighter.attackCd < 1) continue
       fighter.attackCd = 0
+      attacker = fighter.uid
 
       const ownMods = fighter.side === 'ally' ? allyMods : enemyMods
       const earlyMul = elapsed <= ownMods.earlyDamageSeconds ? 1 + ownMods.earlyDamage : 1
@@ -284,6 +350,16 @@ export function simulateBattle(
 
     const allyHp = living(fighters, 'ally').reduce((sum, fighter) => sum + fighter.hp, 0)
     curve.push(allyMaxHp > 0 ? allyHp / allyMaxHp : 0)
+    frames.push({
+      t: elapsed,
+      units: fighters.map((fighter) => ({
+        uid: fighter.uid,
+        col: fighter.col,
+        row: fighter.row,
+        hp: Math.round(fighter.hp),
+        alive: fighter.alive,
+      })),
+    })
   }
 
   const allyAlive = living(fighters, 'ally').length
@@ -299,7 +375,15 @@ export function simulateBattle(
             ? 'ally'
             : 'enemy'
 
-  return { winner, allyAlive, enemyAlive, ticks, curve }
+  recorder = null
+  return {
+    winner,
+    allyAlive,
+    enemyAlive,
+    ticks,
+    curve,
+    trace: { units, frames, events, duration: ticks * DT },
+  }
 }
 
 function handleDeath(fighter: Fighter, fighters: Fighter[], elapsed: number, mods: Mods): void {
@@ -309,10 +393,12 @@ function handleDeath(fighter: Fighter, fighters: Fighter[], elapsed: number, mod
     fighter.alive = true
     fighter.hp = Math.round(fighter.maxHp * reviveRatio)
     fighter.mana = 0
+    recorder?.({ t: clock, kind: 'revive', uid: fighter.uid, hp: fighter.hp })
     return
   }
 
   fighter.alive = false
+  recorder?.({ t: clock, kind: 'down', uid: fighter.uid })
   if (mods.deathAoe > 0) {
     const enemySide = fighter.side === 'ally' ? 'enemy' : 'ally'
     for (const enemy of fighters) {
@@ -333,6 +419,14 @@ function castSkill(
   elapsed: number,
 ): void {
   const skill = caster.def.skill
+  attacker = caster.uid
+  recorder?.({
+    t: clock,
+    kind: 'skill',
+    uid: caster.uid,
+    targetId: primary.uid,
+    text: skill.name,
+  })
   const scale = starMult(caster.star, caster.def.cost)
   const statValue = skill.stat === 'atk' ? effective(caster, 'atk', elapsed) : effective(caster, 'ap', elapsed)
   const base = skill.base * scale + skill.coef * statValue

@@ -1,6 +1,6 @@
 import { makeBotBoard, makePveBoard } from './bots'
 import { EMPTY_MODS, simulateBattle } from './combat'
-import type { FighterInput, Mods } from './combat'
+import type { BattleTrace, FighterInput, Mods } from './combat'
 import {
   AUGMENT_DEFS,
   POOL_COUNTS,
@@ -38,6 +38,8 @@ export interface CommandResult {
   state: GameState
   /** 给 UI 的反馈：买不起、位置满等 */
   error?: string
+  /** 战斗回放数据，仅 START_BATTLE 返回 */
+  trace?: BattleTrace
 }
 
 const ANNOTATION_BUDGET = 10
@@ -254,7 +256,11 @@ function move(state: GameState, uid: string, zone: Zone, slot: number): CommandR
       return { state, error: '非法格位' }
     }
     const onBoard = boardUnits(state).filter((item) => item.uid !== uid)
-    if (unit.zone !== 'board' && onBoard.length >= populationCap(state)) {
+    const target = state.units.find(
+      (item) => item.uid !== uid && item.zone === 'board' && item.slot === slot,
+    )
+    // 拖到已被占用的格位是「替换」，上场人数不变，不额外占人口
+    if (unit.zone !== 'board' && !target && onBoard.length >= populationCap(state)) {
       return { state, error: `上场已达上限 ${populationCap(state)}` }
     }
   }
@@ -396,7 +402,7 @@ function battleDamage(state: GameState, survivors: number, won: boolean): number
   return state.round <= 3 ? Math.ceil(base / 2) : base
 }
 
-function fight(state: GameState): GameState {
+function fight(state: GameState): CommandResult {
   const next = cloneState(state)
   const allyInputs: FighterInput[] = boardUnits(next).map((unit) => {
     const coord = cellToCoord(unit.slot)
@@ -411,7 +417,7 @@ function fight(state: GameState): GameState {
   })
 
   if (allyInputs.length === 0) {
-    return { ...next, phase: 'PREP' }
+    return { state: { ...next, phase: 'PREP' } }
   }
 
   const pve = next.round <= 3
@@ -455,16 +461,20 @@ function fight(state: GameState): GameState {
       ...next.log,
       {
         round: next.round,
+        won,
+        mode: (pve ? 'PVE' : 'PVP') as 'PVE' | 'PVP',
         text: `${enemy.name} · ${won ? '通过' : '未通过'} · SLI ${sliBefore} → ${sli}`,
       },
     ],
   }
 
+  const trace = outcome.trace
+
   if (sli === 0) {
-    return { ...settled, phase: 'END' }
+    return { state: { ...settled, phase: 'END' }, trace }
   }
 
-  return settle(settled)
+  return { state: settle(settled), trace }
 }
 
 export function dispatch(state: GameState, command: Command): CommandResult {
@@ -530,7 +540,7 @@ export function dispatch(state: GameState, command: Command): CommandResult {
       if (state.pendingAugment) return { state, error: '请先完成技术方案评审' }
       if (state.phase !== 'PREP') return { state, error: '当前阶段不可发起' }
       if (boardUnits(state).length === 0) return { state, error: '请先部署至少 1 个实例' }
-      return { state: fight(state) }
+      return fight(state)
     }
 
     case 'RESTART':
