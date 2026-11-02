@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
+import { UNIT_BY_ID } from '../core/content'
 import { useDrillStore } from '../stores/drill'
 import { useDrillUiStore } from '../stores/ui'
+import DrillFigure from './DrillFigure.vue'
 
 /**
  * 演练观察窗。
@@ -18,6 +20,15 @@ interface Floater {
   y: number
   text: string
   kind: 'hit' | 'down' | 'heal'
+}
+
+interface Fx {
+  id: number
+  kind: 'slash' | 'beam' | 'line' | 'ring' | 'aura' | 'spark'
+  x: number
+  y: number
+  x2: number
+  y2: number
 }
 
 const drill = useDrillStore()
@@ -37,6 +48,35 @@ const floaters = ref<Floater[]>([])
 const banner = ref<{ name: string; text: string } | null>(null)
 const shakeActive = ref(false)
 const finished = ref(false)
+
+/** 动作态：谁在出击、谁在受击、谁在施法（按 uid 打标，200~600ms 自动消） */
+const strikeUid = ref<string | null>(null)
+const hitUid = ref<string | null>(null)
+const castUid = ref<string | null>(null)
+const fx = ref<Fx[]>([])
+
+const motionTimers = { strike: 0, hit: 0, cast: 0 }
+let fxId = 0
+
+function flagMotion(key: 'strike' | 'hit' | 'cast', uid: string) {
+  const target = key === 'strike' ? strikeUid : key === 'hit' ? hitUid : castUid
+  target.value = uid
+  window.clearTimeout(motionTimers[key])
+  motionTimers[key] = window.setTimeout(
+    () => {
+      if (target.value === uid) target.value = null
+    },
+    key === 'cast' ? 620 : key === 'hit' ? 220 : 200,
+  )
+}
+
+function pushFx(item: Omit<Fx, 'id'>, life = 520) {
+  const id = ++fxId
+  fx.value = [...fx.value, { ...item, id }]
+  window.setTimeout(() => {
+    fx.value = fx.value.filter((entry) => entry.id !== id)
+  }, life)
+}
 
 /** 观察窗尺寸：默认跟随视口，也可以拖右下角改，或用 小/中/大/满 预设。 */
 const winW = ref(1120)
@@ -182,28 +222,52 @@ function flashShake() {
   }, 160)
 }
 
+function at(uid: string | undefined): { x: number; y: number } | null {
+  if (uid === undefined) return null
+  const unit = frame.value?.units.find((entry) => entry.uid === uid)
+  if (!unit) return null
+  return { x: ((unit.col + 0.5) / 7) * 100, y: ((unit.row + 0.5) / 4) * 100 }
+}
+
+/** 技能形态 → 观察窗里的特效：单体=光束，直线=粗光束，AOE=扩散环，增益=脚下光环，持续=回升粒子 */
+function skillFx(kind: string, from: { x: number; y: number }, to: { x: number; y: number }) {
+  if (kind === 'single') pushFx({ kind: 'beam', x: from.x, y: from.y, x2: to.x, y2: to.y }, 320)
+  else if (kind === 'line') pushFx({ kind: 'line', x: from.x, y: from.y, x2: to.x, y2: to.y }, 360)
+  else if (kind === 'aoe') pushFx({ kind: 'ring', x: to.x, y: to.y, x2: to.x, y2: to.y }, 560)
+  else if (kind === 'buff') pushFx({ kind: 'aura', x: from.x, y: from.y, x2: from.x, y2: from.y }, 700)
+  else {
+    pushFx({ kind: 'spark', x: to.x, y: to.y - 2, x2: to.x, y2: to.y }, 560)
+    pushFx({ kind: 'spark', x: to.x - 1.6, y: to.y, x2: to.x, y2: to.y }, 620)
+    pushFx({ kind: 'spark', x: to.x + 1.8, y: to.y - 1, x2: to.x, y2: to.y }, 680)
+  }
+}
+
 function process(from: number, to: number) {
   const source = trace.value
   if (!source) return
-  const current = frame.value
+
   for (const event of source.events) {
     if (event.t <= from || event.t > to) continue
 
     if (event.kind === 'hit' && event.targetId) {
-      const target = current?.units.find((unit) => unit.uid === event.targetId)
+      const target = at(event.targetId)
       if (!target) continue
-      pushFloater({
-        x: ((target.col + 0.5) / 7) * 100,
-        y: ((target.row + 0.5) / 4) * 100,
-        text: `-${event.amount ?? 0}`,
-        kind: 'hit',
-      })
+      flagMotion('strike', event.uid)
+      flagMotion('hit', event.targetId)
+      pushFloater({ ...target, text: `-${event.amount ?? 0}`, kind: 'hit' })
+      pushFx({ kind: 'slash', x: target.x, y: target.y, x2: target.x, y2: target.y }, 240)
       if ((event.amount ?? 0) > 55) flashShake()
       continue
     }
 
     if (event.kind === 'skill') {
       const caster = meta.value.get(event.uid)
+      const casterAt = at(event.uid)
+      const targetAt = at(event.targetId) ?? casterAt
+      const form = caster ? UNIT_BY_ID[caster.defId]?.skill.form : undefined
+      if (casterAt) flagMotion('cast', event.uid)
+      if (casterAt && targetAt && form) skillFx(form, casterAt, targetAt)
+
       banner.value = { name: caster?.name ?? '', text: event.text ?? '' }
       window.clearTimeout(bannerTimer)
       bannerTimer = window.setTimeout(() => {
@@ -213,14 +277,10 @@ function process(from: number, to: number) {
     }
 
     if (event.kind === 'down') {
-      const unit = current?.units.find((entry) => entry.uid === event.uid)
+      const unit = at(event.uid)
       if (!unit) continue
-      pushFloater({
-        x: ((unit.col + 0.5) / 7) * 100,
-        y: ((unit.row + 0.5) / 4) * 100,
-        text: '退役',
-        kind: 'down',
-      })
+      pushFloater({ ...unit, text: '退役', kind: 'down' })
+      pushFx({ kind: 'ring', x: unit.x, y: unit.y, x2: unit.x, y2: unit.y }, 520)
     }
   }
 }
@@ -247,7 +307,7 @@ function play() {
   if (duration.value === 0) return
   if (cursor.value >= duration.value) {
     cursor.value = 0
-    floaters.value = []
+    clearMotion()
     finished.value = false
   }
   playing.value = true
@@ -268,16 +328,24 @@ function toggle() {
   else play()
 }
 
+function clearMotion() {
+  floaters.value = []
+  fx.value = []
+  strikeUid.value = null
+  hitUid.value = null
+  castUid.value = null
+}
+
 function seek(value: number) {
   pause()
   cursor.value = value
-  floaters.value = []
+  clearMotion()
   finished.value = value >= duration.value
 }
 
 function restart() {
   cursor.value = 0
-  floaters.value = []
+  clearMotion()
   finished.value = false
   play()
 }
@@ -289,7 +357,7 @@ watch(
     if (!open) return
     applyPreset(sizePreset.value)
     cursor.value = 0
-    floaters.value = []
+    clearMotion()
     finished.value = false
     play()
   },
@@ -342,11 +410,82 @@ onBeforeUnmount(() => {
               :class="[`is-${unit.side}`, { 'is-dead': !unit.alive }]"
               :style="cell(unit.col, unit.row)"
             >
+              <span
+                class="drill__arena-fig-wrap"
+                :class="{
+                  'is-striking': strikeUid === unit.uid,
+                  'is-hit': hitUid === unit.uid,
+                  'is-casting': castUid === unit.uid,
+                }"
+              >
+                <DrillFigure :side="unit.side" :dead="!unit.alive" />
+              </span>
               <b>{{ unit.name }}</b>
               <span class="drill__arena-hp">
                 <i :style="{ width: hpWidth(unit.hp, unit.maxHp) }" />
               </span>
             </div>
+
+            <svg class="drill__arena-fx" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <template v-for="item in fx" :key="item.id">
+                <line
+                  v-if="item.kind === 'beam' || item.kind === 'line'"
+                  :key="item.id"
+                  class="drill__fx-beam"
+                  :class="`is-${item.kind}`"
+                  :x1="item.x"
+                  :y1="item.y"
+                  :x2="item.x2"
+                  :y2="item.y2"
+                  :pathLength="1"
+                  vector-effect="non-scaling-stroke"
+                />
+                <g v-else-if="item.kind === 'slash'" :key="item.id">
+                  <line
+                    class="drill__fx-slash"
+                    :x1="item.x - 2.6"
+                    :y1="item.y - 3.4"
+                    :x2="item.x + 2.6"
+                    :y2="item.y + 3.4"
+                    vector-effect="non-scaling-stroke"
+                  />
+                  <line
+                    class="drill__fx-slash"
+                    :x1="item.x + 2.6"
+                    :y1="item.y - 3.4"
+                    :x2="item.x - 2.6"
+                    :y2="item.y + 3.4"
+                    vector-effect="non-scaling-stroke"
+                  />
+                </g>
+                <circle
+                  v-else-if="item.kind === 'ring'"
+                  :key="item.id"
+                  class="drill__fx-ring"
+                  :cx="item.x"
+                  :cy="item.y"
+                  r="2"
+                  vector-effect="non-scaling-stroke"
+                />
+                <circle
+                  v-else-if="item.kind === 'aura'"
+                  :key="item.id"
+                  class="drill__fx-aura"
+                  :cx="item.x"
+                  :cy="item.y"
+                  r="2.4"
+                  vector-effect="non-scaling-stroke"
+                />
+                <circle
+                  v-else
+                  :key="item.id"
+                  class="drill__fx-spark"
+                  :cx="item.x"
+                  :cy="item.y"
+                  r="0.9"
+                />
+              </template>
+            </svg>
 
             <span
               v-for="floater in floaters"
