@@ -10,6 +10,16 @@ const ui = useDrillUiStore()
 const router = useRouter()
 
 const snapshot = computed(() => drill.snapshot)
+const battle = computed(() => snapshot.value.battle)
+
+const curvePoints = computed(() => {
+  const curve = battle.value?.curve ?? []
+  if (curve.length < 2) return ''
+  const step = 100 / (curve.length - 1)
+  return curve
+    .map((value, index) => `${(index * step).toFixed(1)},${(100 - value * 100).toFixed(1)}`)
+    .join(' ')
+})
 
 function backToWorkbench() {
   ui.closeReport()
@@ -18,7 +28,7 @@ function backToWorkbench() {
 
 function replay() {
   ui.closeReport()
-  drill.reset()
+  drill.restart()
 }
 </script>
 
@@ -33,24 +43,49 @@ function replay() {
       </header>
 
       <dl class="drill__report-rows">
-        <div><dt>稳态达成度</dt><dd>{{ snapshot.achievement }} / {{ snapshot.scale }}</dd></div>
+        <div><dt>亲和组达成</dt><dd>{{ snapshot.achievement }}</dd></div>
         <div><dt>最终 SLI</dt><dd>{{ snapshot.sli }}</dd></div>
         <div><dt>轮次</dt><dd>{{ snapshot.round }} / {{ snapshot.totalRounds }}</dd></div>
         <div><dt>配额结余</dt><dd>{{ snapshot.quotas }}</dd></div>
-        <div><dt>实例</dt><dd>{{ snapshot.units.length }} / {{ snapshot.level }}</dd></div>
+        <div><dt>人口</dt><dd>{{ snapshot.scale }} / {{ snapshot.popCap }}</dd></div>
         <div><dt>注解</dt><dd>{{ snapshot.annotations.filter((slot) => slot.label !== '').length }}</dd></div>
       </dl>
+
+      <div v-if="battle" class="drill__report-block">
+        <span>最后一场 · {{ battle.opponent }}（{{ battle.mode }}）</span>
+        <p>
+          {{ battle.won ? '通过' : '未通过' }} · SLI {{ battle.sliBefore }} → {{ battle.sliAfter }} ·
+          剩余实例 {{ battle.survivors }}
+        </p>
+        <svg class="drill__curve" viewBox="0 0 100 100" preserveAspectRatio="none" v-if="curvePoints">
+          <polyline :points="curvePoints" fill="none" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+      </div>
 
       <div class="drill__report-block">
         <span>亲和组</span>
         <p>
-          {{ snapshot.traits.filter((trait) => trait.count > 0).map((trait) => `${trait.label} ${trait.count}`).join(' · ') }}
+          {{
+            snapshot.traits
+              .filter((trait) => trait.count > 0)
+              .map((trait) => `${trait.label} ${trait.count}`)
+              .join(' · ')
+          }}
         </p>
       </div>
 
       <div class="drill__report-block">
         <span>技术方案</span>
-        <p>{{ snapshot.picks.map((card) => card.name).join(' · ') }}</p>
+        <p>{{ snapshot.picks.map((card) => card.name).join(' · ') || '未采纳' }}</p>
+      </div>
+
+      <div class="drill__report-block">
+        <span>轮次记录</span>
+        <ul class="drill__history">
+          <li v-for="(entry, index) in snapshot.history.slice(-6)" :key="index">
+            R{{ entry.round }} · {{ entry.text }}
+          </li>
+        </ul>
       </div>
 
       <div class="drill__report-actions">

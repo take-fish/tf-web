@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
-import { formatElapsed } from '../fixtures'
+import { formatElapsed } from '../format'
 import { useDrillStore } from '../stores/drill'
 import { useDrillUiStore } from '../stores/ui'
 
@@ -28,7 +28,7 @@ const snapshot = computed(() => drill.snapshot)
       </div>
       <div class="drill__metric">
         <dt>规格</dt>
-        <dd>L{{ snapshot.level }}</dd>
+        <dd>L{{ snapshot.level }}<em class="drill__xp">{{ snapshot.xp }}/{{ snapshot.xpNeed }}</em></dd>
       </div>
       <div class="drill__metric">
         <dt>轮次</dt>
@@ -39,8 +39,8 @@ const snapshot = computed(() => drill.snapshot)
         <dd>{{ snapshot.sli }}</dd>
       </div>
       <div class="drill__metric">
-        <dt>规模</dt>
-        <dd>{{ snapshot.scale }} 组</dd>
+        <dt>人口</dt>
+        <dd>{{ snapshot.scale }}/{{ snapshot.popCap }}</dd>
       </div>
       <div class="drill__metric">
         <dt>已运行</dt>

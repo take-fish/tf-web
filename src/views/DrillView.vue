@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AnnotationTray from '@/modules/drill/components/AnnotationTray.vue'
 import CommandBar from '@/modules/drill/components/CommandBar.vue'
@@ -13,11 +13,9 @@ import RosterPanel from '@/modules/drill/components/RosterPanel.vue'
 import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
 import { useDrillStore } from '@/modules/drill/stores/drill'
-import { useProposalStore } from '@/modules/drill/stores/proposal'
 import { useDrillUiStore } from '@/modules/drill/stores/ui'
 
 const drill = useDrillStore()
-const proposal = useProposalStore()
 const ui = useDrillUiStore()
 
 const battleActive = ref(false)
@@ -26,35 +24,29 @@ const confirmOpen = ref(false)
 
 let clockTimer: number | undefined
 let battleTimer: number | undefined
-let reviewTimer: number | undefined
-
-function startReview() {
-  if (proposal.open) return
-  if (proposal.picks.length >= 3) return
-  proposal.openReview(drill.snapshot.round + 1, drill.snapshot.proposals)
-}
-
-function finishBattle() {
-  if (battleTimer) {
-    window.clearInterval(battleTimer)
-    battleTimer = undefined
-  }
-  battleActive.value = false
-  progress.value = 0
-  drill.settle(6)
-  if (drill.snapshot.phase === 'TERMINATED') ui.openReport()
-  else startReview()
-}
 
 function startBattle() {
   if (battleActive.value) return
+  if (drill.snapshot.proposals.length > 0) return
   battleActive.value = true
   progress.value = 0
-  drill.startBattle()
   battleTimer = window.setInterval(() => {
-    progress.value = Math.min(100, progress.value + 4)
-    if (progress.value >= 100) finishBattle()
-  }, 90)
+    progress.value = Math.min(100, progress.value + 5)
+    if (progress.value < 100) return
+    if (battleTimer) window.clearInterval(battleTimer)
+    battleTimer = undefined
+    battleActive.value = false
+    progress.value = 0
+    drill.startBattle()
+  }, 70)
+}
+
+function skipBattle() {
+  if (battleTimer) window.clearInterval(battleTimer)
+  battleTimer = undefined
+  battleActive.value = false
+  progress.value = 0
+  drill.startBattle()
 }
 
 function requestRemove() {
@@ -66,16 +58,34 @@ function confirmRemove() {
   ui.closeDrawer()
 }
 
+watch(
+  () => drill.error,
+  (value) => {
+    if (value) ui.notify(value)
+  },
+)
+
+watch(
+  () => drill.snapshot.over,
+  (value) => {
+    if (value) ui.openReport()
+  },
+)
+
+watch(
+  () => drill.snapshot.proposals.length,
+  (value) => {
+    if (value > 0) ui.closeDrawer()
+  },
+)
+
 onMounted(() => {
   clockTimer = window.setInterval(() => drill.tick(), 1000)
-  reviewTimer = window.setTimeout(startReview, 9000)
 })
 
 onBeforeUnmount(() => {
   if (clockTimer) window.clearInterval(clockTimer)
   if (battleTimer) window.clearInterval(battleTimer)
-  if (reviewTimer) window.clearTimeout(reviewTimer)
-  proposal.dispose()
 })
 </script>
 
@@ -92,12 +102,7 @@ onBeforeUnmount(() => {
     <template v-if="!ui.meetingMode">
       <AnnotationTray />
       <ResourceBar />
-      <CommandBar
-        :battle-active="battleActive"
-        :progress="progress"
-        @battle="startBattle"
-        @skip="finishBattle"
-      />
+      <CommandBar :battle-active="battleActive" :progress="progress" @battle="startBattle" @skip="skipBattle" />
     </template>
 
     <UnitDrawer @remove="requestRemove" />
@@ -111,6 +116,8 @@ onBeforeUnmount(() => {
       @confirm="confirmRemove"
       @cancel="confirmOpen = false"
     />
+
+    <div v-if="ui.toast" class="drill__toast">{{ ui.toast }}</div>
   </div>
 </template>
 

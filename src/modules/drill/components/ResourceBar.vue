@@ -4,7 +4,7 @@ import { useDrillStore } from '../stores/drill'
 const drill = useDrillStore()
 
 function pick(index: number) {
-  drill.purchase(index)
+  drill.buy(index)
 }
 
 function lock(index: number) {
@@ -16,7 +16,7 @@ function lock(index: number) {
   <section class="drill__resources" aria-label="资源目录">
     <div class="drill__resources-head">
       <span>资源目录</span>
-      <em>重新编排 -{{ drill.rerollCost }}</em>
+      <em>重新编排 -{{ drill.rerollCost }}{{ drill.rerollCost === 0 ? '（免费）' : '' }}</em>
     </div>
     <div class="drill__resource-list">
       <div
