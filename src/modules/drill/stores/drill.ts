@@ -14,14 +14,17 @@ import {
   populationCap,
   traitCounts,
 } from '../core/state'
-import type { AnnotationKind, GameState } from '../core/state'
+import type { AnnotationKind, BattleReport, GameState } from '../core/state'
 import { formatElapsed } from '../format'
+import { EMPTY_MODS, simulateBattle } from '../core/combat'
+import { makeBotBoard } from '../core/bots'
 import { useDrillNamingStore } from './naming'
 import type {
   AnnotationSlot,
   BenchUnit,
   DraftCandidate,
   DrillSnapshot,
+  MatchupRow,
   ProposalCard,
   ShopSlot,
   StageResult,
@@ -246,6 +249,137 @@ export const useDrillStore = defineStore('drill', () => {
   const lastBattle = computed(() => state.value.lastBattle)
 const lastTrace = ref<BattleTrace | null>(null)
 
+/* ---------- 本轮对阵（只用当前回合的数据） ---------- */
+
+const matchups = ref<MatchupRow[]>([])
+const preview = ref<{ trace: BattleTrace | null; battle: BattleReport | null } | null>(null)
+const matchTraces = new Map<string, BattleTrace>()
+const matchReports = new Map<string, BattleReport>()
+
+function rebuildMatchups() {
+  const current = state.value
+  const battle = current.lastBattle
+  // 打完一轮后 round 会先自增：此时面板展示刚打完的那一轮，否则展示即将开演的轮次
+  const round = battle !== null && battle.round === current.round - 1 ? battle.round : current.round
+  const played = battle !== null && battle.round === round
+  const rows: MatchupRow[] = []
+  matchTraces.clear()
+  matchReports.clear()
+
+  const playerAway = played
+    ? (battle?.opponent ?? makeBotBoard(current.seed, round).name)
+    : makeBotBoard(current.seed, round).name
+
+  const playerId = `${round}-player`
+  if (played && battle) {
+    rows.push({
+      id: playerId,
+      round,
+      home: '我方',
+      away: playerAway,
+      isPlayer: true,
+      played: true,
+      hasTrace: lastTrace.value !== null,
+      resultLabel: battle.won ? '通过' : '未通过',
+      detail: `${(battle.ticks / 10).toFixed(1)}s · 剩余 ${battle.survivors}`,
+      tone: battle.won ? 'ok' : 'err',
+    })
+    if (lastTrace.value) {
+      matchTraces.set(playerId, lastTrace.value)
+      matchReports.set(playerId, battle)
+    }
+  } else {
+    rows.push({
+      id: playerId,
+      round,
+      home: '我方',
+      away: playerAway,
+      isPlayer: true,
+      played: false,
+      hasTrace: false,
+      resultLabel: '待演',
+      detail: '',
+      tone: 'pending',
+    })
+  }
+
+  const pool = current.opponents.filter((opponent) => opponent.alive)
+  let pairIndex = 0
+  for (let index = 0; index + 1 < pool.length; index += 2) {
+    const home = pool[index]
+    const away = pool[index + 1]
+    if (!home || !away) break
+    const id = `${round}-ai-${pairIndex}`
+    pairIndex += 1
+
+    if (!played) {
+      rows.push({
+        id,
+        round,
+        home: home.name,
+        away: away.name,
+        isPlayer: false,
+        played: false,
+        hasTrace: false,
+        resultLabel: '待演',
+        detail: '',
+        tone: 'pending',
+      })
+      continue
+    }
+
+    const homeBoard = makeBotBoard(current.seed + index * 97 + 11, round)
+    const awayBoard = makeBotBoard(current.seed + index * 97 + 53, round)
+    const outcome = simulateBattle(homeBoard.units, awayBoard.units, EMPTY_MODS, EMPTY_MODS)
+    const homeWon = outcome.winner === 'ally'
+
+    rows.push({
+      id,
+      round,
+      home: home.name,
+      away: away.name,
+      isPlayer: false,
+      played: true,
+      hasTrace: true,
+      resultLabel: `${homeWon ? home.name : away.name} 胜`,
+      detail: `${(outcome.ticks / 10).toFixed(1)}s`,
+      tone: homeWon ? 'ok' : 'err',
+    })
+
+    matchTraces.set(id, outcome.trace)
+    matchReports.set(id, {
+      round,
+      mode: 'PVP',
+      won: homeWon,
+      opponent: `${home.name} vs ${away.name}`,
+      sliBefore: 100,
+      sliAfter: homeWon ? 100 : 70,
+      survivors: homeWon ? outcome.allyAlive : outcome.enemyAlive,
+      ticks: outcome.ticks,
+      curve: outcome.curve,
+    })
+  }
+
+  matchups.value = rows
+}
+
+function openMatchup(id: string) {
+  const trace = matchTraces.get(id) ?? null
+  if (!trace) return false
+  preview.value = { trace, battle: matchReports.get(id) ?? null }
+  return true
+}
+
+function clearPreview() {
+  preview.value = null
+}
+
+watch(
+  () => [state.value.round, state.value.lastBattle, state.value.opponents] as const,
+  () => rebuildMatchups(),
+  { immediate: true, deep: false, flush: 'sync' },
+)
+
   watch(
     state,
     (next) => {
@@ -335,6 +469,10 @@ const lastTrace = ref<BattleTrace | null>(null)
     error,
     lastBattle,
     lastTrace,
+    matchups,
+    preview,
+    openMatchup,
+    clearPreview,
     rerollCost,
     levelUpCost,
     isPrep,

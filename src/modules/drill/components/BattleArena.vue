@@ -34,8 +34,8 @@ interface Fx {
 const drill = useDrillStore()
 const ui = useDrillUiStore()
 
-const trace = computed(() => drill.lastTrace)
-const battle = computed(() => drill.lastBattle)
+const trace = computed(() => drill.preview?.trace ?? drill.lastTrace)
+const battle = computed(() => drill.preview?.battle ?? drill.lastBattle)
 const frames = computed(() => trace.value?.frames ?? [])
 const duration = computed(() => trace.value?.duration ?? 0)
 const meta = computed(() => new Map((trace.value?.units ?? []).map((unit) => [unit.uid, unit])))
@@ -370,6 +370,11 @@ function toggle() {
   else play()
 }
 
+function closeArena() {
+  drill.clearPreview()
+  ui.closeArena()
+}
+
 function clearMotion() {
   floaters.value = []
   fx.value = []
@@ -448,7 +453,7 @@ onBeforeUnmount(() => {
             {{ battle?.won ? '通过' : '未通过' }}
           </span>
           <span class="drill__mono drill__arena-clock">{{ cursor.toFixed(1) }}s / {{ duration.toFixed(1) }}s</span>
-          <button type="button" class="drill__icon-btn" aria-label="关闭" @click="ui.closeArena()">
+          <button type="button" class="drill__icon-btn" aria-label="关闭" @click="closeArena()">
             ×
           </button>
         </div>
@@ -630,7 +635,7 @@ onBeforeUnmount(() => {
         <span class="drill__arena-pct drill__mono">{{ Math.round(progress) }}%</span>
 
         <button type="button" class="drill__ghost" @click="restart()">重播</button>
-        <button type="button" class="drill__primary" @click="ui.closeArena()">收起</button>
+        <button type="button" class="drill__primary" @click="closeArena()">收起</button>
       </footer>
     </div>
   </div>

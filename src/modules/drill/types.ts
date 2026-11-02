@@ -97,6 +97,20 @@ export interface DraftCandidate {
 }
 
 /** 阶段内某一回合的战果，won 为 null 表示还没打。 */
+/** 本轮对阵行：只描述当前回合，回合切走即重建 */
+export interface MatchupRow {
+  id: string
+  round: number
+  home: string
+  away: string
+  isPlayer: boolean
+  played: boolean
+  hasTrace: boolean
+  resultLabel: string
+  detail: string
+  tone: 'ok' | 'err' | 'pending'
+}
+
 export interface StageResult {
   round: number
   label: string

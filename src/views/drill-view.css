@@ -2180,3 +2180,104 @@
   0% { transform: scale(0.35); opacity: 0.95; }
   100% { transform: scale(2.2); opacity: 0; }
 }
+
+/* ---------- 本轮对阵 ---------- */
+
+.drill__match-round {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+}
+
+.drill__match-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drill__match-item {
+  padding: 2px 0;
+}
+
+.drill__match-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drill__match-row:hover {
+  border-color: var(--fm-border);
+  background: var(--fm-hover);
+}
+
+.drill__match-row.is-pending {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.drill__match-row.is-player {
+  color: var(--fm-text);
+}
+
+.drill__match-side {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__match-side--home {
+  text-align: right;
+}
+
+.drill__match-vs {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+  text-align: center;
+}
+
+.drill__match-tag {
+  padding: 0 5px;
+  border: 1px solid currentcolor;
+  border-radius: 2px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.drill__match-tag.is-ok {
+  color: var(--fm-ok);
+}
+
+.drill__match-tag.is-err {
+  color: var(--fm-err);
+}
+
+.drill__match-tag.is-pending {
+  color: var(--fm-text-muted);
+}
+
+.drill__match-detail {
+  display: block;
+  padding: 0 5px 2px;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+}
+
+.drill__match-hint,
+.drill__match-empty {
+  margin: 6px 0 0;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
