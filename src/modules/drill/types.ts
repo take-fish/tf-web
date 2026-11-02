@@ -97,6 +97,16 @@ export interface DraftCandidate {
 }
 
 /** 阶段内某一回合的战果，won 为 null 表示还没打。 */
+export type DrillMode = 'solo' | 'party'
+
+/** 组队席位：席位 0 固定是自己，其余可由在线用户占据或被 AI 补齐 */
+export interface PartySeat {
+  seat: number
+  userId: string
+  nickname: string
+  isAi: boolean
+}
+
 /** 本轮对阵行：只描述当前回合，回合切走即重建 */
 export interface MatchupRow {
   id: string
