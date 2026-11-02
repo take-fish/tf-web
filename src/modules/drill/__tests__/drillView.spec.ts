@@ -36,6 +36,9 @@ describe('DrillView', () => {
     // 文案红线：界面不得出现玩法词汇
     expect(text).not.toMatch(/游戏|对局|棋子|英雄|羁绊|装备|商店|金币|血量|吃鸡|海克斯/)
 
+    // 未登录 / 非管理员：命名入口不渲染
+    expect(wrapper.find('.drill__ghost--admin').exists()).toBe(false)
+
     wrapper.unmount()
   })
 })

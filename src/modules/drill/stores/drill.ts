@@ -16,6 +16,7 @@ import {
 } from '../core/state'
 import type { AnnotationKind, GameState } from '../core/state'
 import { formatElapsed } from '../format'
+import { useDrillNamingStore } from './naming'
 import type {
   AnnotationSlot,
   BenchUnit,
@@ -61,7 +62,14 @@ function loadState(): GameState {
 }
 
 /** 引擎状态 → 视图快照。玩法词汇在这里统一翻译成平台词汇。 */
-function project(state: GameState, elapsed: number): DrillSnapshot {
+interface NamingMaps {
+  unit: Record<string, string>
+  trait: Record<string, string>
+}
+
+function project(state: GameState, elapsed: number, naming: NamingMaps): DrillSnapshot {
+  const unitName = (defId: string, fallback: string) => naming.unit[defId] ?? fallback
+  const traitLabel = (id: string, fallback: string) => naming.trait[id] ?? fallback
   const counts = traitCounts(state)
   const tiers = activeTiers(state)
 
@@ -69,7 +77,7 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     const entry = counts[def.id]
     return {
       id: def.id,
-      label: def.label,
+      label: traitLabel(def.id, def.label),
       tiers: def.tiers,
       count: entry?.count ?? 0,
       activeTier: tiers[def.id] ?? 0,
@@ -81,11 +89,11 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     const coord = cellToCoord(unit.slot)
     return {
       id: unit.uid,
-      name: def?.name ?? unit.defId,
+      name: def ? unitName(unit.defId, def.name) : unit.defId,
       cost: def?.cost ?? 1,
       star: unit.star,
       traits: (def?.traits ?? []).map(
-        (trait) => TRAIT_DEFS.find((item) => item.id === trait)?.label ?? trait,
+        (trait) => traitLabel(trait, TRAIT_DEFS.find((item) => item.id === trait)?.label ?? trait),
       ),
       col: coord.col,
       row: coord.row,
@@ -101,11 +109,11 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     const def = UNIT_BY_ID[unit.defId]
     return {
       id: unit.uid,
-      name: def?.name ?? unit.defId,
+      name: def ? unitName(unit.defId, def.name) : unit.defId,
       cost: def?.cost ?? 1,
       star: unit.star,
       traits: (def?.traits ?? []).map(
-        (trait) => TRAIT_DEFS.find((item) => item.id === trait)?.label ?? trait,
+        (trait) => traitLabel(trait, TRAIT_DEFS.find((item) => item.id === trait)?.label ?? trait),
       ),
     }
   })
@@ -115,10 +123,10 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     return {
       slot: index + 1,
       unitId: slot.defId,
-      name: def?.name ?? '无可用资源',
+      name: def ? unitName(slot.defId ?? '', def.name) : '无可用资源',
       cost: def?.cost ?? 0,
       traits: (def?.traits ?? []).map(
-        (trait) => TRAIT_DEFS.find((item) => item.id === trait)?.label ?? trait,
+        (trait) => traitLabel(trait, TRAIT_DEFS.find((item) => item.id === trait)?.label ?? trait),
       ),
       locked: slot.locked,
       soldOut: slot.sold || slot.defId === null,
@@ -169,7 +177,7 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     const def = UNIT_BY_ID[item.defId]
     return {
       id: item.id,
-      name: def?.name ?? item.defId,
+      name: def ? unitName(item.defId, def.name) : item.defId,
       cost: def?.cost ?? 1,
       traits: (def?.traits ?? []).map(
         (trait) => TRAIT_DEFS.find((entry) => entry.id === trait)?.label ?? trait,
@@ -227,7 +235,10 @@ export const useDrillStore = defineStore('drill', () => {
   const error = ref<string | null>(null)
   const paused = ref(false)
 
-  const snapshot = computed(() => project(state.value, elapsed.value))
+  const naming = useDrillNamingStore()
+  const snapshot = computed(() =>
+    project(state.value, elapsed.value, { unit: naming.unitMap, trait: naming.traitMap }),
+  )
   const elapsedLabel = computed(() => formatElapsed(elapsed.value))
   const rerollCost = computed(() => (state.value.freeRerolls > 0 ? 0 : 2))
   const levelUpCost = 4

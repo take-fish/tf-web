@@ -1339,3 +1339,150 @@
   margin: 0;
   line-height: 1.65;
 }
+
+/* ---------- 命名管理（管理员） ---------- */
+
+.drill__modal--naming {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 94vw);
+  max-height: 84vh;
+  padding: 0;
+}
+
+.drill__modal--naming .drill__modal-head {
+  padding: 10px 12px;
+}
+
+.drill__naming-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--fm-border);
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__naming-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.drill__naming-tabs .drill__ghost.is-on {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill__naming-search {
+  flex: 1;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  background: var(--fm-bg);
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.drill__naming-search:focus {
+  border-color: var(--fm-accent);
+  outline: none;
+}
+
+.drill__naming-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 6px 12px;
+}
+
+.drill__naming-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drill__naming-row {
+  display: grid;
+  grid-template-columns: 118px 40px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.drill__naming-id {
+  overflow: hidden;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__naming-cost {
+  color: var(--fm-text-dim);
+  font-size: 9px;
+}
+
+.drill__naming-input {
+  width: 100%;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  background: var(--fm-bg);
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.drill__naming-input::placeholder {
+  color: var(--fm-text-muted);
+}
+
+.drill__naming-input:focus {
+  border-color: var(--fm-accent);
+  outline: none;
+}
+
+.drill__naming-reset {
+  height: 20px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.drill__naming-reset:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.drill__naming-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--fm-border);
+}
+
+.drill__naming-count {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__naming-count b {
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+}
+
+.drill__naming-actions {
+  display: flex;
+  gap: 6px;
+}

@@ -2,12 +2,14 @@
 import { computed } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
+import { useAuthStore } from '@/stores/auth'
 import { formatElapsed } from '../format'
 import { useDrillStore } from '../stores/drill'
 import { useDrillUiStore } from '../stores/ui'
 
 const drill = useDrillStore()
 const ui = useDrillUiStore()
+const auth = useAuthStore()
 const snapshot = computed(() => drill.snapshot)
 </script>
 
@@ -55,6 +57,15 @@ const snapshot = computed(() => drill.snapshot)
       </button>
       <button type="button" class="drill__ghost" @click="ui.toggleMeeting()">
         {{ ui.meetingMode ? '退出会议模式' : '会议模式' }}
+      </button>
+      <button
+        v-if="auth.isAdmin"
+        type="button"
+        class="drill__ghost drill__ghost--admin"
+        title="管理员：修改实例与亲和组的展示名"
+        @click="ui.openNaming()"
+      >
+        命名
       </button>
     </div>
   </header>

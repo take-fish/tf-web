@@ -8,6 +8,7 @@ import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
 import DrillStage from '@/modules/drill/components/DrillStage.vue'
 import DraftCarousel from '@/modules/drill/components/DraftCarousel.vue'
+import NamingBoard from '@/modules/drill/components/NamingBoard.vue'
 import ProposalModal from '@/modules/drill/components/ProposalModal.vue'
 import ReportModal from '@/modules/drill/components/ReportModal.vue'
 import ResourceBar from '@/modules/drill/components/ResourceBar.vue'
@@ -113,6 +114,7 @@ onBeforeUnmount(() => {
 
     <UnitDrawer @remove="requestRemove" />
     <DraftCarousel />
+    <NamingBoard />
     <BattleReplay />
     <ProposalModal />
     <ReportModal />
