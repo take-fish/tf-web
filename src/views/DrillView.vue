@@ -12,6 +12,7 @@ import NamingBoard from '@/modules/drill/components/NamingBoard.vue'
 import ProposalModal from '@/modules/drill/components/ProposalModal.vue'
 import ReportModal from '@/modules/drill/components/ReportModal.vue'
 import ResourceBar from '@/modules/drill/components/ResourceBar.vue'
+import RoundMatchups from '@/modules/drill/components/RoundMatchups.vue'
 import RosterPanel from '@/modules/drill/components/RosterPanel.vue'
 import StageTrack from '@/modules/drill/components/StageTrack.vue'
 import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
@@ -121,6 +122,7 @@ onBeforeUnmount(() => {
       <DrillStage />
       <div v-if="!ui.meetingMode" class="drill__side">
         <RosterPanel />
+        <RoundMatchups />
         <StageTrack />
       </div>
     </div>
