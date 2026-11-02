@@ -38,8 +38,93 @@ const banner = ref<{ name: string; text: string } | null>(null)
 const shakeActive = ref(false)
 const finished = ref(false)
 
+/** 观察窗尺寸：默认跟随视口，也可以拖右下角改，或用 小/中/大/满 预设。 */
+const winW = ref(1120)
+const winH = ref(700)
+const sizePreset = ref<'sm' | 'md' | 'lg' | 'full'>('md')
+
+function clampSize(width: number, height: number) {
+  const maxW = window.innerWidth - 24
+  const maxH = window.innerHeight - 24
+  return {
+    width: Math.round(Math.max(560, Math.min(width, maxW))),
+    height: Math.round(Math.max(420, Math.min(height, maxH))),
+  }
+}
+
+function applyPreset(preset: 'sm' | 'md' | 'lg' | 'full') {
+  sizePreset.value = preset
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const table = {
+    sm: [760, 520],
+    md: [1040, 680],
+    lg: [Math.min(1440, vw - 40), Math.min(900, vh - 40)],
+    full: [vw - 24, vh - 24],
+  } as const
+  const [width, height] = table[preset]
+  const size = clampSize(width, height)
+  winW.value = size.width
+  winH.value = size.height
+}
+
+interface ResizeState {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+let resizing: ResizeState | null = null
+
+function startResize(event: PointerEvent) {
+  event.preventDefault()
+  resizing = { x: event.clientX, y: event.clientY, w: winW.value, h: winH.value }
+  sizePreset.value = 'md'
+  window.addEventListener('pointermove', onResizeMove)
+  window.addEventListener('pointerup', stopResize)
+}
+
+function onResizeMove(event: PointerEvent) {
+  if (!resizing) return
+  const size = clampSize(
+    resizing.w + (event.clientX - resizing.x),
+    resizing.h + (event.clientY - resizing.y),
+  )
+  winW.value = size.width
+  winH.value = size.height
+}
+
+function stopResize() {
+  resizing = null
+  window.removeEventListener('pointermove', onResizeMove)
+  window.removeEventListener('pointerup', stopResize)
+}
+
+function onWindowResize() {
+  const size = clampSize(winW.value, winH.value)
+  winW.value = size.width
+  winH.value = size.height
+}
+
 let raf = 0
+let timer = 0
 let last = 0
+
+/** jsdom 里可能没有 rAF，退化成 setTimeout。 */
+function schedule(callback: (time: number) => void) {
+  if (typeof window.requestAnimationFrame === 'function') {
+    raf = window.requestAnimationFrame(callback)
+    return
+  }
+  timer = window.setTimeout(() => callback(performance.now()), 16)
+}
+
+function cancel(callbackFrame: number) {
+  if (typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(callbackFrame)
+  if (timer) window.clearTimeout(timer)
+  timer = 0
+}
 let floaterId = 0
 let bannerTimer = 0
 let shakeTimer = 0
@@ -155,7 +240,7 @@ function loop(time: number) {
     last = 0
     return
   }
-  raf = window.requestAnimationFrame(loop)
+  schedule(loop)
 }
 
 function play() {
@@ -167,13 +252,14 @@ function play() {
   }
   playing.value = true
   last = 0
-  window.cancelAnimationFrame(raf)
-  raf = window.requestAnimationFrame(loop)
+  cancel(raf)
+  raf = 0
+  schedule(loop)
 }
 
 function pause() {
   playing.value = false
-  window.cancelAnimationFrame(raf)
+  cancel(raf)
   raf = 0
 }
 
@@ -201,6 +287,7 @@ watch(
   (open) => {
     pause()
     if (!open) return
+    applyPreset(sizePreset.value)
     cursor.value = 0
     floaters.value = []
     finished.value = false
@@ -208,8 +295,12 @@ watch(
   },
 )
 
+window.addEventListener('resize', onWindowResize)
+
 onBeforeUnmount(() => {
   pause()
+  stopResize()
+  window.removeEventListener('resize', onWindowResize)
   window.clearTimeout(bannerTimer)
   window.clearTimeout(shakeTimer)
 })
@@ -217,7 +308,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="ui.arenaOpen && trace" class="drill__overlay drill__overlay--arena" role="dialog" aria-modal="true" aria-label="演练观察窗">
-    <div class="drill__modal drill__modal--arena">
+    <div
+      class="drill__modal drill__modal--arena"
+      :style="{ width: `${winW}px`, height: `${winH}px` }"
+    >
+      <span class="drill__arena-resize" title="拖动调整窗口大小" @pointerdown="startResize" />
       <header class="drill__arena-head">
         <div class="drill__arena-title">
           <span class="drill__eyebrow">ALIGNMENT ARENA</span>
@@ -309,6 +404,18 @@ onBeforeUnmount(() => {
           @input="seek(Number(($event.target as HTMLInputElement).value))"
         />
         <span class="drill__arena-pct drill__mono">{{ Math.round(progress) }}%</span>
+        <div class="drill__arena-sizes">
+          <button
+            v-for="preset in (['sm', 'md', 'lg', 'full'] as const)"
+            :key="preset"
+            type="button"
+            class="drill__ghost"
+            :class="{ 'is-on': sizePreset === preset }"
+            @click="applyPreset(preset)"
+          >
+            {{ { sm: '小', md: '中', lg: '大', full: '满' }[preset] }}
+          </button>
+        </div>
         <button type="button" class="drill__ghost" @click="restart()">重播</button>
         <button type="button" class="drill__primary" @click="ui.closeArena()">收起</button>
       </footer>

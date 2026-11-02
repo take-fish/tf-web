@@ -1495,14 +1495,33 @@
 }
 
 .drill__modal--arena {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(1120px, 96vw);
-  max-height: 100%;
+  height: min(700px, 92vh);
+  max-width: 96vw;
+  max-height: 94vh;
   padding: 0;
   border-color: #2a3038;
   background: #0b0e13;
   overflow: hidden;
+}
+
+.drill__arena-resize {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  z-index: 9;
+  width: 16px;
+  height: 16px;
+  background: repeating-linear-gradient(-45deg, #46515f 0 1px, transparent 1px 4px);
+  cursor: nwse-resize;
+  opacity: 0.65;
+}
+
+.drill__arena-resize:hover {
+  opacity: 1;
 }
 
 .drill__arena-head {
@@ -1557,9 +1576,9 @@
 
 .drill__arena-stage {
   position: relative;
-  flex: 1;
-  min-height: 320px;
-  padding: 22px 14px 8px;
+  flex: 1 1 auto;
+  min-height: 300px;
+  padding: 20px 14px 8px;
   background:
     radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.12), transparent 62%),
     #080b10;
@@ -1567,7 +1586,8 @@
 }
 
 .drill__arena-persp {
-  height: 100%;
+  position: absolute;
+  inset: 20px 14px 8px;
   perspective: 1100px;
   perspective-origin: 50% 18%;
 }
@@ -1585,8 +1605,8 @@
 }
 
 .drill__arena-floor {
-  position: relative;
-  height: 100%;
+  position: absolute;
+  inset: 0;
   border: 1px solid #232a33;
   border-radius: 3px;
   background-color: #0c1118;
@@ -1629,6 +1649,7 @@
   box-shadow:
     0 8px 16px rgb(0 0 0 / 55%),
     inset 0 1px 0 rgb(255 255 255 / 8%);
+  min-height: 26px;
   color: #dbe4ee;
   font-size: 10px;
   transition:
@@ -1835,4 +1856,14 @@
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--fm-border);
+}
+
+.drill__arena-sizes {
+  display: flex;
+  gap: 4px;
+}
+
+.drill__arena-sizes .drill__ghost.is-on {
+  border-color: #3b82f6;
+  color: #93c5fd;
 }
