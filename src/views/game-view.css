@@ -408,7 +408,42 @@
 }
 
 .games__cell {
+  display: flex;
   min-width: 0;
+}
+
+.games__cell > :deep(.game-panel) {
+  flex: 1;
+}
+
+.games__cell--new {
+  grid-column: span 3;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  border: 1px dashed var(--fm-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.games__cell--new:hover {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+}
+
+.games__cell--new b {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.games__cell--new span {
+  color: var(--fm-text-muted);
+  font-size: 10px;
 }
 
 .games__bottom {

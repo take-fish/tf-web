@@ -134,13 +134,9 @@ const updatedLabel = computed(() =>
   updatedAt.value.toLocaleTimeString('zh-CN', { hour12: false }),
 )
 
-function panelHeight(gameId: string): number {
-  if (gameId === 'timeseries-runner') return 186
-  if (gameId === 'ring-2048') return 158
-  if (gameId === 'topology-minesweeper') return 184
-  if (gameId === 'qps-breakout') return 176
-  if (gameId === 'blind-xiangqi') return 184
-  return 184
+/** 所有面板统一高度，网格才不会因为图表高度不同而参差。 */
+function panelHeight(): number {
+  return 168
 }
 
 function showNotice(message: string) {
@@ -399,10 +395,16 @@ onBeforeUnmount(() => {
         >
           <MetricChart
             :option="chartOptions[game.id] ?? latencyOption([], [], light)"
-            :height="panelHeight(game.id)"
+            :height="panelHeight()"
           />
         </GamePanel>
       </div>
+
+      <button type="button" class="games__cell games__cell--new" @click="openLobby">
+        <AppIcon name="plus" :size="16" />
+        <b>发起联调演练</b>
+        <span>调度台 · 创建或加入演练</span>
+      </button>
     </div>
 
     <section v-if="myDrillMatches.length" class="games__my-match">
