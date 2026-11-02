@@ -1592,17 +1592,6 @@
   perspective-origin: 50% 18%;
 }
 
-.drill__arena-persp.is-shaking {
-  animation: arena-shake 0.16s linear;
-}
-
-@keyframes arena-shake {
-  0% { transform: translate(0, 0); }
-  25% { transform: translate(-3px, 2px); }
-  50% { transform: translate(2px, -2px); }
-  75% { transform: translate(-2px, 1px); }
-  100% { transform: translate(0, 0); }
-}
 
 .drill__arena-floor {
   position: absolute;
@@ -1636,68 +1625,80 @@
   background: linear-gradient(to left, rgba(248, 113, 113, 0.1), transparent 70%);
 }
 
+/* 单位不再套卡片框：只有人、名字和一条血线，靠颜色区分阵营 */
 .drill__arena-unit {
   position: absolute;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  padding: 0 6px;
-  border: 1px solid #2c3540;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #1a212b, #0d131a);
-  box-shadow:
-    0 8px 16px rgb(0 0 0 / 55%),
-    inset 0 1px 0 rgb(255 255 255 / 8%);
-  min-height: 26px;
-  color: #dbe4ee;
-  font-size: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  padding: 0;
+  border: 0;
+  background: none;
   transition:
     left 0.09s linear,
-    top 0.09s linear,
-    opacity 0.18s,
-    transform 0.18s;
+    top 0.09s linear;
+  pointer-events: none;
 }
 
-.drill__arena-unit.is-ally {
-  border-left: 2px solid #3fb950;
-}
-
-.drill__arena-unit.is-enemy {
-  border-left: 2px solid #f87171;
-}
-
-.drill__arena-unit b {
+.drill__arena-name {
+  max-width: 96%;
   overflow: hidden;
-  font-size: 10px;
+  color: #9aa6b2;
+  font-size: 9px;
   font-weight: 600;
+  letter-spacing: 0.02em;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 2px #000;
   white-space: nowrap;
 }
 
-.drill__arena-unit.is-dead {
-  opacity: 0.18;
-  transform: scale(0.82) rotate(-4deg);
+.drill__arena-unit.is-ally .drill__arena-name {
+  color: #8fe0a4;
+}
+
+.drill__arena-unit.is-enemy .drill__arena-name {
+  color: #f3a1a1;
 }
 
 .drill__arena-hp {
   display: block;
-  width: 100%;
-  height: 3px;
-  background: #232a33;
+  width: 44px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgb(255 255 255 / 14%);
 }
 
 .drill__arena-hp i {
   display: block;
   height: 100%;
-  background: linear-gradient(to right, #2ea043, #56d364);
-  box-shadow: 0 0 6px rgb(86 211 100 / 55%);
+  border-radius: 1px;
+  background: #56d364;
+  box-shadow: 0 0 5px rgb(86 211 100 / 70%);
   transition: width 0.09s linear;
 }
 
 .drill__arena-unit.is-enemy .drill__arena-hp i {
-  background: linear-gradient(to right, #c93c3c, #f87171);
-  box-shadow: 0 0 6px rgb(248 113 113 / 55%);
+  background: #f87171;
+  box-shadow: 0 0 5px rgb(248 113 113 / 70%);
+}
+
+/* 退役：倒下、变灰，不再占地方 */
+.drill__arena-unit.is-down {
+  opacity: 0.4;
+}
+
+.drill__arena-unit.is-down .drill__arena-fig-wrap {
+  animation: none;
+  transform: rotate(72deg) translateY(4px);
+  transform-origin: 50% 90%;
+  transition: transform 0.35s ease-in, opacity 0.35s ease-in;
+}
+
+.drill__arena-unit.is-down .drill__arena-name,
+.drill__arena-unit.is-down .drill__arena-hp {
+  opacity: 0.5;
 }
 
 .drill__arena-float {
@@ -1870,17 +1871,10 @@
 
 /* ---------- 观察窗里的「人」与动作 ---------- */
 
-.drill__arena-unit {
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1px;
-  padding: 3px 6px 4px;
-}
-
 .drill__arena-fig-wrap {
   display: block;
-  width: 26px;
-  height: 34px;
+  width: 34px;
+  height: 46px;
   transform-origin: 50% 100%;
   animation: fig-idle 3s ease-in-out infinite;
 }
@@ -1889,6 +1883,14 @@
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+
+.drill__arena-unit.is-ally .drill__fig {
+  filter: drop-shadow(0 0 9px rgb(74 222 128 / 32%));
+}
+
+.drill__arena-unit.is-enemy .drill__fig {
+  filter: drop-shadow(0 0 9px rgb(248 113 113 / 32%));
 }
 
 .drill__fig .head {
@@ -2089,4 +2091,48 @@
 @keyframes fx-spark {
   0% { transform: translateY(0); opacity: 1; }
   100% { transform: translateY(-7px); opacity: 0; }
+}
+
+/* 普攻拖尾 / 命中闪白 / 施法法阵 */
+
+.drill__fx-trail {
+  stroke: rgb(255 236 200 / 85%);
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgb(255 214 150 / 80%));
+  animation: fx-trail 0.18s ease-out forwards;
+}
+
+@keyframes fx-trail {
+  0% { opacity: 0.2; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.drill__fx-flash {
+  fill: rgb(255 255 255 / 90%);
+  stroke: #fff;
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-flash 0.22s ease-out forwards;
+}
+
+@keyframes fx-flash {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+.drill__fx-castring {
+  fill: none;
+  stroke: #a78bfa;
+  stroke-width: 2.4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-castring 0.43s ease-out forwards;
+}
+
+@keyframes fx-castring {
+  0% { transform: scale(0.35); opacity: 0.95; }
+  100% { transform: scale(2.2); opacity: 0; }
 }
