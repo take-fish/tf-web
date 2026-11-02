@@ -1,0 +1,705 @@
+/* 容量编排演练 · 与平台其余页面共用 --fm-* 令牌，不引入独立主题。 */
+
+.drill {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 8px 12px 12px;
+  box-sizing: border-box;
+  color: var(--fm-text);
+  font-family: var(--fm-font);
+  font-size: 12px;
+  background: var(--fm-bg);
+}
+
+/* ---------- 顶栏 ---------- */
+
+.drill__header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 44px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__ident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+}
+
+.drill__mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--fm-accent);
+  border-radius: var(--fm-radius);
+  color: var(--fm-accent);
+  font-weight: 600;
+}
+
+.drill__eyebrow {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.drill h1 {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.drill__metrics {
+  display: flex;
+  gap: 18px;
+  margin: 0;
+  flex: 1;
+}
+
+.drill__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.drill__metric dt {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__metric dd {
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__metric.is-warn dd {
+  color: var(--fm-err);
+}
+
+.drill__mono {
+  font-family: var(--fm-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- 通用控件 ---------- */
+
+.drill__ghost,
+.drill__primary,
+.drill__danger,
+.drill__icon-btn,
+.drill__resource-buy,
+.drill__resource-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: transparent;
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.drill__ghost:hover {
+  background: var(--fm-hover);
+}
+
+.drill__primary {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill__danger {
+  border-color: var(--fm-err);
+  color: var(--fm-err);
+}
+
+.drill__primary:disabled,
+.drill__ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.drill__icon-btn {
+  padding: 3px;
+}
+
+/* ---------- 主体三栏 ---------- */
+
+.drill__body {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr) 196px;
+  gap: 8px;
+  flex: 1;
+  min-height: 320px;
+}
+
+.drill.is-meeting .drill__body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.drill__panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+}
+
+.drill__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-text-dim);
+  font-size: 11px;
+}
+
+.drill__panel-head em {
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 10px;
+}
+
+/* ---------- 亲和组 ---------- */
+
+.drill__trait-list {
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  overflow: auto;
+}
+
+.drill__trait {
+  padding: 4px 0;
+  border-bottom: 1px dashed transparent;
+}
+
+.drill__trait-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drill__trait-name {
+  color: var(--fm-text);
+}
+
+.drill__trait-count {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__pips {
+  display: flex;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.drill__pip {
+  display: block;
+  width: 14px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--fm-border);
+}
+
+.drill__pip.is-on {
+  background: var(--fm-accent);
+}
+
+/* ---------- 对照组 ---------- */
+
+.drill__roster {
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  overflow: auto;
+}
+
+.drill__roster-row {
+  display: grid;
+  grid-template-columns: 1fr 48px 24px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.drill__roster-row.is-offline {
+  opacity: 0.45;
+}
+
+.drill__roster-bar {
+  display: block;
+  height: 3px;
+  background: var(--fm-border);
+}
+
+.drill__roster-bar i {
+  display: block;
+  height: 100%;
+  background: var(--fm-ok);
+}
+
+.drill__roster-sli {
+  color: var(--fm-text-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 画布 ---------- */
+
+.drill__stage-wrap {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  overflow: hidden;
+}
+
+.drill__stage {
+  width: 100%;
+  height: 100%;
+}
+
+.drill__stage-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+/* ---------- 注解仓库 ---------- */
+
+.drill__tray {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+}
+
+.drill__tray-label {
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.drill__slots {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.drill__slot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 24px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+}
+
+.drill__slot.is-combo {
+  border-color: var(--fm-accent);
+  color: var(--fm-link);
+}
+
+.drill__slot.is-empty {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+.drill__tray-hint {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+/* ---------- 资源目录 ---------- */
+
+.drill__resources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drill__resources-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+}
+
+.drill__resources-head em {
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 10px;
+}
+
+.drill__resource-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.drill__resource {
+  position: relative;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+}
+
+.drill__resource.is-locked {
+  border-color: var(--fm-accent);
+}
+
+.drill__resource.is-sold {
+  opacity: 0.5;
+}
+
+.drill__resource-buy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drill__resource-buy:hover {
+  background: var(--fm-hover);
+}
+
+.drill__resource-slot {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+}
+
+.drill__resource-name {
+  font-size: 12px;
+}
+
+.drill__resource-traits {
+  color: var(--fm-text-dim);
+  font-size: 10px;
+}
+
+.drill__resource-cost {
+  color: var(--fm-warn);
+  font-size: 10px;
+}
+
+.drill__resource-lock {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 0 4px;
+  border-color: transparent;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+
+.drill__resource-lock:hover {
+  border-color: var(--fm-border);
+  color: var(--fm-text);
+}
+
+/* ---------- 操作条 ---------- */
+
+.drill__command {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 40px;
+  padding: 0 4px;
+}
+
+.drill__command-group {
+  display: flex;
+  gap: 6px;
+}
+
+.drill__battle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.drill__battle-label {
+  color: var(--fm-text-dim);
+  font-size: 11px;
+}
+
+.drill__progress {
+  display: block;
+  width: 160px;
+  height: 4px;
+  background: var(--fm-border);
+}
+
+.drill__progress i {
+  display: block;
+  height: 100%;
+  background: var(--fm-accent);
+  transition: width 120ms linear;
+}
+
+/* ---------- 抽屉 ---------- */
+
+.drill__drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  padding: 12px;
+  border-left: 1px solid var(--fm-border);
+  background: var(--fm-panel);
+  box-shadow: var(--fm-shadow);
+  overflow: auto;
+}
+
+.drill__drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.drill__drawer-head b {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.drill__drawer-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drill__drawer-rows > div {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px;
+}
+
+.drill__drawer-rows dt {
+  color: var(--fm-text-muted);
+  font-size: 11px;
+}
+
+.drill__drawer-rows dd {
+  margin: 0;
+  font-size: 11px;
+}
+
+.drill__drawer-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+
+/* ---------- 弹层 ---------- */
+
+.drill__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 55%);
+}
+
+.drill__modal {
+  width: min(760px, 100%);
+  max-height: 100%;
+  padding: 16px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  box-shadow: var(--fm-shadow);
+  overflow: auto;
+}
+
+.drill__modal--confirm {
+  width: min(380px, 100%);
+}
+
+.drill__modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.drill__modal-head b {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.drill__review-timer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.drill__review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-bg);
+}
+
+.drill__review-card header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drill__review-card header b {
+  font-size: 13px;
+}
+
+.drill__review-card header em {
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 10px;
+}
+
+.drill__review-key {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  color: var(--fm-text-dim);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+}
+
+.drill__review-effect {
+  margin: 0;
+  flex: 1;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.drill__review-card footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__report-rows {
+  margin: 0 0 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.drill__report-rows > div {
+  padding: 6px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+}
+
+.drill__report-rows dt {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__report-rows dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__report-block {
+  margin-bottom: 8px;
+}
+
+.drill__report-block span {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__report-block p {
+  margin: 2px 0 0;
+  font-size: 11px;
+}
+
+.drill__report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.drill__confirm-text {
+  margin: 0 0 4px;
+  color: var(--fm-text-dim);
+  font-size: 12px;
+  line-height: 1.7;
+}

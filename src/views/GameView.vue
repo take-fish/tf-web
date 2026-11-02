@@ -202,6 +202,10 @@ async function onGameFinish(score: number) {
 }
 
 function launchGame(gameId: string) {
+  if (gameId === 'capacity-drill') {
+    void router.push('/games/autochess')
+    return
+  }
   const game = GAMES.find((entry) => entry.id === gameId)
   if (game?.scriptId) {
     tournamentStore.openLobby(game.scriptId)

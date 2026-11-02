@@ -13,6 +13,14 @@ export interface GameDefinition {
 
 export const GAMES: readonly GameDefinition[] = [
   {
+    id: 'capacity-drill',
+    name: '容量编排',
+    metricTitle: '实例编排拓扑',
+    description: '按 SLI 与配额自动编排实例，达成稳态',
+    playable: true,
+    span: 4,
+  },
+  {
     id: 'timeseries-runner',
     name: '耗时采样',
     metricTitle: '响应耗时时序图',
