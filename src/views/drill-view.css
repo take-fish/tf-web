@@ -1867,3 +1867,226 @@
   border-color: #3b82f6;
   color: #93c5fd;
 }
+
+/* ---------- 观察窗里的「人」与动作 ---------- */
+
+.drill__arena-unit {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  padding: 3px 6px 4px;
+}
+
+.drill__arena-fig-wrap {
+  display: block;
+  width: 26px;
+  height: 34px;
+  transform-origin: 50% 100%;
+  animation: fig-idle 3s ease-in-out infinite;
+}
+
+.drill__fig {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.drill__fig .head {
+  fill: #c7d2de;
+}
+
+.drill__fig .visor {
+  fill: #232b34;
+}
+
+.drill__fig .crest {
+  stroke: #7d8794;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.drill__fig .torso {
+  fill: #245636;
+  stroke: #4ade80;
+  stroke-width: 0.9;
+}
+
+.drill__fig .chest {
+  fill: rgb(74 222 128 / 20%);
+}
+
+.drill__fig.is-enemy .torso {
+  fill: #5c262a;
+  stroke: #f87171;
+}
+
+.drill__fig.is-enemy .chest {
+  fill: rgb(248 113 113 / 20%);
+}
+
+.drill__fig .arm,
+.drill__fig .leg {
+  stroke: #8b949e;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transform-box: view-box;
+}
+
+.drill__fig .arm--back,
+.drill__fig .leg--back {
+  opacity: 0.7;
+}
+
+.drill__fig.is-dead .torso {
+  fill: #2b333d;
+  stroke: #4d5560;
+}
+
+@keyframes fig-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+.drill__arena-fig-wrap.is-striking {
+  animation: fig-lunge 0.2s ease-out;
+}
+
+.drill__arena-unit.is-enemy .drill__arena-fig-wrap.is-striking {
+  animation-name: fig-lunge-left;
+}
+
+@keyframes fig-lunge {
+  0% { transform: translateX(0); }
+  38% { transform: translateX(11px) scale(1.05); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes fig-lunge-left {
+  0% { transform: translateX(0); }
+  38% { transform: translateX(-11px) scale(1.05); }
+  100% { transform: translateX(0); }
+}
+
+.drill__arena-fig-wrap.is-hit {
+  animation: fig-hit 0.22s ease-out;
+}
+
+@keyframes fig-hit {
+  0% { filter: brightness(2.2); transform: translateX(0); }
+  32% { filter: brightness(2.6); transform: translateX(-6px); }
+  100% { filter: brightness(1); transform: translateX(0); }
+}
+
+.drill__arena-fig-wrap.is-casting {
+  animation: fig-cast 0.62s ease-out;
+}
+
+.drill__arena-fig-wrap.is-casting .arm--front {
+  transform-origin: 15.8px 15px;
+  animation: fig-arm-up 0.62s ease-out;
+}
+
+.drill__arena-fig-wrap.is-casting .arm--back {
+  transform-origin: 8.2px 15px;
+  animation: fig-arm-up 0.62s ease-out 0.04s;
+}
+
+@keyframes fig-cast {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes fig-arm-up {
+  0% { transform: rotate(0); }
+  40% { transform: rotate(-168deg); }
+  100% { transform: rotate(0); }
+}
+
+/* ---------- 特效层 ---------- */
+
+.drill__arena-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.drill__fx-beam {
+  stroke: #93c5fd;
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 7px rgb(147 197 253 / 85%));
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: fx-beam 0.3s linear forwards;
+}
+
+.drill__fx-beam.is-line {
+  stroke: #7dd3fc;
+  stroke-width: 11;
+  filter: drop-shadow(0 0 12px rgb(125 211 252 / 90%));
+  animation-duration: 0.36s;
+}
+
+@keyframes fx-beam {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  55% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+.drill__fx-slash {
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 7px #ffd7a1);
+  animation: fx-fade 0.24s ease-out forwards;
+}
+
+@keyframes fx-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.drill__fx-ring {
+  fill: none;
+  stroke: #ffb86b;
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-ring 0.56s ease-out forwards;
+}
+
+@keyframes fx-ring {
+  0% { transform: scale(0.4); opacity: 0.95; }
+  100% { transform: scale(5); opacity: 0; }
+}
+
+.drill__fx-aura {
+  fill: none;
+  stroke: #4ade80;
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-aura 0.7s ease-out forwards;
+}
+
+@keyframes fx-aura {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  60% { transform: scale(2.4); opacity: 0.55; }
+  100% { transform: scale(3.4); opacity: 0; }
+}
+
+.drill__fx-spark {
+  fill: #7ee787;
+  filter: drop-shadow(0 0 5px rgb(126 231 135 / 85%));
+  animation: fx-spark 0.6s ease-out forwards;
+}
+
+@keyframes fx-spark {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-7px); opacity: 0; }
+}

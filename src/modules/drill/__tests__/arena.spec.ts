@@ -41,6 +41,9 @@ describe('演练观察窗', () => {
     expect(units.length).toBeGreaterThanOrEqual(2)
     expect(wrapper.findAll('.drill__arena-hp').length).toBe(units.length)
     expect(wrapper.text()).toContain('顺风尧')
+    // 每个实例都有一个「人」，且有独立的特效层
+    expect(wrapper.findAll('.drill__fig').length).toBe(units.length)
+    expect(wrapper.find('.drill__arena-fx').exists()).toBe(true)
 
     // 窗口尺寸可调：预设按钮齐全
     const sizes = wrapper.findAll('.drill__arena-sizes button')
