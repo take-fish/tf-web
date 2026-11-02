@@ -77,7 +77,7 @@ export interface GameState {
   opponents: readonly OpponentState[]
   pool: Readonly<Record<string, number>>
   lastBattle: BattleReport | null
-  log: readonly { round: number; text: string }[]
+  log: readonly { round: number; won: boolean; mode: 'PVE' | 'PVP'; text: string }[]
   /** 本局是否已用掉 X1 的复活 */
   usedSecondLife: boolean
   mergedCount: number

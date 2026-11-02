@@ -112,7 +112,7 @@ export interface DrillSnapshot {
   picks: readonly ProposalCard[]
   achievement: number
   battle: BattleSummary | null
-  history: readonly { round: number; text: string }[]
+  history: readonly { round: number; won: boolean; mode: 'PVE' | 'PVP'; text: string }[]
   over: boolean
 }
 

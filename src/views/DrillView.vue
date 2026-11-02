@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AnnotationTray from '@/modules/drill/components/AnnotationTray.vue'
+import BattleReplay from '@/modules/drill/components/BattleReplay.vue'
 import CommandBar from '@/modules/drill/components/CommandBar.vue'
 import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
@@ -10,6 +11,7 @@ import ProposalModal from '@/modules/drill/components/ProposalModal.vue'
 import ReportModal from '@/modules/drill/components/ReportModal.vue'
 import ResourceBar from '@/modules/drill/components/ResourceBar.vue'
 import RosterPanel from '@/modules/drill/components/RosterPanel.vue'
+import RunLogPanel from '@/modules/drill/components/RunLogPanel.vue'
 import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
 import { useDrillStore } from '@/modules/drill/stores/drill'
@@ -96,7 +98,10 @@ onBeforeUnmount(() => {
     <div class="drill__body">
       <TraitPanel v-if="!ui.meetingMode" />
       <DrillStage />
-      <RosterPanel v-if="!ui.meetingMode" />
+      <div v-if="!ui.meetingMode" class="drill__side">
+        <RosterPanel />
+        <RunLogPanel />
+      </div>
     </div>
 
     <template v-if="!ui.meetingMode">
@@ -106,6 +111,7 @@ onBeforeUnmount(() => {
     </template>
 
     <UnitDrawer @remove="requestRemove" />
+    <BattleReplay />
     <ProposalModal />
     <ReportModal />
     <ConfirmDialog

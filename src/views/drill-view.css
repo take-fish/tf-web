@@ -788,3 +788,312 @@
   border: 1px solid var(--fm-border);
   border-radius: var(--fm-radius);
 }
+
+/* ---------- 右栏：实例池 + 运行记录 ---------- */
+
+.drill__side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.drill__side > .drill__panel:first-child {
+  flex: 1;
+}
+
+.drill__panel--run {
+  flex: none;
+}
+
+.drill__run-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drill__run-head:hover {
+  color: var(--fm-text);
+}
+
+.drill__run-title {
+  flex: none;
+}
+
+.drill__run-head em {
+  overflow: hidden;
+  flex: 1;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__run-last {
+  flex: 1;
+  color: var(--fm-ok);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+}
+
+.drill__run-last.is-fail {
+  color: var(--fm-err);
+}
+
+.drill__run-toggle {
+  flex: none;
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.drill__run-list {
+  overflow-y: auto;
+  max-height: 168px;
+  margin: 0;
+  padding: 2px 8px 6px;
+  list-style: none;
+  border-top: 1px solid var(--fm-border);
+}
+
+.drill__run-list li {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  color: var(--fm-text-dim);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.drill__run-round {
+  flex: none;
+  color: var(--fm-ok);
+  font-family: var(--fm-mono);
+}
+
+.drill__run-list li.is-fail .drill__run-round {
+  color: var(--fm-err);
+}
+
+.drill__run-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__run-empty {
+  color: var(--fm-text-muted);
+}
+
+/* ---------- 校验回放 ---------- */
+
+.drill__modal--replay {
+  width: min(1040px, 94vw);
+}
+
+.drill__replay-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__replay-stats > div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.drill__replay-stats dt {
+  color: var(--fm-text-muted);
+  font-size: 9.5px;
+}
+
+.drill__replay-stats dd {
+  margin: 0;
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 11px;
+}
+
+.drill__replay-stats dd.is-ok {
+  color: var(--fm-ok);
+}
+
+.drill__replay-stats dd.is-err {
+  color: var(--fm-err);
+}
+
+.drill__replay-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: 0;
+}
+
+.drill__replay-board {
+  position: relative;
+  aspect-ratio: 7 / 4;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background-color: var(--fm-bg);
+  background-image:
+    repeating-linear-gradient(to right, var(--fm-border) 0 1px, transparent 1px calc(100% / 7)),
+    repeating-linear-gradient(to bottom, var(--fm-border) 0 1px, transparent 1px 25%);
+  overflow: hidden;
+}
+
+.drill__replay-unit {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 5px;
+  border-left: 2px solid var(--fm-ok);
+  font-size: 9.5px;
+  transition: left 0.1s linear, top 0.1s linear;
+}
+
+.drill__replay-unit b {
+  overflow: hidden;
+  color: var(--fm-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__replay-unit.is-enemy {
+  border-left-color: var(--fm-err);
+}
+
+.drill__replay-unit.is-dead {
+  opacity: 0.25;
+}
+
+.drill__replay-hp {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--fm-border);
+}
+
+.drill__replay-hp i {
+  display: block;
+  height: 100%;
+  background: var(--fm-ok);
+}
+
+.drill__replay-unit.is-enemy .drill__replay-hp i {
+  background: var(--fm-err);
+}
+
+.drill__replay-side {
+  position: absolute;
+  top: 2px;
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+}
+
+.drill__replay-side--ally {
+  left: 6px;
+}
+
+.drill__replay-side--enemy {
+  right: 6px;
+}
+
+.drill__replay-log {
+  overflow-y: auto;
+  max-height: 100%;
+  margin: 0;
+  padding: 0 0 0 2px;
+  list-style: none;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.drill__replay-log li {
+  display: flex;
+  gap: 7px;
+  color: var(--fm-text-dim);
+}
+
+.drill__replay-log li .drill__mono {
+  flex: none;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+
+.drill__replay-log li.is-skill {
+  color: var(--fm-link);
+}
+
+.drill__replay-log li.is-down {
+  color: var(--fm-err);
+}
+
+.drill__replay-log li.is-revive {
+  color: var(--fm-ok);
+}
+
+.drill__replay-log li.is-idle {
+  color: var(--fm-text-muted);
+}
+
+.drill__replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--fm-border);
+}
+
+.drill__replay-speed {
+  display: flex;
+  gap: 4px;
+}
+
+.drill__replay-speed .drill__ghost.is-on {
+  border-color: var(--fm-accent);
+  color: var(--fm-link);
+}
+
+.drill__replay-scrub {
+  flex: 1;
+  height: 3px;
+  accent-color: var(--fm-accent);
+}
+
+.drill__replay-clock {
+  flex: none;
+  color: var(--fm-text-dim);
+  font-size: 10px;
+}
+
+.drill__run-mode {
+  flex: none;
+  padding: 0 3px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  font-style: normal;
+  line-height: 1.4;
+}
