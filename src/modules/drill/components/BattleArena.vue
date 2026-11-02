@@ -24,7 +24,7 @@ interface Floater {
 
 interface Fx {
   id: number
-  kind: 'slash' | 'beam' | 'line' | 'ring' | 'aura' | 'spark'
+  kind: 'slash' | 'beam' | 'line' | 'ring' | 'aura' | 'spark' | 'trail' | 'flash' | 'castring'
   x: number
   y: number
   x2: number
@@ -46,7 +46,6 @@ const speed = ref(1)
 const zoom = ref(1)
 const floaters = ref<Floater[]>([])
 const banner = ref<{ name: string; text: string } | null>(null)
-const shakeActive = ref(false)
 const finished = ref(false)
 
 /** 动作态：谁在出击、谁在受击、谁在施法（按 uid 打标，200~600ms 自动消） */
@@ -167,7 +166,6 @@ function cancel(callbackFrame: number) {
 }
 let floaterId = 0
 let bannerTimer = 0
-let shakeTimer = 0
 
 const frame = computed(
   () => frames.value[Math.min(frames.value.length - 1, Math.floor(cursor.value / 0.1))] ?? null,
@@ -214,13 +212,6 @@ function pushFloater(item: Omit<Floater, 'id'>) {
   }, 720)
 }
 
-function flashShake() {
-  shakeActive.value = true
-  window.clearTimeout(shakeTimer)
-  shakeTimer = window.setTimeout(() => {
-    shakeActive.value = false
-  }, 160)
-}
 
 function at(uid: string | undefined): { x: number; y: number } | null {
   if (uid === undefined) return null
@@ -252,11 +243,18 @@ function process(from: number, to: number) {
     if (event.kind === 'hit' && event.targetId) {
       const target = at(event.targetId)
       if (!target) continue
+      const attacker = at(event.uid)
       flagMotion('strike', event.uid)
       flagMotion('hit', event.targetId)
       pushFloater({ ...target, text: `-${event.amount ?? 0}`, kind: 'hit' })
       pushFx({ kind: 'slash', x: target.x, y: target.y, x2: target.x, y2: target.y }, 240)
-      if ((event.amount ?? 0) > 55) flashShake()
+      pushFx({ kind: 'flash', x: target.x, y: target.y, x2: target.x, y2: target.y }, 220)
+      if (attacker) {
+        const gap = Math.abs(attacker.x - target.x) + Math.abs(attacker.y - target.y)
+        if (gap > 16) {
+          pushFx({ kind: 'trail', x: attacker.x, y: attacker.y, x2: target.x, y2: target.y }, 180)
+        }
+      }
       continue
     }
 
@@ -266,7 +264,10 @@ function process(from: number, to: number) {
       const targetAt = at(event.targetId) ?? casterAt
       const form = caster ? UNIT_BY_ID[caster.defId]?.skill.form : undefined
       if (casterAt) flagMotion('cast', event.uid)
-      if (casterAt && targetAt && form) skillFx(form, casterAt, targetAt)
+      if (casterAt) {
+        pushFx({ kind: 'castring', x: casterAt.x, y: casterAt.y, x2: casterAt.x, y2: casterAt.y }, 430)
+        if (targetAt && form) skillFx(form, casterAt, targetAt)
+      }
 
       banner.value = { name: caster?.name ?? '', text: event.text ?? '' }
       window.clearTimeout(bannerTimer)
@@ -370,7 +371,6 @@ onBeforeUnmount(() => {
   stopResize()
   window.removeEventListener('resize', onWindowResize)
   window.clearTimeout(bannerTimer)
-  window.clearTimeout(shakeTimer)
 })
 </script>
 
@@ -398,7 +398,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="drill__arena-stage">
-        <div class="drill__arena-persp" :class="{ 'is-shaking': shakeActive }">
+        <div class="drill__arena-persp">
           <div class="drill__arena-floor" :style="{ transform: `rotateX(16deg) scale(${zoom})` }">
             <span class="drill__arena-zone drill__arena-zone--ally" />
             <span class="drill__arena-zone drill__arena-zone--enemy" />
@@ -407,7 +407,7 @@ onBeforeUnmount(() => {
               v-for="unit in placed"
               :key="unit.uid"
               class="drill__arena-unit"
-              :class="[`is-${unit.side}`, { 'is-dead': !unit.alive }]"
+              :class="[`is-${unit.side}`, { 'is-down': !unit.alive }]"
               :style="cell(unit.col, unit.row)"
             >
               <span
@@ -420,7 +420,7 @@ onBeforeUnmount(() => {
               >
                 <DrillFigure :side="unit.side" :dead="!unit.alive" />
               </span>
-              <b>{{ unit.name }}</b>
+              <span class="drill__arena-name">{{ unit.name }}</span>
               <span class="drill__arena-hp">
                 <i :style="{ width: hpWidth(unit.hp, unit.maxHp) }" />
               </span>
@@ -474,6 +474,34 @@ onBeforeUnmount(() => {
                   :cx="item.x"
                   :cy="item.y"
                   r="2.4"
+                  vector-effect="non-scaling-stroke"
+                />
+                <line
+                  v-else-if="item.kind === 'trail'"
+                  :key="item.id"
+                  class="drill__fx-trail"
+                  :x1="item.x"
+                  :y1="item.y"
+                  :x2="item.x2"
+                  :y2="item.y2"
+                  vector-effect="non-scaling-stroke"
+                />
+                <circle
+                  v-else-if="item.kind === 'flash'"
+                  :key="item.id"
+                  class="drill__fx-flash"
+                  :cx="item.x"
+                  :cy="item.y"
+                  r="1.8"
+                  vector-effect="non-scaling-stroke"
+                />
+                <circle
+                  v-else-if="item.kind === 'castring'"
+                  :key="item.id"
+                  class="drill__fx-castring"
+                  :cx="item.x"
+                  :cy="item.y"
+                  r="2.6"
                   vector-effect="non-scaling-stroke"
                 />
                 <circle
