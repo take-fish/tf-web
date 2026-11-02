@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AnnotationTray from '@/modules/drill/components/AnnotationTray.vue'
-import BattleReplay from '@/modules/drill/components/BattleReplay.vue'
+import BattleArena from '@/modules/drill/components/BattleArena.vue'
 import CommandBar from '@/modules/drill/components/CommandBar.vue'
 import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
@@ -29,20 +29,31 @@ const confirmOpen = ref(false)
 let clockTimer: number | undefined
 let battleTimer: number | undefined
 
-function startBattle() {
+/** 点「发起校验」先问一句：进观察窗看过程，还是直接结算。 */
+function requestBattle() {
   if (battleActive.value) return
   if (drill.snapshot.proposals.length > 0) return
+  if (drill.snapshot.over) return
+  ui.openPrompt()
+}
+
+function resolveBattle(watchLive: boolean) {
+  ui.closePrompt()
+  if (watchLive) {
+    if (drill.startBattle()) ui.openArena()
+    return
+  }
   battleActive.value = true
   progress.value = 0
   battleTimer = window.setInterval(() => {
-    progress.value = Math.min(100, progress.value + 5)
+    progress.value = Math.min(100, progress.value + 8)
     if (progress.value < 100) return
     if (battleTimer) window.clearInterval(battleTimer)
     battleTimer = undefined
     battleActive.value = false
     progress.value = 0
     drill.startBattle()
-  }, 70)
+  }, 60)
 }
 
 function skipBattle() {
@@ -72,7 +83,15 @@ watch(
 watch(
   () => drill.snapshot.over,
   (value) => {
-    if (value) ui.openReport()
+    // 观察窗开着时先不压报告，等关窗再看
+    if (value && !ui.arenaOpen) ui.openReport()
+  },
+)
+
+watch(
+  () => ui.arenaOpen,
+  (open) => {
+    if (!open && drill.snapshot.over) ui.openReport()
   },
 )
 
@@ -109,13 +128,38 @@ onBeforeUnmount(() => {
     <template v-if="!ui.meetingMode">
       <AnnotationTray />
       <ResourceBar />
-      <CommandBar :battle-active="battleActive" :progress="progress" @battle="startBattle" @skip="skipBattle" />
+      <CommandBar :battle-active="battleActive" :progress="progress" @battle="requestBattle" @skip="skipBattle" />
     </template>
 
     <UnitDrawer @remove="requestRemove" />
     <DraftCarousel />
     <NamingBoard />
-    <BattleReplay />
+    <BattleArena />
+
+    <div
+      v-if="ui.promptOpen"
+      class="drill__overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="是否查看演练过程"
+    >
+      <div class="drill__modal drill__modal--prompt">
+        <header class="drill__modal-head">
+          <div>
+            <span class="drill__eyebrow">ALIGNMENT</span>
+            <b>发起一致性校验</b>
+          </div>
+        </header>
+        <p class="drill__prompt-text">
+          是否进入演练观察窗查看本次对齐过程？观察窗里可以调速、缩放、拖进度；不看也能稍后用底部的「回放」再看一遍。
+        </p>
+        <footer class="drill__prompt-actions">
+          <button type="button" class="drill__ghost" @click="resolveBattle(false)">直接结算</button>
+          <button type="button" class="drill__primary" @click="resolveBattle(true)">进入观察窗</button>
+        </footer>
+      </div>
+    </div>
+
     <ProposalModal />
     <ReportModal />
     <ConfirmDialog

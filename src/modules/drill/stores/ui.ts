@@ -6,7 +6,8 @@ export const useDrillUiStore = defineStore('drillUi', () => {
   const drawerUnitId = ref<string | null>(null)
   const meetingMode = ref(false)
   const reportOpen = ref(false)
-  const replayOpen = ref(false)
+  const arenaOpen = ref(false)
+  const promptOpen = ref(false)
   const namingOpen = ref(false)
   const selectedAnnotationId = ref<string | null>(null)
   const toast = ref<string | null>(null)
@@ -31,12 +32,20 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     reportOpen.value = false
   }
 
-  function openReplay() {
-    replayOpen.value = true
+  function openArena() {
+    arenaOpen.value = true
   }
 
-  function closeReplay() {
-    replayOpen.value = false
+  function openPrompt() {
+    promptOpen.value = true
+  }
+
+  function closePrompt() {
+    promptOpen.value = false
+  }
+
+  function closeArena() {
+    arenaOpen.value = false
   }
 
   function openNaming() {
@@ -62,7 +71,8 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     drawerUnitId,
     meetingMode,
     reportOpen,
-    replayOpen,
+    arenaOpen,
+    promptOpen,
     namingOpen,
     selectedAnnotationId,
     toast,
@@ -71,8 +81,10 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     toggleMeeting,
     openReport,
     closeReport,
-    openReplay,
-    closeReplay,
+    openArena,
+    closeArena,
+    openPrompt,
+    closePrompt,
     openNaming,
     closeNaming,
     selectAnnotation,

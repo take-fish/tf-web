@@ -1486,3 +1486,353 @@
   display: flex;
   gap: 6px;
 }
+
+/* ---------- 演练观察窗（放开做打击感） ---------- */
+
+.drill__overlay--arena {
+  background: rgb(4 6 9 / 78%);
+  padding: 18px;
+}
+
+.drill__modal--arena {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, 96vw);
+  max-height: 100%;
+  padding: 0;
+  border-color: #2a3038;
+  background: #0b0e13;
+  overflow: hidden;
+}
+
+.drill__arena-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #232a33;
+}
+
+.drill__arena-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drill__arena-title b {
+  overflow: hidden;
+  color: #e6edf3;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__arena-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drill__arena-score {
+  padding: 1px 7px;
+  border: 1px solid currentcolor;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+.drill__arena-score.is-ok {
+  color: #4ade80;
+}
+
+.drill__arena-score.is-err {
+  color: #f87171;
+}
+
+.drill__arena-clock {
+  color: #7d8794;
+  font-size: 10px;
+}
+
+.drill__arena-stage {
+  position: relative;
+  flex: 1;
+  min-height: 320px;
+  padding: 22px 14px 8px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.12), transparent 62%),
+    #080b10;
+  overflow: hidden;
+}
+
+.drill__arena-persp {
+  height: 100%;
+  perspective: 1100px;
+  perspective-origin: 50% 18%;
+}
+
+.drill__arena-persp.is-shaking {
+  animation: arena-shake 0.16s linear;
+}
+
+@keyframes arena-shake {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 2px); }
+  50% { transform: translate(2px, -2px); }
+  75% { transform: translate(-2px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+.drill__arena-floor {
+  position: relative;
+  height: 100%;
+  border: 1px solid #232a33;
+  border-radius: 3px;
+  background-color: #0c1118;
+  background-image:
+    repeating-linear-gradient(to right, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px calc(100% / 7)),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 25%);
+  transform-origin: 50% 100%;
+  transition: transform 0.12s linear;
+  box-shadow: 0 30px 60px rgb(0 0 0 / 55%);
+}
+
+.drill__arena-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  pointer-events: none;
+}
+
+.drill__arena-zone--ally {
+  left: 0;
+  background: linear-gradient(to right, rgba(63, 185, 80, 0.1), transparent 70%);
+}
+
+.drill__arena-zone--enemy {
+  right: 0;
+  background: linear-gradient(to left, rgba(248, 113, 113, 0.1), transparent 70%);
+}
+
+.drill__arena-unit {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 6px;
+  border: 1px solid #2c3540;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1a212b, #0d131a);
+  box-shadow:
+    0 8px 16px rgb(0 0 0 / 55%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+  color: #dbe4ee;
+  font-size: 10px;
+  transition:
+    left 0.09s linear,
+    top 0.09s linear,
+    opacity 0.18s,
+    transform 0.18s;
+}
+
+.drill__arena-unit.is-ally {
+  border-left: 2px solid #3fb950;
+}
+
+.drill__arena-unit.is-enemy {
+  border-left: 2px solid #f87171;
+}
+
+.drill__arena-unit b {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__arena-unit.is-dead {
+  opacity: 0.18;
+  transform: scale(0.82) rotate(-4deg);
+}
+
+.drill__arena-hp {
+  display: block;
+  width: 100%;
+  height: 3px;
+  background: #232a33;
+}
+
+.drill__arena-hp i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(to right, #2ea043, #56d364);
+  box-shadow: 0 0 6px rgb(86 211 100 / 55%);
+  transition: width 0.09s linear;
+}
+
+.drill__arena-unit.is-enemy .drill__arena-hp i {
+  background: linear-gradient(to right, #c93c3c, #f87171);
+  box-shadow: 0 0 6px rgb(248 113 113 / 55%);
+}
+
+.drill__arena-float {
+  position: absolute;
+  z-index: 3;
+  color: #fff;
+  font-family: var(--fm-mono);
+  font-size: 15px;
+  font-weight: 700;
+  text-shadow:
+    0 0 10px rgb(248 113 113 / 95%),
+    0 1px 2px rgb(0 0 0 / 90%);
+  pointer-events: none;
+  animation: arena-float 0.72s ease-out forwards;
+}
+
+.drill__arena-float.is-down {
+  color: #f87171;
+  font-size: 12px;
+}
+
+@keyframes arena-float {
+  0% { opacity: 0; transform: translate(-50%, -80%) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, -130%) scale(1.16); }
+  100% { opacity: 0; transform: translate(-50%, -210%) scale(1); }
+}
+
+.drill__arena-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 14px;
+  border: 1px solid #3b82f6;
+  border-radius: 2px;
+  background: rgb(8 12 18 / 90%);
+  box-shadow: 0 0 26px rgb(59 130 246 / 40%);
+  transform: translateX(-50%);
+  animation: arena-banner 0.95s ease-out;
+}
+
+.drill__arena-banner span {
+  color: #9db2c8;
+  font-size: 10px;
+}
+
+.drill__arena-banner b {
+  color: #93c5fd;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgb(147 197 253 / 60%);
+}
+
+@keyframes arena-banner {
+  0% { opacity: 0; transform: translate(-50%, -8px) scale(0.94); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+.drill__arena-result {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 34px;
+  border: 1px solid #2f3944;
+  border-radius: 3px;
+  background: rgb(8 12 18 / 94%);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 70%);
+  transform: translate(-50%, -50%);
+  animation: arena-result 0.3s ease-out;
+}
+
+.drill__arena-result b {
+  color: #e6edf3;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+
+.drill__arena-result span {
+  color: #8b949e;
+  font-size: 10px;
+}
+
+@keyframes arena-result {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.drill__arena-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid #232a33;
+  background: #0a0e13;
+}
+
+.drill__arena-speeds {
+  display: flex;
+  gap: 4px;
+}
+
+.drill__arena-controls .drill__ghost.is-on {
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+.drill__arena-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #7d8794;
+  font-size: 9px;
+}
+
+.drill__arena-zoom input {
+  width: 74px;
+  accent-color: #3b82f6;
+}
+
+.drill__arena-scrub {
+  flex: 1;
+  accent-color: #3b82f6;
+}
+
+.drill__arena-pct {
+  color: #7d8794;
+  font-size: 10px;
+}
+
+/* ---------- 发起校验的询问 ---------- */
+
+.drill__modal--prompt {
+  width: min(400px, 92vw);
+}
+
+.drill__prompt-text {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.drill__prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--fm-border);
+}
