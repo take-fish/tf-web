@@ -1495,37 +1495,90 @@
 }
 
 .drill__modal--arena {
-  position: relative;
+  position: fixed;
   display: flex;
   flex-direction: column;
-  width: min(1120px, 96vw);
-  height: min(700px, 92vh);
-  max-width: 96vw;
-  max-height: 94vh;
   padding: 0;
   border-color: #2a3038;
   background: #0b0e13;
   overflow: hidden;
+  touch-action: none;
 }
 
-.drill__arena-resize {
+/* 八向缩放热区：四条边 + 四个角 */
+.drill__arena-grip {
   position: absolute;
-  right: 1px;
-  bottom: 1px;
-  z-index: 9;
+  z-index: 10;
+}
+
+.drill__arena-grip.is-n,
+.drill__arena-grip.is-s {
+  right: 14px;
+  left: 14px;
+  height: 7px;
+  cursor: ns-resize;
+}
+
+.drill__arena-grip.is-n {
+  top: 0;
+}
+
+.drill__arena-grip.is-s {
+  bottom: 0;
+}
+
+.drill__arena-grip.is-e,
+.drill__arena-grip.is-w {
+  top: 14px;
+  bottom: 14px;
+  width: 7px;
+  cursor: ew-resize;
+}
+
+.drill__arena-grip.is-e {
+  right: 0;
+}
+
+.drill__arena-grip.is-w {
+  left: 0;
+}
+
+.drill__arena-grip.is-ne,
+.drill__arena-grip.is-nw,
+.drill__arena-grip.is-se,
+.drill__arena-grip.is-sw {
   width: 16px;
   height: 16px;
-  background: repeating-linear-gradient(-45deg, #46515f 0 1px, transparent 1px 4px);
-  cursor: nwse-resize;
-  opacity: 0.65;
 }
 
-.drill__arena-resize:hover {
-  opacity: 1;
+.drill__arena-grip.is-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.drill__arena-grip.is-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.drill__arena-grip.is-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.drill__arena-grip.is-se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
 }
 
 .drill__arena-head {
   display: flex;
+  cursor: move;
+  user-select: none;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -1859,15 +1912,6 @@
   border-top: 1px solid var(--fm-border);
 }
 
-.drill__arena-sizes {
-  display: flex;
-  gap: 4px;
-}
-
-.drill__arena-sizes .drill__ghost.is-on {
-  border-color: #3b82f6;
-  color: #93c5fd;
-}
 
 /* ---------- 观察窗里的「人」与动作 ---------- */
 

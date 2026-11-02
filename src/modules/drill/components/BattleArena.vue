@@ -77,61 +77,96 @@ function pushFx(item: Omit<Fx, 'id'>, life = 520) {
   }, life)
 }
 
-/** 观察窗尺寸：默认跟随视口，也可以拖右下角改，或用 小/中/大/满 预设。 */
-const winW = ref(1120)
-const winH = ref(700)
-const sizePreset = ref<'sm' | 'md' | 'lg' | 'full'>('md')
+type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
-function clampSize(width: number, height: number) {
-  const maxW = window.innerWidth - 24
-  const maxH = window.innerHeight - 24
+const RESIZE_EDGES: readonly Edge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
+
+const MIN_W = 560
+const MIN_H = 400
+
+interface Rect {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+/** 浮动窗：默认居中，拖标题栏移动，拖八条边/角缩放。 */
+const rect = ref<Rect>({ left: 0, top: 0, width: 1040, height: 680 })
+let placedOnce = false
+let dragging = false
+let dragStart = { x: 0, y: 0, left: 0, top: 0 }
+let resizing: { edge: Edge; x: number; y: number; base: Rect } | null = null
+
+function clampRect(next: Rect): Rect {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.round(Math.max(MIN_W, Math.min(next.width, vw - 16)))
+  const height = Math.round(Math.max(MIN_H, Math.min(next.height, vh - 16)))
   return {
-    width: Math.round(Math.max(560, Math.min(width, maxW))),
-    height: Math.round(Math.max(420, Math.min(height, maxH))),
+    left: Math.round(Math.max(8, Math.min(next.left, vw - width - 8))),
+    top: Math.round(Math.max(8, Math.min(next.top, vh - height - 8))),
+    width,
+    height,
   }
 }
 
-function applyPreset(preset: 'sm' | 'md' | 'lg' | 'full') {
-  sizePreset.value = preset
+function resetWindow() {
   const vw = window.innerWidth
   const vh = window.innerHeight
-  const table = {
-    sm: [760, 520],
-    md: [1040, 680],
-    lg: [Math.min(1440, vw - 40), Math.min(900, vh - 40)],
-    full: [vw - 24, vh - 24],
-  } as const
-  const [width, height] = table[preset]
-  const size = clampSize(width, height)
-  winW.value = size.width
-  winH.value = size.height
+  const width = Math.min(1040, vw - 80)
+  const height = Math.min(680, vh - 80)
+  rect.value = clampRect({ left: (vw - width) / 2, top: (vh - height) / 2, width, height })
 }
 
-interface ResizeState {
-  x: number
-  y: number
-  w: number
-  h: number
+function onDragMove(event: PointerEvent) {
+  if (!dragging) return
+  rect.value = clampRect({
+    ...rect.value,
+    left: dragStart.left + (event.clientX - dragStart.x),
+    top: dragStart.top + (event.clientY - dragStart.y),
+  })
 }
 
-let resizing: ResizeState | null = null
+function stopDrag() {
+  dragging = false
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', stopDrag)
+}
 
-function startResize(event: PointerEvent) {
+function startDrag(event: PointerEvent) {
+  const target = event.target as HTMLElement
+  if (target.closest('button, input, .drill__arena-grip')) return
   event.preventDefault()
-  resizing = { x: event.clientX, y: event.clientY, w: winW.value, h: winH.value }
-  sizePreset.value = 'md'
-  window.addEventListener('pointermove', onResizeMove)
-  window.addEventListener('pointerup', stopResize)
+  dragging = true
+  dragStart = { x: event.clientX, y: event.clientY, left: rect.value.left, top: rect.value.top }
+  window.addEventListener('pointermove', onDragMove)
+  window.addEventListener('pointerup', stopDrag)
 }
 
 function onResizeMove(event: PointerEvent) {
   if (!resizing) return
-  const size = clampSize(
-    resizing.w + (event.clientX - resizing.x),
-    resizing.h + (event.clientY - resizing.y),
-  )
-  winW.value = size.width
-  winH.value = size.height
+  const { edge, x, y, base } = resizing
+  const dx = event.clientX - x
+  const dy = event.clientY - y
+  let { left, top, width, height } = base
+
+  if (edge.includes('e')) width = base.width + dx
+  if (edge.includes('s')) height = base.height + dy
+  if (edge.includes('w')) {
+    width = base.width - dx
+    left = base.left + dx
+  }
+  if (edge.includes('n')) {
+    height = base.height - dy
+    top = base.top + dy
+  }
+
+  const bounded = clampRect({ left, top, width, height })
+  // 从左边/上边拖到最小尺寸时，把被吃掉的位移还回去，避免右/下边漂移
+  if (edge.includes('w') && bounded.width > width) left = base.left + base.width - bounded.width
+  if (edge.includes('n') && bounded.height > height) top = base.top + base.height - bounded.height
+  rect.value = clampRect({ left, top, width: bounded.width, height: bounded.height })
 }
 
 function stopResize() {
@@ -140,10 +175,16 @@ function stopResize() {
   window.removeEventListener('pointerup', stopResize)
 }
 
+function startResize(event: PointerEvent, edge: Edge) {
+  event.preventDefault()
+  event.stopPropagation()
+  resizing = { edge, x: event.clientX, y: event.clientY, base: { ...rect.value } }
+  window.addEventListener('pointermove', onResizeMove)
+  window.addEventListener('pointerup', stopResize)
+}
+
 function onWindowResize() {
-  const size = clampSize(winW.value, winH.value)
-  winW.value = size.width
-  winH.value = size.height
+  rect.value = clampRect(rect.value)
 }
 
 let raf = 0
@@ -356,7 +397,11 @@ watch(
   (open) => {
     pause()
     if (!open) return
-    applyPreset(sizePreset.value)
+    if (placedOnce) rect.value = clampRect(rect.value)
+    else {
+      resetWindow()
+      placedOnce = true
+    }
     cursor.value = 0
     clearMotion()
     finished.value = false
@@ -378,10 +423,22 @@ onBeforeUnmount(() => {
   <div v-if="ui.arenaOpen && trace" class="drill__overlay drill__overlay--arena" role="dialog" aria-modal="true" aria-label="演练观察窗">
     <div
       class="drill__modal drill__modal--arena"
-      :style="{ width: `${winW}px`, height: `${winH}px` }"
+      :style="{
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+      }"
     >
-      <span class="drill__arena-resize" title="拖动调整窗口大小" @pointerdown="startResize" />
-      <header class="drill__arena-head">
+      <span
+        v-for="edge in RESIZE_EDGES"
+        :key="edge"
+        class="drill__arena-grip"
+        :class="`is-${edge}`"
+        :title="`拖动缩放（${edge}）`"
+        @pointerdown="startResize($event, edge)"
+      />
+      <header class="drill__arena-head" title="拖动移动窗口" @pointerdown="startDrag">
         <div class="drill__arena-title">
           <span class="drill__eyebrow">ALIGNMENT ARENA</span>
           <b>演练观察窗 · 第 {{ battle?.round ?? 0 }} 轮 · {{ battle?.opponent ?? '对照组' }}</b>
@@ -571,18 +628,7 @@ onBeforeUnmount(() => {
           @input="seek(Number(($event.target as HTMLInputElement).value))"
         />
         <span class="drill__arena-pct drill__mono">{{ Math.round(progress) }}%</span>
-        <div class="drill__arena-sizes">
-          <button
-            v-for="preset in (['sm', 'md', 'lg', 'full'] as const)"
-            :key="preset"
-            type="button"
-            class="drill__ghost"
-            :class="{ 'is-on': sizePreset === preset }"
-            @click="applyPreset(preset)"
-          >
-            {{ { sm: '小', md: '中', lg: '大', full: '满' }[preset] }}
-          </button>
-        </div>
+
         <button type="button" class="drill__ghost" @click="restart()">重播</button>
         <button type="button" class="drill__primary" @click="ui.closeArena()">收起</button>
       </footer>
