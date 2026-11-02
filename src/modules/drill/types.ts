@@ -86,6 +86,23 @@ export interface BattleSummary {
   curve: readonly number[]
 }
 
+/** 选秀轮盘上的候选：实例 + 附带注解。 */
+export interface DraftCandidate {
+  id: string
+  name: string
+  cost: number
+  traits: readonly string[]
+  annotation: string | null
+  angle: number
+}
+
+/** 阶段内某一回合的战果，won 为 null 表示还没打。 */
+export interface StageResult {
+  round: number
+  label: string
+  won: boolean | null
+}
+
 export interface DrillSnapshot {
   seed: number
   drillName: string
@@ -113,6 +130,12 @@ export interface DrillSnapshot {
   achievement: number
   battle: BattleSummary | null
   history: readonly { round: number; won: boolean; mode: 'PVE' | 'PVP'; text: string }[]
+  stage: number
+  stageRound: number
+  stageLabel: string
+  stageCount: number
+  stageResults: readonly StageResult[]
+  carousel: readonly DraftCandidate[]
   over: boolean
 }
 

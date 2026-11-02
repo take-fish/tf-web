@@ -58,7 +58,7 @@ function buyXp() {
       <button
         type="button"
         class="drill__ghost"
-        :disabled="!drill.lastTrace"
+        :disabled="!drill.lastTrace || battleActive"
         title="查看上一场校验的完整过程"
         @click="ui.openReplay()"
       >

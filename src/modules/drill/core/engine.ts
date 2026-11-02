@@ -20,7 +20,16 @@ import {
   coordToCell,
   populationCap,
 } from './state'
-import type { AnnotationKind, GameState, OpponentState, ShopSlot, UnitInstance, Zone } from './state'
+import type {
+  AnnotationKind,
+  CarouselItem,
+  CarouselState,
+  GameState,
+  OpponentState,
+  ShopSlot,
+  UnitInstance,
+  Zone,
+} from './state'
 
 export type Command =
   | { type: 'BUY'; slot: number }
@@ -31,6 +40,7 @@ export type Command =
   | { type: 'BUY_XP' }
   | { type: 'EQUIP'; uid: string; annotationId: string }
   | { type: 'PICK_AUGMENT'; id: string }
+  | { type: 'PICK_CAROUSEL'; itemId: string }
   | { type: 'START_BATTLE' }
   | { type: 'RESTART' }
 
@@ -44,6 +54,31 @@ export interface CommandResult {
 
 const ANNOTATION_BUDGET = 10
 const AUGMENT_ROUNDS: readonly number[] = [2, 7, 12]
+/** 选秀回合：进入第 2/3/4 阶段的第一回合 */
+const CAROUSEL_ROUNDS: readonly number[] = [6, 11, 16]
+
+/** 20 回合切成 4 个阶段，每阶段 5 回合；阶段内回合从 1 开始。 */
+export function stageOf(round: number): { stage: number; index: number } {
+  return { stage: Math.floor((round - 1) / 5) + 1, index: ((round - 1) % 5) + 1 }
+}
+
+function makeCarousel(state: GameState): CarouselState {
+  const rng = mulberry32(hashString(`carousel:${state.seed}:${state.round}`))
+  const pool = UNIT_DEFS.filter((def) => def.cost >= 2)
+  const annotations: AnnotationKind[] = ['async', 'tx', 'cache', 'retry']
+  const items: CarouselItem[] = []
+  for (let index = 0; index < 8; index += 1) {
+    const def = pool[pickIndex(rng, pool.map(() => 1))] ?? pool[0]
+    if (!def) break
+    items.push({
+      id: `carousel-${state.round}-${index}`,
+      defId: def.id,
+      annotation: rng() < 0.65 ? (annotations[Math.floor(rng() * annotations.length)] ?? null) : null,
+      angle: (360 / 8) * index + (rng() - 0.5) * 8,
+    })
+  }
+  return { items, round: state.round }
+}
 
 function makeOpponents(): OpponentState[] {
   return Array.from({ length: 7 }, (_, index) => ({
@@ -114,6 +149,7 @@ export function createGame(seed = Date.now()): GameState {
     pool,
     lastBattle: null,
     log: [],
+  carousel: null,
     usedSecondLife: false,
     mergedCount: 0,
   }
@@ -374,6 +410,10 @@ function settle(state: GameState): GameState {
     next = { ...next, pendingAugment: offerAugments(next) }
   }
 
+  if (CAROUSEL_ROUNDS.includes(next.round)) {
+    next = { ...next, phase: 'DRAFT', carousel: makeCarousel(next) }
+  }
+
   return next
 }
 
@@ -534,6 +574,31 @@ export function dispatch(state: GameState, command: Command): CommandResult {
     case 'PICK_AUGMENT': {
       if (!state.pendingAugment?.includes(command.id)) return { state, error: '该方案不可选' }
       return { state: { ...cloneState(state), picks: [...state.picks, command.id], pendingAugment: null } }
+    }
+
+    case 'PICK_CAROUSEL': {
+      if (state.phase !== 'DRAFT' || !state.carousel) {
+        return { state, error: '当前不在选秀阶段' }
+      }
+      const item = state.carousel.items.find((entry) => entry.id === command.itemId)
+      if (!item) return { state, error: '该候选已被取走' }
+      const next = cloneState(state)
+      const benchSlot = firstFreeBench(next)
+      if (benchSlot < 0) return { state, error: '待命席已满，先下架一个实例' }
+      next.units = [
+        ...next.units,
+        {
+          uid: nextUid(next, item.defId),
+          defId: item.defId,
+          star: 1,
+          zone: 'bench',
+          slot: benchSlot,
+          annotations: item.annotation ? [item.annotation] : [],
+        },
+      ]
+      next.pool = { ...next.pool, [item.defId]: Math.max(0, (next.pool[item.defId] ?? 0) - 1) }
+      next.carousel = null
+      return { state: mergeAll({ ...next, phase: 'PREP' }) }
     }
 
     case 'START_BATTLE': {
