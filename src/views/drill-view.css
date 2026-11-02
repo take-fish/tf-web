@@ -703,3 +703,88 @@
   font-size: 12px;
   line-height: 1.7;
 }
+
+/* ---------- 引擎接入后新增 ---------- */
+
+.drill__xp {
+  margin-left: 4px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__xpbar {
+  display: inline-block;
+  width: 90px;
+  height: 3px;
+  background: var(--fm-border);
+}
+
+.drill__xpbar i {
+  display: block;
+  height: 100%;
+  background: var(--fm-ok);
+}
+
+.drill__trait-name.is-active {
+  color: var(--fm-accent);
+}
+
+.drill__stage-tip {
+  position: absolute;
+  bottom: 4px;
+  left: 8px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__slot {
+  padding: 0 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.drill__slot.is-selected {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill__slot:disabled {
+  cursor: default;
+}
+
+.drill__toast {
+  position: fixed;
+  left: 50%;
+  bottom: 88px;
+  z-index: 80;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  color: var(--fm-warn);
+  font-size: 11px;
+  box-shadow: var(--fm-shadow);
+}
+
+.drill__history {
+  margin: 4px 0 0;
+  padding-left: 14px;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.drill__curve {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-top: 6px;
+  color: var(--fm-accent);
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+}

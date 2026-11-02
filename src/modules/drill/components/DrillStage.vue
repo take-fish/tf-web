@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { createStage } from '../stage/createStage'
 import type { StageHandle } from '../types'
@@ -17,6 +17,9 @@ onMounted(() => {
     getSnapshot: () => drill.snapshot,
     onUnitPointer: (unitId) => ui.openDrawer(unitId),
     onHover: () => undefined,
+    onDrop: ({ unitId, zone, slot }) => {
+      drill.move(unitId, zone, slot)
+    },
   })
 })
 
@@ -37,5 +40,6 @@ const phaseLabel = computed(() => {
   <div class="drill__stage-wrap">
     <div ref="host" class="drill__stage" />
     <span class="drill__stage-badge">{{ phaseLabel }}</span>
+    <span class="drill__stage-tip">拖动实例在网格与待命席之间移动</span>
   </div>
 </template>

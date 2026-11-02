@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-/** 纯界面状态：抽屉、弹窗、会议模式。不放任何玩法数据。 */
+/** 纯界面状态：抽屉、弹窗、会议模式、当前选中的注解。不放任何玩法数据。 */
 export const useDrillUiStore = defineStore('drillUi', () => {
   const drawerUnitId = ref<string | null>(null)
   const meetingMode = ref(false)
   const reportOpen = ref(false)
+  const selectedAnnotationId = ref<string | null>(null)
+  const toast = ref<string | null>(null)
 
   function openDrawer(unitId: string) {
     drawerUnitId.value = unitId
@@ -27,14 +29,29 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     reportOpen.value = false
   }
 
+  function selectAnnotation(id: string | null) {
+    selectedAnnotationId.value = id
+  }
+
+  function notify(message: string) {
+    toast.value = message
+    window.setTimeout(() => {
+      if (toast.value === message) toast.value = null
+    }, 2400)
+  }
+
   return {
     drawerUnitId,
     meetingMode,
     reportOpen,
+    selectedAnnotationId,
+    toast,
     openDrawer,
     closeDrawer,
     toggleMeeting,
     openReport,
     closeReport,
+    selectAnnotation,
+    notify,
   }
 })
