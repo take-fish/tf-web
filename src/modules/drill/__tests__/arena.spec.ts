@@ -45,18 +45,13 @@ describe('演练观察窗', () => {
     expect(wrapper.findAll('.drill__fig').length).toBe(units.length)
     expect(wrapper.find('.drill__arena-fx').exists()).toBe(true)
 
-    // 窗口尺寸可调：预设按钮齐全
-    const sizes = wrapper.findAll('.drill__arena-sizes button')
-    expect(sizes.length).toBe(4)
-    expect(wrapper.find('.drill__arena-resize').exists()).toBe(true)
-
-    // 拖动预设到「满」后窗口变宽
-    const before = wrapper.find('.drill__modal--arena').attributes('style') ?? ''
-    await sizes[3]?.trigger('click')
-    await nextTick()
-    const after = wrapper.find('.drill__modal--arena').attributes('style') ?? ''
-    expect(after).not.toBe(before)
-    expect(after).toContain('width')
+    // 浮动窗：八向缩放热区 + 绝对定位矩形
+    expect(wrapper.findAll('.drill__arena-grip').length).toBe(8)
+    const style = wrapper.find('.drill__modal--arena').attributes('style') ?? ''
+    expect(style).toContain('left:')
+    expect(style).toContain('top:')
+    expect(style).toContain('width:')
+    expect(style).toContain('height:')
 
     wrapper.unmount()
     expect(drill.lastTrace).not.toBeNull()
