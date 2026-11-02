@@ -512,7 +512,7 @@ onBeforeUnmount(() => {
           <p v-if="importError" class="reader-import__error">{{ importError }}</p>
         </div>
         <footer class="sheet__foot">
-          <span>文件上限 8 MiB · 原文仅保存在服务端存储卷</span>
+          <span>文件上限 25 MiB · 原文仅保存在服务端存储卷</span>
           <button class="primary-button" type="submit" :disabled="importing">
             {{ importing ? '导入中…' : '导入并索引' }}
           </button>
