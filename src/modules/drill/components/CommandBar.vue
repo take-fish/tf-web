@@ -60,7 +60,7 @@ function buyXp() {
         class="drill__ghost"
         :disabled="!drill.lastTrace || battleActive"
         title="查看上一场校验的完整过程"
-        @click="ui.openReplay()"
+        @click="ui.openArena()"
       >
         回放
       </button>
