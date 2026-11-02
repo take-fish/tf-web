@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { simulateBattle } from '../core/combat'
 import { EMPTY_MODS } from '../core/combat'
 import { UNIT_BY_ID } from '../core/content'
-import { createGame, dispatch } from '../core/engine'
+import { createGame, dispatch, stageOf } from '../core/engine'
 import type { Command } from '../core/engine'
 import { activeTiers, traitCounts } from '../core/state'
 import type { GameState } from '../core/state'
@@ -168,5 +168,34 @@ describe('替换与回放', () => {
     expect(result.trace?.units.length ?? 0).toBeGreaterThan(2)
     expect(result.trace?.events.length ?? 0).toBeGreaterThan(0)
     expect(result.trace?.duration ?? 0).toBeGreaterThan(0)
+  })
+})
+describe('阶段与选秀', () => {
+  it('20 回合切成 4 个阶段，每阶段 5 回合', () => {
+    expect(stageOf(1)).toEqual({ stage: 1, index: 1 })
+    expect(stageOf(6)).toEqual({ stage: 2, index: 1 })
+    expect(stageOf(20)).toEqual({ stage: 4, index: 5 })
+  })
+
+  it('进入新阶段首回合触发选秀，抢到后带注解进待命席', () => {
+    const base: GameState = {
+      ...createGame(21),
+      round: 5,
+      units: [
+        { uid: 'a', defId: 'shunfengyao', star: 2, zone: 'board', slot: 0, annotations: [] },
+        { uid: 'b', defId: 'zuoshen', star: 2, zone: 'board', slot: 1, annotations: [] },
+      ],
+    }
+    const fought = dispatch(base, { type: 'START_BATTLE' })
+    expect(fought.state.phase).toBe('DRAFT')
+    expect(fought.state.carousel?.items.length).toBe(8)
+
+    const first = fought.state.carousel?.items[0]
+    expect(first).toBeTruthy()
+    const picked = dispatch(fought.state, { type: 'PICK_CAROUSEL', itemId: first?.id ?? '' })
+    expect(picked.error).toBeUndefined()
+    expect(picked.state.phase).toBe('PREP')
+    expect(picked.state.carousel).toBeNull()
+    expect(picked.state.units.some((unit) => unit.zone === 'bench')).toBe(true)
   })
 })

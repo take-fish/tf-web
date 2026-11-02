@@ -7,11 +7,12 @@ import CommandBar from '@/modules/drill/components/CommandBar.vue'
 import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
 import DrillStage from '@/modules/drill/components/DrillStage.vue'
+import DraftCarousel from '@/modules/drill/components/DraftCarousel.vue'
 import ProposalModal from '@/modules/drill/components/ProposalModal.vue'
 import ReportModal from '@/modules/drill/components/ReportModal.vue'
 import ResourceBar from '@/modules/drill/components/ResourceBar.vue'
 import RosterPanel from '@/modules/drill/components/RosterPanel.vue'
-import RunLogPanel from '@/modules/drill/components/RunLogPanel.vue'
+import StageTrack from '@/modules/drill/components/StageTrack.vue'
 import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
 import { useDrillStore } from '@/modules/drill/stores/drill'
@@ -100,7 +101,7 @@ onBeforeUnmount(() => {
       <DrillStage />
       <div v-if="!ui.meetingMode" class="drill__side">
         <RosterPanel />
-        <RunLogPanel />
+        <StageTrack />
       </div>
     </div>
 
@@ -111,6 +112,7 @@ onBeforeUnmount(() => {
     </template>
 
     <UnitDrawer @remove="requestRemove" />
+    <DraftCarousel />
     <BattleReplay />
     <ProposalModal />
     <ReportModal />

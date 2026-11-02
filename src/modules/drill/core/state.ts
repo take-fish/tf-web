@@ -5,7 +5,21 @@ const TRAIT_TABLE: Readonly<Record<string, { tiers: readonly number[] }>> = Obje
   TRAIT_DEFS.map((def) => [def.id, { tiers: def.tiers }]),
 )
 
-export type Phase = 'PREP' | 'BATTLE' | 'SETTLE' | 'END'
+export type Phase = 'PREP' | 'DRAFT' | 'BATTLE' | 'SETTLE' | 'END'
+
+/** 选秀轮盘上的一件候选：实例 + 附带注解。角度为初始角度（度）。 */
+export interface CarouselItem {
+  id: string
+  defId: string
+  annotation: AnnotationKind | null
+  angle: number
+}
+
+export interface CarouselState {
+  items: readonly CarouselItem[]
+  /** 进入选秀的回合，用于展示与存档校验 */
+  round: number
+}
 export type Zone = 'board' | 'bench'
 export type AnnotationKind = 'async' | 'retry' | 'cache' | 'tx'
 
@@ -78,6 +92,8 @@ export interface GameState {
   pool: Readonly<Record<string, number>>
   lastBattle: BattleReport | null
   log: readonly { round: number; won: boolean; mode: 'PVE' | 'PVP'; text: string }[]
+  /** 选秀轮盘，仅在 DRAFT 阶段非空 */
+  carousel: CarouselState | null
   /** 本局是否已用掉 X1 的复活 */
   usedSecondLife: boolean
   mergedCount: number
@@ -207,6 +223,9 @@ export function cloneState(state: GameState): GameState {
     opponents: state.opponents.map((opponent) => ({ ...opponent })),
     pool: { ...state.pool },
     log: [...state.log],
+    carousel: state.carousel
+      ? { ...state.carousel, items: state.carousel.items.map((item) => ({ ...item })) }
+      : null,
     pendingAugment: state.pendingAugment ? [...state.pendingAugment] : null,
   }
 }

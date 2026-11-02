@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
 import { AUGMENT_BY_ID, TRAIT_DEFS, UNIT_BY_ID, XP_TABLE } from '../core/content'
-import { createGame, dispatch } from '../core/engine'
+import { createGame, dispatch, stageOf } from '../core/engine'
 import type { BattleTrace } from '../core/combat'
 import type { Command } from '../core/engine'
 import {
@@ -19,9 +19,11 @@ import { formatElapsed } from '../format'
 import type {
   AnnotationSlot,
   BenchUnit,
+  DraftCandidate,
   DrillSnapshot,
   ProposalCard,
   ShopSlot,
+  StageResult,
   TraitLine,
   UnitNode,
 } from '../types'
@@ -151,6 +153,32 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     .map((id) => toProposal(id))
     .filter((card): card is ProposalCard => card !== null)
 
+  const { stage, index } = stageOf(state.round)
+  const stageCount = Math.ceil(state.totalRounds / 5)
+  const stageResults: StageResult[] = Array.from({ length: 5 }, (_, offset) => {
+    const round = (stage - 1) * 5 + offset + 1
+    const entry = state.log.find((item) => item.round === round)
+    return {
+      round,
+      label: `${stage}-${offset + 1}`,
+      won: round > state.totalRounds ? null : (entry?.won ?? null),
+    }
+  })
+
+  const carousel: DraftCandidate[] = (state.carousel?.items ?? []).map((item) => {
+    const def = UNIT_BY_ID[item.defId]
+    return {
+      id: item.id,
+      name: def?.name ?? item.defId,
+      cost: def?.cost ?? 1,
+      traits: (def?.traits ?? []).map(
+        (trait) => TRAIT_DEFS.find((entry) => entry.id === trait)?.label ?? trait,
+      ),
+      annotation: item.annotation ? ANNOTATION_LABEL[item.annotation] : null,
+      angle: item.angle,
+    }
+  })
+
   return {
     seed: state.seed,
     drillName: 'cap-prod-01',
@@ -163,7 +191,7 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     sli: state.sli,
     scale: boardUnits(state).length,
     elapsed,
-    phase: state.phase === 'END' ? 'TERMINATED' : state.phase,
+    phase: state.phase === 'END' ? 'TERMINATED' : state.phase === 'DRAFT' ? 'PREP' : state.phase,
     units,
     bench,
     benchCount: bench.length,
@@ -183,6 +211,12 @@ function project(state: GameState, elapsed: number): DrillSnapshot {
     achievement: Object.values(tiers).filter((tier) => tier > 0).length,
     battle: state.lastBattle,
     history: state.log,
+    stage,
+    stageRound: index,
+    stageLabel: `${stage}-${index}`,
+    stageCount,
+    stageResults,
+    carousel,
     over: state.phase === 'END',
   }
 }
@@ -266,6 +300,10 @@ const lastTrace = ref<BattleTrace | null>(null)
     return run({ type: 'PICK_AUGMENT', id })
   }
 
+  function pickCarousel(itemId: string) {
+    return run({ type: 'PICK_CAROUSEL', itemId })
+  }
+
   function startBattle() {
     return run({ type: 'START_BATTLE' })
   }
@@ -299,6 +337,7 @@ const lastTrace = ref<BattleTrace | null>(null)
     buyXp,
     equip,
     pickAugment,
+    pickCarousel,
     startBattle,
     restart,
   }
