@@ -104,6 +104,7 @@ watch(
 )
 
 onMounted(() => {
+  if (drill.mode === null) drill.startSolo()
   clockTimer = window.setInterval(() => drill.tick(), 1000)
 })
 

@@ -25,6 +25,8 @@ import type {
   DraftCandidate,
   DrillSnapshot,
   MatchupRow,
+  PartySeat,
+  DrillMode,
   ProposalCard,
   ShopSlot,
   StageResult,
@@ -33,6 +35,28 @@ import type {
 } from '../types'
 
 const STORAGE_KEY = 'fm.drill.state.v1'
+const MODE_KEY = 'fm.drill.mode.v1'
+const PARTY_KEY = 'fm.drill.party.v1'
+
+function loadMode(): DrillMode | null {
+  try {
+    const raw = localStorage.getItem(MODE_KEY)
+    return raw === 'solo' || raw === 'party' ? raw : null
+  } catch {
+    return null
+  }
+}
+
+function loadParty(): PartySeat[] {
+  try {
+    const raw = localStorage.getItem(PARTY_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as PartySeat[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 const ANNOTATION_LABEL: Readonly<Record<AnnotationKind, string>> = {
   async: '@Async',
@@ -70,7 +94,12 @@ interface NamingMaps {
   trait: Record<string, string>
 }
 
-function project(state: GameState, elapsed: number, naming: NamingMaps): DrillSnapshot {
+function project(
+  state: GameState,
+  elapsed: number,
+  naming: NamingMaps,
+  party: readonly PartySeat[] = [],
+): DrillSnapshot {
   const unitName = (defId: string, fallback: string) => naming.unit[defId] ?? fallback
   const traitLabel = (id: string, fallback: string) => naming.trait[id] ?? fallback
   const counts = traitCounts(state)
@@ -211,12 +240,16 @@ function project(state: GameState, elapsed: number, naming: NamingMaps): DrillSn
     traits,
     shop,
     annotations,
-    roster: state.opponents.map((opponent) => ({
-      id: opponent.id,
-      label: opponent.name,
-      sli: opponent.sli,
-      alive: opponent.alive,
-    })),
+    roster: state.opponents.map((opponent, index) => {
+      const member = party[index + 1]
+      const invited = member && !member.isAi ? member.nickname : ''
+      return {
+        id: opponent.id,
+        label: invited === '' ? opponent.name : invited,
+        sli: opponent.sli,
+        alive: opponent.alive,
+      }
+    }),
     proposals,
     picks,
     achievement: Object.values(tiers).filter((tier) => tier > 0).length,
@@ -239,9 +272,41 @@ export const useDrillStore = defineStore('drill', () => {
   const paused = ref(false)
 
   const naming = useDrillNamingStore()
+  const mode = ref<DrillMode | null>(loadMode())
+  const party = ref<PartySeat[]>(loadParty())
+
   const snapshot = computed(() =>
-    project(state.value, elapsed.value, { unit: naming.unitMap, trait: naming.traitMap }),
+    project(state.value, elapsed.value, { unit: naming.unitMap, trait: naming.traitMap }, party.value),
   )
+
+  function persistParty() {
+    try {
+      if (mode.value === null) localStorage.removeItem(MODE_KEY)
+      else localStorage.setItem(MODE_KEY, mode.value)
+      if (party.value.length === 0) localStorage.removeItem(PARTY_KEY)
+      else localStorage.setItem(PARTY_KEY, JSON.stringify(party.value))
+    } catch {
+      // 存不下不影响演练
+    }
+  }
+
+  function startSolo() {
+    mode.value = 'solo'
+    party.value = []
+    persistParty()
+  }
+
+  function startParty(seats: PartySeat[]) {
+    mode.value = 'party'
+    party.value = seats
+    persistParty()
+  }
+
+  function resetMode() {
+    mode.value = null
+    party.value = []
+    persistParty()
+  }
   const elapsedLabel = computed(() => formatElapsed(elapsed.value))
   const rerollCost = computed(() => (state.value.freeRerolls > 0 ? 0 : 2))
   const levelUpCost = 4
@@ -469,6 +534,11 @@ watch(
     error,
     lastBattle,
     lastTrace,
+    mode,
+    party,
+    startSolo,
+    startParty,
+    resetMode,
     matchups,
     preview,
     openMatchup,

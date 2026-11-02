@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { formatElapsed } from '../format'
 import { useDrillStore } from '../stores/drill'
@@ -10,6 +11,12 @@ import { useDrillUiStore } from '../stores/ui'
 const drill = useDrillStore()
 const ui = useDrillUiStore()
 const auth = useAuthStore()
+const router = useRouter()
+
+function switchMode() {
+  drill.resetMode()
+  void router.push('/games/autochess')
+}
 const snapshot = computed(() => drill.snapshot)
 </script>
 
@@ -58,6 +65,7 @@ const snapshot = computed(() => drill.snapshot)
       <button type="button" class="drill__ghost" @click="ui.toggleMeeting()">
         {{ ui.meetingMode ? '退出会议模式' : '会议模式' }}
       </button>
+      <button type="button" class="drill__ghost" @click="switchMode()">切换模式</button>
       <button
         v-if="auth.isAdmin"
         type="button"
