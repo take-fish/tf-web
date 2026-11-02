@@ -18,7 +18,7 @@ export const GAMES: readonly GameDefinition[] = [
     metricTitle: '实例编排拓扑',
     description: '按 SLI 与配额自动编排实例，达成稳态',
     playable: true,
-    span: 4,
+    span: 3,
   },
   {
     id: 'timeseries-runner',
@@ -26,7 +26,7 @@ export const GAMES: readonly GameDefinition[] = [
     metricTitle: '响应耗时时序图',
     description: '耗时曲线采样与尖峰标注，采集任务待接入',
     playable: false,
-    span: 5,
+    span: 3,
   },
   {
     id: 'ring-2048',
@@ -42,7 +42,7 @@ export const GAMES: readonly GameDefinition[] = [
     metricTitle: '节点拓扑图',
     description: '混沌工程攻防演练：注入故障与稳态保障',
     playable: true,
-    span: 4,
+    span: 3,
     scriptId: 'topology-arena',
   },
   {
@@ -51,7 +51,7 @@ export const GAMES: readonly GameDefinition[] = [
     metricTitle: 'QPS 柱状图',
     description: '削峰填谷演练，压降异常流量峰值',
     playable: true,
-    span: 4,
+    span: 3,
   },
   {
     id: 'heatmap-gomoku',
@@ -59,7 +59,7 @@ export const GAMES: readonly GameDefinition[] = [
     metricTitle: '日志热力图',
     description: '热点区域对弈与日志热区排查',
     playable: true,
-    span: 5,
+    span: 3,
     scriptId: 'heatmap-gomoku',
   },
   {
@@ -68,6 +68,6 @@ export const GAMES: readonly GameDefinition[] = [
     metricTitle: '暗棋盘面',
     description: '中国象棋暗棋：翻棋、盲吃与将帅见面',
     playable: true,
-    span: 4,
+    span: 3,
   },
 ]
