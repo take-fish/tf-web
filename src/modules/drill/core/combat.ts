@@ -127,7 +127,8 @@ export interface BattleTrace {
 
 const DT = 0.1
 const MAX_TICKS = 200
-const ADJACENT = 1
+/** 战场横向扩成两侧：左半己方 0..6，右半对手 7..13。 */
+export const BATTLE_COLS = BOARD_COLS * 2
 const MAX_EVENTS = 1500
 
 /** 回放录制器：模块级单例，simulateBattle 进入时挂上、退出时摘掉。 */
@@ -170,7 +171,7 @@ function neighbors(col: number, row: number): { col: number; row: number }[] {
   for (const delta of deltas) {
     const nextCol = col + (delta[0] ?? 0)
     const nextRow = row + (delta[1] ?? 0)
-    if (nextCol < 0 || nextCol >= BOARD_COLS || nextRow < 0 || nextRow >= BOARD_ROWS) continue
+    if (nextCol < 0 || nextCol >= BATTLE_COLS || nextRow < 0 || nextRow >= BOARD_ROWS) continue
     result.push({ col: nextCol, row: nextRow })
   }
   return result
@@ -219,6 +220,11 @@ function living(fighters: Fighter[], side: 'ally' | 'enemy'): Fighter[] {
   return fighters.filter((fighter) => fighter.alive && fighter.side === side)
 }
 
+/** 法系远程（射线/范围）站位输出，近战需要贴身。 */
+function attackRange(fighter: Fighter): number {
+  return fighter.def.skill.stat === 'ap' ? 3 : 1
+}
+
 function nearest(from: Fighter, pool: Fighter[]): Fighter | null {
   let best: Fighter | null = null
   let bestDistance = 99
@@ -259,7 +265,10 @@ export function simulateBattle(
 ): BattleOutcome {
   const fighters: Fighter[] = [
     ...allies.map((input) => buildFighter(input, 'ally', allyMods)),
-    ...enemies.map((input) => buildFighter(input, 'enemy', enemyMods)),
+    // 对手镜像到右半场，避免两侧单位叠在同一格上
+    ...enemies.map((input) =>
+      buildFighter({ ...input, col: BATTLE_COLS - 1 - input.col }, 'enemy', enemyMods),
+    ),
   ]
   const occupied = new Set<string>(fighters.map((fighter) => `${fighter.col},${fighter.row}`))
   const curve: number[] = []
@@ -304,8 +313,10 @@ export function simulateBattle(
       if (!target) continue
 
       const distance = hexDistance(fighter, target)
-      if (distance > ADJACENT) {
-        fighter.attackCd += effective(fighter, 'as', elapsed) * DT * 0.5
+      const reach = attackRange(fighter)
+      if (distance > reach) {
+        // 移动是匀速的：0.25s 一格，避免远程单位原地罚站
+        fighter.attackCd += DT * 4
         if (fighter.attackCd >= 1) {
           fighter.attackCd = 0
           const options = neighbors(fighter.col, fighter.row)

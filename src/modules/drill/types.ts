@@ -22,6 +22,8 @@ export interface UnitNode {
   power: number
   throughput: number
   skill: string
+  /** 建议站位：前排 / 中排 / 后排 */
+  advice: string
   annotations: readonly string[]
 }
 
@@ -31,6 +33,7 @@ export interface BenchUnit {
   cost: number
   star: 1 | 2 | 3
   traits: readonly string[]
+  advice: string
 }
 
 export interface ShopSlot {
@@ -41,6 +44,7 @@ export interface ShopSlot {
   traits: readonly string[]
   locked: boolean
   soldOut: boolean
+  advice: string
 }
 
 export interface AnnotationSlot {

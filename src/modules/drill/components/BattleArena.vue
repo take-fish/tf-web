@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { UNIT_BY_ID } from '../core/content'
+import { BATTLE_COLS } from '../core/combat'
 import { useDrillStore } from '../stores/drill'
 import { useDrillUiStore } from '../stores/ui'
 import DrillFigure from './DrillFigure.vue'
@@ -19,7 +20,7 @@ interface Floater {
   x: number
   y: number
   text: string
-  kind: 'hit' | 'down' | 'heal'
+  kind: 'hit' | 'down' | 'heal' | 'skill'
 }
 
 interface Fx {
@@ -53,6 +54,8 @@ const strikeUid = ref<string | null>(null)
 const hitUid = ref<string | null>(null)
 const castUid = ref<string | null>(null)
 const fx = ref<Fx[]>([])
+/** 近战突进方向（px），配合 CSS 变量做「走到目标身前再打」 */
+const strikeVec = ref<{ uid: string; x: number; y: number } | null>(null)
 
 const motionTimers = { strike: 0, hit: 0, cast: 0 }
 let fxId = 0
@@ -234,9 +237,9 @@ const progress = computed(() => (duration.value === 0 ? 0 : (cursor.value / dura
 
 function cell(col: number, row: number) {
   return {
-    left: `${(col / 7) * 100}%`,
+    left: `${(col / BATTLE_COLS) * 100}%`,
     top: `${(row / 4) * 100}%`,
-    width: `${100 / 7}%`,
+    width: `${100 / BATTLE_COLS}%`,
     height: `${100 / 4}%`,
   }
 }
@@ -258,7 +261,7 @@ function at(uid: string | undefined): { x: number; y: number } | null {
   if (uid === undefined) return null
   const unit = frame.value?.units.find((entry) => entry.uid === uid)
   if (!unit) return null
-  return { x: ((unit.col + 0.5) / 7) * 100, y: ((unit.row + 0.5) / 4) * 100 }
+  return { x: ((unit.col + 0.5) / BATTLE_COLS) * 100, y: ((unit.row + 0.5) / 4) * 100 }
 }
 
 /** 技能形态 → 观察窗里的特效：单体=光束，直线=粗光束，AOE=扩散环，增益=脚下光环，持续=回升粒子 */
@@ -288,13 +291,21 @@ function process(from: number, to: number) {
       flagMotion('strike', event.uid)
       flagMotion('hit', event.targetId)
       pushFloater({ ...target, text: `-${event.amount ?? 0}`, kind: 'hit' })
-      pushFx({ kind: 'slash', x: target.x, y: target.y, x2: target.x, y2: target.y }, 240)
-      pushFx({ kind: 'flash', x: target.x, y: target.y, x2: target.x, y2: target.y }, 220)
-      if (attacker) {
-        const gap = Math.abs(attacker.x - target.x) + Math.abs(attacker.y - target.y)
-        if (gap > 16) {
-          pushFx({ kind: 'trail', x: attacker.x, y: attacker.y, x2: target.x, y2: target.y }, 180)
-        }
+      if (!attacker) continue
+
+      const dx = target.x - attacker.x
+      const dy = target.y - attacker.y
+      const gap = Math.hypot(dx, dy)
+      if (gap > 8) {
+        // 远程：从施法者射出一道射线，命中点再补一次闪光
+        pushFx({ kind: 'beam', x: attacker.x, y: attacker.y, x2: target.x, y2: target.y }, 260)
+        pushFx({ kind: 'flash', x: attacker.x, y: attacker.y, x2: attacker.x, y2: attacker.y }, 160)
+      } else {
+        // 近战：先突进到目标身前，再出刀
+        const len = Math.hypot(dx, dy) || 1
+        strikeVec.value = { uid: event.uid, x: (dx / len) * 22, y: (dy / len) * 22 }
+        pushFx({ kind: 'slash', x: target.x, y: target.y, x2: target.x, y2: target.y }, 240)
+        pushFx({ kind: 'flash', x: target.x, y: target.y, x2: target.x, y2: target.y }, 220)
       }
       continue
     }
@@ -310,6 +321,9 @@ function process(from: number, to: number) {
         if (targetAt && form) skillFx(form, casterAt, targetAt)
       }
 
+      if (casterAt) {
+        pushFloater({ x: casterAt.x, y: casterAt.y - 3, text: event.text ?? '技能', kind: 'skill' })
+      }
       banner.value = { name: caster?.name ?? '', text: event.text ?? '' }
       window.clearTimeout(bannerTimer)
       bannerTimer = window.setTimeout(() => {
@@ -381,6 +395,7 @@ function clearMotion() {
   strikeUid.value = null
   hitUid.value = null
   castUid.value = null
+  strikeVec.value = null
 }
 
 function seek(value: number) {

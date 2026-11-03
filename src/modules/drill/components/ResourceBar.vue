@@ -36,6 +36,7 @@ function lock(index: number) {
           <span class="drill__resource-traits">
             {{ slot.soldOut ? '—' : slot.traits.join(' · ') }}
           </span>
+          <span class="drill__resource-advice">建议{{ slot.advice }}</span>
           <span class="drill__resource-cost">配额 {{ slot.cost }}</span>
         </button>
         <button
