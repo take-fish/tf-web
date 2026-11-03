@@ -110,7 +110,7 @@ export interface TraceFrame {
 
 export interface TraceEvent {
   t: number
-  kind: 'hit' | 'skill' | 'down' | 'revive'
+  kind: 'hit' | 'skill' | 'down' | 'revive' | 'surge'
   uid: string
   targetId?: string
   amount?: number
@@ -126,7 +126,13 @@ export interface BattleTrace {
 }
 
 const DT = 0.1
-const MAX_TICKS = 200
+/** 单场上限 45 秒；15 / 30 秒各来一次数值膨胀，到点按人数判胜负。 */
+export const MAX_TICKS = 450
+export const BATTLE_SECONDS = MAX_TICKS * DT
+/** 数值膨胀的时间点与幅度：攻击/法强 +30%，生命 +12%。 */
+export const SURGE_TIMES: readonly number[] = [15, 30]
+export const SURGE_ATK = 0.3
+export const SURGE_HP = 0.12
 /** 战场横向扩成两侧：左半己方 0..6，右半对手 7..13。 */
 export const BATTLE_COLS = BOARD_COLS * 2
 const MAX_EVENTS = 1500
@@ -216,6 +222,16 @@ function effective(fighter: Fighter, key: 'atk' | 'ap' | 'as' | 'armor' | 'mr', 
   return value
 }
 
+function applySurge(fighters: Fighter[]): void {
+  for (const fighter of fighters) {
+    if (!fighter.alive) continue
+    fighter.atk *= 1 + SURGE_ATK
+    fighter.ap *= 1 + SURGE_ATK
+    fighter.maxHp = Math.round(fighter.maxHp * (1 + SURGE_HP))
+    fighter.hp = Math.min(fighter.maxHp, fighter.hp * (1 + SURGE_HP))
+  }
+}
+
 function living(fighters: Fighter[], side: 'ally' | 'enemy'): Fighter[] {
   return fighters.filter((fighter) => fighter.alive && fighter.side === side)
 }
@@ -293,10 +309,23 @@ export function simulateBattle(
   }, 0)
 
   let ticks = 0
+  let surgeIndex = 0
   for (let tick = 0; tick < MAX_TICKS; tick += 1) {
     ticks = tick + 1
     const elapsed = ticks * DT
     clock = elapsed
+
+    // 15 / 30 秒各来一次等比例膨胀，让后期对局加速收束
+    if (surgeIndex < SURGE_TIMES.length && elapsed >= (SURGE_TIMES[surgeIndex] ?? Infinity)) {
+      applySurge(fighters)
+      recorder?.({
+        t: elapsed,
+        kind: 'surge',
+        uid: '',
+        text: `数值膨胀 ${surgeIndex + 1} · 全员攻击/法强 +${Math.round(SURGE_ATK * 100)}%`,
+      })
+      surgeIndex += 1
+    }
     const aliveAllies = living(fighters, 'ally')
     const aliveEnemies = living(fighters, 'enemy')
     if (aliveAllies.length === 0 || aliveEnemies.length === 0) break
@@ -354,9 +383,12 @@ export function simulateBattle(
         castSkill(fighter, target, fighters, ownMods, elapsed)
       }
 
-      if (!target.alive) {
-        handleDeath(target, fighters, elapsed, ownMods)
-      }
+    }
+
+    // 伤害来源可能是普攻 / 技能 / 死亡溅射，统一在回合末尾结算阵亡
+    for (const fighter of fighters) {
+      if (!fighter.alive || fighter.hp > 0) continue
+      handleDeath(fighter, fighters, elapsed, fighter.side === 'ally' ? allyMods : enemyMods)
     }
 
     const allyHp = living(fighters, 'ally').reduce((sum, fighter) => sum + fighter.hp, 0)
@@ -375,6 +407,15 @@ export function simulateBattle(
 
   const allyAlive = living(fighters, 'ally').length
   const enemyAlive = living(fighters, 'enemy').length
+  const timedOut = ticks >= MAX_TICKS && allyAlive > 0 && enemyAlive > 0
+  if (timedOut) {
+    recorder?.({
+      t: ticks * DT,
+      kind: 'surge',
+      uid: '',
+      text: `45 秒到点 · 按剩余人数判定（${allyAlive} : ${enemyAlive}）`,
+    })
+  }
   const winner: BattleOutcome['winner'] =
     allyAlive > 0 && enemyAlive === 0
       ? 'ally'
@@ -449,7 +490,6 @@ function castSkill(
   if (form === 'single') {
     const target = pickTarget(skill.target, caster, enemyPool) ?? primary
     takeDamage(target, base, 'magic', mods)
-    if (!target.alive) target.alive = false
     return
   }
 
