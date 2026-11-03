@@ -2884,3 +2884,42 @@
 .drill__fx-spark.tone-tank { background: #5fd47c; }
 .drill__fx-spark.tone-melee { background: #f39a5c; }
 .drill__fx-spark.tone-ranged { background: #45d4e0; }
+
+/* ---------- 实例详情：注解卸下入口 ---------- */
+
+.drill__drawer-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drill__drawer-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border: 1px solid var(--fm-border);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 4%);
+  font-size: 11px;
+}
+
+.drill__note-off {
+  padding: 0 5px;
+  border: 1px solid var(--fm-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.drill__note-off:hover:not(:disabled) {
+  border-color: var(--fm-danger, #e05555);
+  color: var(--fm-danger, #e05555);
+}
+
+.drill__note-off:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
