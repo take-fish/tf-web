@@ -129,7 +129,8 @@ describe('drill engine', () => {
   })
 
   it('血量归零即淘汰：终局有名次与积分', () => {
-    let state = createGame(99)
+    const initial = createGame(99)
+    let state = initial
     let guard = 0
     while (state.phase !== 'END' && guard < 400) {
       guard += 1
@@ -173,9 +174,12 @@ describe('drill engine', () => {
     expect(state.placement).toBeGreaterThanOrEqual(1)
     expect(state.placement).toBeLessThanOrEqual(8)
     expect(state.matchPoints ?? 0).toBeGreaterThanOrEqual(0)
-    // 其余席位也会掉血：不再是一排恒定的 60–100
-    const changed = state.opponents.some((seat) => seat.sli !== 100 && (seat.eliminatedAt ?? 0) > 0 || !seat.alive)
-    expect(changed).toBe(true)
+    // 其余席位也会掉血：至少有一席血量低于开局或已淘汰
+    const damaged = state.opponents.some((seat, index) => {
+      const before = initial.opponents[index]?.sli ?? 100
+      return seat.sli < before || seat.eliminatedAt !== undefined || !seat.alive
+    })
+    expect(damaged).toBe(true)
   })
 })
 

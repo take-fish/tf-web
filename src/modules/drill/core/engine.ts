@@ -443,13 +443,13 @@ function offerAugments(state: GameState): readonly string[] {
 }
 
 /**
- * 落败掉血：6 + 2·floor(轮次/2) + 3·存活敌方，1–3 轮（PVE）减半。
- * 8 人局平均每场掉 16 血左右，6 场败局见底，整局落在 10–12 轮。
+ * 落败掉血：5 + floor(轮次/4) + ceil(存活敌方/2)，1–3 轮（PVE）减半。
+ * 8 人局里弱阵容约 13 轮见底，均势对局 20–22 轮收口，25 轮为硬上限。
  */
 function seatDamage(state: GameState, survivors: number, won: boolean): number {
   if (won) return 0
   if (state.picks.includes('S8') && state.round <= 3) return 0
-  const raw = 6 + 2 * Math.floor(state.round / 2) + survivors * 3
+  const raw = 5 + Math.floor(state.round / 4) + Math.ceil(survivors / 2)
   return state.round <= 3 ? Math.ceil(raw / 2) : raw
 }
 
