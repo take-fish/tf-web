@@ -121,6 +121,20 @@ export const UNIT_BY_ID: Readonly<Record<string, UnitDef>> = Object.fromEntries(
   UNIT_DEFS.map((def) => [def.id, def]),
 )
 
+export type SuggestedRow = '前排' | '中排' | '后排'
+
+/** 按技能形态推荐站位：近战单体在前排，范围法系在中排，增益/持续在后排。 */
+export function suggestedRow(def: UnitDef): SuggestedRow {
+  const { form, stat } = def.skill
+  if (form === 'single' && stat === 'atk') return '前排'
+  if (form === 'line' && stat === 'atk') return '前排'
+  if (form === 'aoe' && stat === 'ap') return '中排'
+  if (form === 'buff') return '后排'
+  if (form === 'sustain') return '中排'
+  if (form === 'line') return '后排'
+  return '中排'
+}
+
 export interface TraitEffect {
   atk?: number
   as?: number

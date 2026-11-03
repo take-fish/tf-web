@@ -56,4 +56,25 @@ describe('演练观察窗', () => {
     wrapper.unmount()
     expect(drill.lastTrace).not.toBeNull()
   })
+
+  it('双方分列左右半场，己方不会被对手盖住', async () => {
+    prepareBattle()
+    const ui = useDrillUiStore()
+    const wrapper = mount(BattleArena)
+    ui.arenaOpen = true
+    await nextTick()
+
+    const allies = wrapper.findAll('.drill__arena-unit.is-ally')
+    const enemies = wrapper.findAll('.drill__arena-unit.is-enemy')
+    expect(allies.length).toBeGreaterThan(0)
+    expect(enemies.length).toBeGreaterThan(0)
+
+    const leftOf = (index: number, list: typeof allies) => {
+      const style = list[index]?.attributes('style') ?? ''
+      return Number(style.match(/left:\s*([\d.]+)%/)?.[1] ?? 0)
+    }
+    expect(leftOf(0, allies)).toBeLessThan(50)
+    expect(leftOf(0, enemies)).toBeGreaterThanOrEqual(50)
+    wrapper.unmount()
+  })
 })

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
-import { AUGMENT_BY_ID, TRAIT_DEFS, UNIT_BY_ID, XP_TABLE } from '../core/content'
+import { AUGMENT_BY_ID, suggestedRow, TRAIT_DEFS, UNIT_BY_ID, XP_TABLE } from '../core/content'
 import { createGame, dispatch, stageOf } from '../core/engine'
 import type { BattleTrace } from '../core/combat'
 import type { Command } from '../core/engine'
@@ -133,6 +133,7 @@ function project(
       power: Math.round((def?.atk ?? 50) * unit.star),
       throughput: Math.round((def?.hp ?? 600) / 10),
       skill: def ? `${def.skill.name}（${FORM_LABEL[def.skill.form] ?? '单体'}）` : '',
+      advice: def ? suggestedRow(def) : '中排',
       annotations: unit.annotations.map((kind) => ANNOTATION_LABEL[kind]),
     }
   })
@@ -147,6 +148,7 @@ function project(
       traits: (def?.traits ?? []).map(
         (trait) => traitLabel(trait, TRAIT_DEFS.find((item) => item.id === trait)?.label ?? trait),
       ),
+      advice: def ? suggestedRow(def) : '中排',
     }
   })
 
@@ -162,6 +164,7 @@ function project(
       ),
       locked: slot.locked,
       soldOut: slot.sold || slot.defId === null,
+      advice: def ? suggestedRow(def) : '中排',
     }
   })
 
