@@ -21,7 +21,7 @@ const tournament = useTournamentStore()
 const tab = ref<DrillMode>('solo')
 const seats = ref<PartySeat[]>(buildSeats())
 
-const selfId = computed(() => String(auth.user?.id ?? 'self'))
+const selfId = computed(() => (auth.user ? `u${auth.user.id}` : 'self'))
 
 const onlineUsers = computed(() =>
   tournament.onlineMembers.filter((member) => member.userId !== selfId.value),
@@ -83,6 +83,7 @@ function enterParty() {
 
 onMounted(() => {
   if (!tournament.started) tournament.start()
+  void tournament.refreshOnline()
 })
 </script>
 
@@ -169,7 +170,7 @@ onMounted(() => {
         <aside class="drill-entry__invite">
           <div class="drill-entry__invite-head">
             <b>在线用户</b>
-            <span class="drill__mono">{{ onlineUsers.length }}</span>
+            <span class="drill__mono">{{ tournament.onlineMembers.length }}</span>
           </div>
           <ul v-if="onlineUsers.length" class="drill-entry__online">
             <li v-for="user in onlineUsers" :key="user.userId">
