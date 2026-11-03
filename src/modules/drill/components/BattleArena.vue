@@ -332,6 +332,22 @@ function process(from: number, to: number) {
       continue
     }
 
+    if (event.kind === 'surge') {
+      const timedOut = (event.text ?? '').includes('到点')
+      banner.value = { name: timedOut ? '到点判定' : '数值膨胀', text: event.text ?? '' }
+      window.clearTimeout(bannerTimer)
+      bannerTimer = window.setTimeout(() => {
+        banner.value = null
+      }, timedOut ? 1800 : 1300)
+      pushFx({ kind: 'ring', x: 50, y: 50, x2: 50, y2: 50 }, 900)
+      for (const unit of frame.value?.units ?? []) {
+        if (!unit.alive) continue
+        const pos = at(unit.uid)
+        if (pos) pushFx({ kind: 'aura', x: pos.x, y: pos.y, x2: pos.x, y2: pos.y }, 760)
+      }
+      continue
+    }
+
     if (event.kind === 'down') {
       const unit = at(event.uid)
       if (!unit) continue
