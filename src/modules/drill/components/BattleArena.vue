@@ -26,6 +26,8 @@ interface Floater {
 interface Fx {
   id: number
   kind: 'slash' | 'beam' | 'line' | 'ring' | 'aura' | 'spark' | 'trail' | 'flash' | 'castring'
+  /** 施法者定位：法师紫 / 肉盾绿 / 近战橙 / 远程青 */
+  tone?: 'melee' | 'ranged' | 'mage' | 'tank'
   x: number
   y: number
   x2: number
@@ -269,15 +271,15 @@ function at(uid: string | undefined): { x: number; y: number } | null {
 }
 
 /** 技能形态 → 观察窗里的特效：单体=光束，直线=粗光束，AOE=扩散环，增益=脚下光环，持续=回升粒子 */
-function skillFx(kind: string, from: { x: number; y: number }, to: { x: number; y: number }) {
-  if (kind === 'single') pushFx({ kind: 'beam', x: from.x, y: from.y, x2: to.x, y2: to.y }, 320)
-  else if (kind === 'line') pushFx({ kind: 'line', x: from.x, y: from.y, x2: to.x, y2: to.y }, 360)
-  else if (kind === 'aoe') pushFx({ kind: 'ring', x: to.x, y: to.y, x2: to.x, y2: to.y }, 560)
-  else if (kind === 'buff') pushFx({ kind: 'aura', x: from.x, y: from.y, x2: from.x, y2: from.y }, 700)
+function skillFx(kind: string, from: { x: number; y: number }, to: { x: number; y: number }, tone?: Fx['tone']) {
+  if (kind === 'single') pushFx({ kind: 'beam', x: from.x, y: from.y, x2: to.x, y2: to.y, tone }, 320)
+  else if (kind === 'line') pushFx({ kind: 'line', x: from.x, y: from.y, x2: to.x, y2: to.y, tone }, 360)
+  else if (kind === 'aoe') pushFx({ kind: 'ring', x: to.x, y: to.y, x2: to.x, y2: to.y, tone }, 560)
+  else if (kind === 'buff') pushFx({ kind: 'aura', x: from.x, y: from.y, x2: from.x, y2: from.y, tone }, 700)
   else {
-    pushFx({ kind: 'spark', x: to.x, y: to.y - 2, x2: to.x, y2: to.y }, 560)
-    pushFx({ kind: 'spark', x: to.x - 1.6, y: to.y, x2: to.x, y2: to.y }, 620)
-    pushFx({ kind: 'spark', x: to.x + 1.8, y: to.y - 1, x2: to.x, y2: to.y }, 680)
+    pushFx({ kind: 'spark', x: to.x, y: to.y - 2, x2: to.x, y2: to.y, tone }, 560)
+    pushFx({ kind: 'spark', x: to.x - 1.6, y: to.y, x2: to.x, y2: to.y, tone }, 620)
+    pushFx({ kind: 'spark', x: to.x + 1.8, y: to.y - 1, x2: to.x, y2: to.y, tone }, 680)
   }
 }
 
@@ -322,7 +324,7 @@ function process(from: number, to: number) {
       if (casterAt) flagMotion('cast', event.uid)
       if (casterAt) {
         pushFx({ kind: 'castring', x: casterAt.x, y: casterAt.y, x2: casterAt.x, y2: casterAt.y }, 430)
-        if (targetAt && form) skillFx(form, casterAt, targetAt)
+        if (targetAt && form) skillFx(form, casterAt, targetAt, caster?.role)
       }
 
       if (casterAt) {
@@ -538,7 +540,7 @@ onBeforeUnmount(() => {
                   v-if="item.kind === 'beam' || item.kind === 'line'"
                   :key="item.id"
                   class="drill__fx-beam"
-                  :class="`is-${item.kind}`"
+                  :class="[`is-${item.kind}`, item.tone ? `tone-${item.tone}` : '']"
                   :x1="item.x"
                   :y1="item.y"
                   :x2="item.x2"
@@ -567,7 +569,7 @@ onBeforeUnmount(() => {
                 <circle
                   v-else-if="item.kind === 'ring'"
                   :key="item.id"
-                  class="drill__fx-ring"
+                :class="['drill__fx-ring', item.tone ? `tone-${item.tone}` : '']"
                   :cx="item.x"
                   :cy="item.y"
                   r="2"
@@ -576,7 +578,7 @@ onBeforeUnmount(() => {
                 <circle
                   v-else-if="item.kind === 'aura'"
                   :key="item.id"
-                  class="drill__fx-aura"
+                :class="['drill__fx-aura', item.tone ? `tone-${item.tone}` : '']"
                   :cx="item.x"
                   :cy="item.y"
                   r="2.4"
@@ -613,7 +615,7 @@ onBeforeUnmount(() => {
                 <circle
                   v-else
                   :key="item.id"
-                  class="drill__fx-spark"
+                :class="['drill__fx-spark', item.tone ? `tone-${item.tone}` : '']"
                   :cx="item.x"
                   :cy="item.y"
                   r="0.9"
