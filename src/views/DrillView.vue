@@ -17,6 +17,7 @@ import RosterPanel from '@/modules/drill/components/RosterPanel.vue'
 import StageTrack from '@/modules/drill/components/StageTrack.vue'
 import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
+import { BLOOD_TIDE_ROUND } from '@/modules/drill/core/engine'
 import { useDrillStore } from '@/modules/drill/stores/drill'
 import { useDrillUiStore } from '@/modules/drill/stores/ui'
 
@@ -109,6 +110,19 @@ watch(
   () => drill.snapshot.proposals.length,
   (value) => {
     if (value > 0) ui.closeDrawer()
+  },
+)
+
+// 血潮预警：提前 3 轮提示，进入当轮再提示一次
+watch(
+  () => drill.snapshot.round,
+  (round) => {
+    if (round === BLOOD_TIDE_ROUND - 3) {
+      ui.notify(`第 ${BLOOD_TIDE_ROUND} 轮血潮来袭：掉血翻倍，一波决胜负`)
+    }
+    if (round === BLOOD_TIDE_ROUND) {
+      ui.notify('血潮开始：本轮起掉血 ×2')
+    }
   },
 )
 

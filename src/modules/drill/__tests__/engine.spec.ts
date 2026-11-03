@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { simulateBattle } from '../core/combat'
 import { EMPTY_MODS } from '../core/combat'
 import { UNIT_BY_ID } from '../core/content'
-import { createGame, dispatch, stageOf } from '../core/engine'
+import {
+  baseLossDamage,
+  createGame,
+  dispatch,
+  isBloodTide,
+  lossDamage,
+  stageOf,
+} from '../core/engine'
 import type { Command } from '../core/engine'
 import { activeTiers, traitCounts } from '../core/state'
 import type { GameState } from '../core/state'
@@ -13,6 +20,15 @@ function apply(state: GameState, command: Command): GameState {
 }
 
 describe('drill engine', () => {
+  it('第 26 轮血潮起掉血翻倍', () => {
+    expect(isBloodTide(25)).toBe(false)
+    expect(isBloodTide(26)).toBe(true)
+    const calm = lossDamage(25, 3)
+    const tide = lossDamage(26, 3)
+    expect(tide).toBe(calm * 2)
+    expect(baseLossDamage(26, 3)).toBe(baseLossDamage(25, 3))
+  })
+
   it('同种子生成同一份资源目录', () => {
     const a = createGame(20261102)
     const b = createGame(20261102)
@@ -230,6 +246,8 @@ describe('阶段与选秀', () => {
     expect(stageOf(6)).toEqual({ stage: 2, index: 1 })
     expect(stageOf(20)).toEqual({ stage: 4, index: 5 })
     expect(stageOf(25)).toEqual({ stage: 5, index: 5 })
+    expect(stageOf(26)).toEqual({ stage: 6, index: 1 })
+    expect(stageOf(30)).toEqual({ stage: 6, index: 5 })
   })
 
   it('进入新阶段首回合触发选秀，抢到后带注解进待命席', () => {

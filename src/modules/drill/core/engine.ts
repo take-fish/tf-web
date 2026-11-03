@@ -127,7 +127,7 @@ export function createGame(seed = Date.now()): GameState {
   const base: GameState = {
     seed,
     round: 1,
-    totalRounds: 25,
+    totalRounds: 30,
     phase: 'PREP',
     quotas: 10,
     level: 3,
@@ -403,7 +403,7 @@ function settle(state: GameState): GameState {
   next = rollShop(next, true)
 
   if (next.round > next.totalRounds) {
-    // 打满 25 轮（第 6 阶段之前）仍没分出胜负：按存活与血量收口
+    // 血潮阶段（第 26 轮起）仍未分出胜负：按存活与血量收口
     const placement = placementOf(next)
     return {
       ...next,
@@ -442,15 +442,33 @@ function offerAugments(state: GameState): readonly string[] {
   return picked
 }
 
+/** 血潮阶段：第 26 轮起（第 6 阶段）掉血翻倍，一波决胜负。 */
+export const BLOOD_TIDE_ROUND = 26
+
+export function isBloodTide(round: number): boolean {
+  return round >= BLOOD_TIDE_ROUND
+}
+
+/** 一场败局的基础掉血（未翻倍、未减半）。 */
+export function baseLossDamage(round: number, survivors: number): number {
+  return 5 + Math.floor(round / 4) + Math.ceil(survivors / 2)
+}
+
 /**
- * 落败掉血：5 + floor(轮次/4) + ceil(存活敌方/2)，1–3 轮（PVE）减半。
- * 8 人局里弱阵容约 13 轮见底，均势对局 20–22 轮收口，25 轮为硬上限。
+ * 落败掉血：5 + floor(轮次/4) + ceil(存活敌方/2)，1–3 轮（PVE）减半；
+ * 第 26 轮血潮起翻倍。8 人局里弱阵容约 13 轮见底，均势 20–22 轮，
+ * 拖到血潮阶段基本一波定胜负。
  */
+export function lossDamage(round: number, survivors: number): number {
+  const tide = isBloodTide(round) ? 2 : 1
+  const raw = baseLossDamage(round, survivors) * tide
+  return round <= 3 ? Math.ceil(raw / 2) : raw
+}
+
 function seatDamage(state: GameState, survivors: number, won: boolean): number {
   if (won) return 0
   if (state.picks.includes('S8') && state.round <= 3) return 0
-  const raw = 5 + Math.floor(state.round / 4) + Math.ceil(survivors / 2)
-  return state.round <= 3 ? Math.ceil(raw / 2) : raw
+  return lossDamage(state.round, survivors)
 }
 
 /** 名次积分：3 × (N − 名次) / (N − 1)，保留 0.5，跨人数可比。 */
