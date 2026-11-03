@@ -109,7 +109,7 @@ onMounted(() => {
         @click="tab = 'solo'"
       >
         <b>单练</b>
-        <span>1 人 + 7 个对照组，25 轮稳态演练</span>
+        <span>1 人 + 7 个对照组，25 轮 + 血潮决胜</span>
       </button>
       <button
         type="button"
@@ -132,7 +132,7 @@ onMounted(() => {
         </div>
         <div>
           <dt>赛程</dt>
-          <dd>5 阶段 × 5 轮</dd>
+          <dd>5 阶段 + 血潮</dd>
         </div>
         <div>
           <dt>时长</dt>

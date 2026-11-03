@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { BLOOD_TIDE_ROUND } from '../core/engine'
 import { formatElapsed } from '../format'
 import { useDrillStore } from '../stores/drill'
 import { useDrillUiStore } from '../stores/ui'
@@ -50,6 +51,15 @@ const snapshot = computed(() => drill.snapshot)
       <div class="drill__metric" :class="{ 'is-warn': snapshot.sli < 40 }">
         <dt>SLI</dt>
         <dd>{{ snapshot.sli }}</dd>
+      </div>
+      <div
+        v-if="snapshot.round >= BLOOD_TIDE_ROUND - 3"
+        class="drill__metric"
+        :class="{ 'is-warn': snapshot.round >= BLOOD_TIDE_ROUND }"
+        :title="snapshot.round >= BLOOD_TIDE_ROUND ? '血潮进行中：掉血 ×2' : `第 ${BLOOD_TIDE_ROUND} 轮血潮来袭，掉血翻倍`"
+      >
+        <dt>{{ snapshot.round >= BLOOD_TIDE_ROUND ? '血潮' : '血潮倒计时' }}</dt>
+        <dd>{{ snapshot.round >= BLOOD_TIDE_ROUND ? '×2' : BLOOD_TIDE_ROUND - snapshot.round + ' 轮' }}</dd>
       </div>
       <div class="drill__metric">
         <dt>人口</dt>
