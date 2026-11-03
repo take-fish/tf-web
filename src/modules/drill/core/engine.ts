@@ -39,6 +39,7 @@ export type Command =
   | { type: 'TOGGLE_LOCK'; slot: number }
   | { type: 'BUY_XP' }
   | { type: 'EQUIP'; uid: string; annotationId: string }
+  | { type: 'UNEQUIP'; uid: string; index: number }
   | { type: 'PICK_AUGMENT'; id: string }
   | { type: 'PICK_CAROUSEL'; itemId: string }
   | { type: 'START_BATTLE' }
@@ -677,6 +678,24 @@ export function dispatch(state: GameState, command: Command): CommandResult {
       return { state: next }
     }
 
+    case 'UNEQUIP': {
+      const unit = state.units.find((candidate) => candidate.uid === command.uid)
+      if (!unit || !unit.annotations[command.index]) return { state, error: '实例不存在' }
+      const removed = unit.annotations[command.index] as AnnotationKind
+      const next = cloneState(state)
+      next.units = next.units.map((candidate) =>
+        candidate.uid === command.uid
+          ? { ...candidate, annotations: candidate.annotations.filter((_, index) => index !== command.index) }
+          : candidate,
+      )
+      const free = next.annotations.find((annotation) => annotation.kind === null)
+      if (free) {
+        next.annotations = next.annotations.map((annotation) =>
+          annotation.id === free.id ? { ...annotation, kind: removed } : annotation,
+        )
+      }
+      return { state: next }
+    }
     case 'PICK_AUGMENT': {
       if (!state.pendingAugment?.includes(command.id)) return { state, error: '该方案不可选' }
       return { state: { ...cloneState(state), picks: [...state.picks, command.id], pendingAugment: null } }
