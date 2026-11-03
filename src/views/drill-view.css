@@ -1,0 +1,2575 @@
+/* 容量编排演练 · 与平台其余页面共用 --fm-* 令牌，不引入独立主题。 */
+
+.drill {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 8px 12px 12px;
+  box-sizing: border-box;
+  color: var(--fm-text);
+  font-family: var(--fm-font);
+  font-size: 12px;
+  background: var(--fm-bg);
+}
+
+/* ---------- 顶栏 ---------- */
+
+.drill__header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 44px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__ident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+}
+
+.drill__mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--fm-accent);
+  border-radius: var(--fm-radius);
+  color: var(--fm-accent);
+  font-weight: 600;
+}
+
+.drill__eyebrow {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.drill h1 {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.drill__metrics {
+  display: flex;
+  gap: 18px;
+  margin: 0;
+  flex: 1;
+}
+
+.drill__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.drill__metric dt {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__metric dd {
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__metric.is-warn dd {
+  color: var(--fm-err);
+}
+
+.drill__mono {
+  font-family: var(--fm-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- 通用控件 ---------- */
+
+.drill__ghost,
+.drill__primary,
+.drill__danger,
+.drill__icon-btn,
+.drill__resource-buy,
+.drill__resource-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: transparent;
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.drill__ghost:hover {
+  background: var(--fm-hover);
+}
+
+.drill__primary {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill__danger {
+  border-color: var(--fm-err);
+  color: var(--fm-err);
+}
+
+.drill__primary:disabled,
+.drill__ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.drill__icon-btn {
+  padding: 3px;
+}
+
+/* ---------- 主体三栏 ---------- */
+
+.drill__body {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr) 196px;
+  gap: 8px;
+  flex: 1;
+  min-height: 320px;
+}
+
+.drill.is-meeting .drill__body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.drill__panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+}
+
+.drill__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-text-dim);
+  font-size: 11px;
+}
+
+.drill__panel-head em {
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 10px;
+}
+
+/* ---------- 亲和组 ---------- */
+
+.drill__trait-list {
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  overflow: auto;
+}
+
+.drill__trait {
+  padding: 4px 0;
+  border-bottom: 1px dashed transparent;
+}
+
+.drill__trait-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drill__trait-name {
+  color: var(--fm-text);
+}
+
+.drill__trait-count {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__pips {
+  display: flex;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.drill__pip {
+  display: block;
+  width: 14px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--fm-border);
+}
+
+.drill__pip.is-on {
+  background: var(--fm-accent);
+}
+
+/* ---------- 对照组 ---------- */
+
+.drill__roster {
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  overflow: auto;
+}
+
+.drill__roster-row {
+  display: grid;
+  grid-template-columns: 1fr 48px 24px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.drill__roster-row.is-offline {
+  opacity: 0.45;
+}
+
+.drill__roster-bar {
+  display: block;
+  height: 3px;
+  background: var(--fm-border);
+}
+
+.drill__roster-bar i {
+  display: block;
+  height: 100%;
+  background: var(--fm-ok);
+}
+
+.drill__roster-sli {
+  color: var(--fm-text-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 画布 ---------- */
+
+.drill__stage-wrap {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  overflow: hidden;
+}
+
+.drill__stage {
+  width: 100%;
+  height: 100%;
+}
+
+.drill__stage-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+/* ---------- 注解仓库 ---------- */
+
+.drill__tray {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+}
+
+.drill__tray-label {
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.drill__slots {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.drill__slot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 24px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+}
+
+.drill__slot.is-combo {
+  border-color: var(--fm-accent);
+  color: var(--fm-link);
+}
+
+.drill__slot.is-empty {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+.drill__tray-hint {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+/* ---------- 资源目录 ---------- */
+
+.drill__resources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drill__resources-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+}
+
+.drill__resources-head em {
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 10px;
+}
+
+.drill__resource-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.drill__resource {
+  position: relative;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+}
+
+.drill__resource.is-locked {
+  border-color: var(--fm-accent);
+}
+
+.drill__resource.is-sold {
+  opacity: 0.5;
+}
+
+.drill__resource-buy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drill__resource-buy:hover {
+  background: var(--fm-hover);
+}
+
+.drill__resource-slot {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+}
+
+.drill__resource-name {
+  font-size: 12px;
+}
+
+.drill__resource-traits {
+  color: var(--fm-text-dim);
+  font-size: 10px;
+}
+
+.drill__resource-cost {
+  color: var(--fm-warn);
+  font-size: 10px;
+}
+
+.drill__resource-advice {
+  color: #8fa3b8;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.drill__resource-lock {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 0 4px;
+  border-color: transparent;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+
+.drill__resource-lock:hover {
+  border-color: var(--fm-border);
+  color: var(--fm-text);
+}
+
+/* ---------- 操作条 ---------- */
+
+.drill__command {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 40px;
+  padding: 0 4px;
+}
+
+.drill__command-group {
+  display: flex;
+  gap: 6px;
+}
+
+.drill__battle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.drill__battle-label {
+  color: var(--fm-text-dim);
+  font-size: 11px;
+}
+
+.drill__progress {
+  display: block;
+  width: 160px;
+  height: 4px;
+  background: var(--fm-border);
+}
+
+.drill__progress i {
+  display: block;
+  height: 100%;
+  background: var(--fm-accent);
+  transition: width 120ms linear;
+}
+
+/* ---------- 抽屉 ---------- */
+
+.drill__drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  padding: 12px;
+  border-left: 1px solid var(--fm-border);
+  background: var(--fm-panel);
+  box-shadow: var(--fm-shadow);
+  overflow: auto;
+}
+
+.drill__drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.drill__drawer-head b {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.drill__drawer-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drill__drawer-rows > div {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px;
+}
+
+.drill__drawer-rows dt {
+  color: var(--fm-text-muted);
+  font-size: 11px;
+}
+
+.drill__drawer-rows dd {
+  margin: 0;
+  font-size: 11px;
+}
+
+.drill__drawer-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+
+/* ---------- 弹层 ---------- */
+
+.drill__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 55%);
+}
+
+.drill__modal {
+  width: min(760px, 100%);
+  max-height: 100%;
+  padding: 16px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  box-shadow: var(--fm-shadow);
+  overflow: auto;
+}
+
+.drill__modal--confirm {
+  width: min(380px, 100%);
+}
+
+.drill__modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.drill__modal-head b {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.drill__review-timer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.drill__review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-bg);
+}
+
+.drill__review-card header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drill__review-card header b {
+  font-size: 13px;
+}
+
+.drill__review-card header em {
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 10px;
+}
+
+.drill__review-key {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  color: var(--fm-text-dim);
+  font-family: var(--fm-mono);
+  font-size: 10px;
+}
+
+.drill__review-effect {
+  margin: 0;
+  flex: 1;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.drill__review-card footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__report-rows {
+  margin: 0 0 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.drill__report-rows > div {
+  padding: 6px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+}
+
+.drill__report-rows dt {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__report-rows dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__report-block {
+  margin-bottom: 8px;
+}
+
+.drill__report-block span {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__report-block p {
+  margin: 2px 0 0;
+  font-size: 11px;
+}
+
+.drill__report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.drill__confirm-text {
+  margin: 0 0 4px;
+  color: var(--fm-text-dim);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* ---------- 引擎接入后新增 ---------- */
+
+.drill__xp {
+  margin-left: 4px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__xpbar {
+  display: inline-block;
+  width: 90px;
+  height: 3px;
+  background: var(--fm-border);
+}
+
+.drill__xpbar i {
+  display: block;
+  height: 100%;
+  background: var(--fm-ok);
+}
+
+.drill__trait-name.is-active {
+  color: var(--fm-accent);
+}
+
+.drill__stage-tip {
+  position: absolute;
+  bottom: 4px;
+  left: 8px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__slot {
+  padding: 0 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.drill__slot.is-selected {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill__slot:disabled {
+  cursor: default;
+}
+
+.drill__toast {
+  position: fixed;
+  left: 50%;
+  bottom: 88px;
+  z-index: 80;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  color: var(--fm-warn);
+  font-size: 11px;
+  box-shadow: var(--fm-shadow);
+}
+
+.drill__history {
+  margin: 4px 0 0;
+  padding-left: 14px;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.drill__curve {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-top: 6px;
+  color: var(--fm-accent);
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+}
+
+/* ---------- 右栏：实例池 + 运行记录 ---------- */
+
+.drill__side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.drill__side > .drill__panel:first-child {
+  flex: 1;
+}
+
+.drill__panel--run {
+  flex: none;
+}
+
+.drill__run-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drill__run-head:hover {
+  color: var(--fm-text);
+}
+
+.drill__run-title {
+  flex: none;
+}
+
+.drill__run-head em {
+  overflow: hidden;
+  flex: 1;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__run-last {
+  flex: 1;
+  color: var(--fm-ok);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+}
+
+.drill__run-last.is-fail {
+  color: var(--fm-err);
+}
+
+.drill__run-toggle {
+  flex: none;
+  color: var(--fm-text-muted);
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.drill__run-list {
+  overflow-y: auto;
+  max-height: 168px;
+  margin: 0;
+  padding: 2px 8px 6px;
+  list-style: none;
+  border-top: 1px solid var(--fm-border);
+}
+
+.drill__run-list li {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  color: var(--fm-text-dim);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.drill__run-round {
+  flex: none;
+  color: var(--fm-ok);
+  font-family: var(--fm-mono);
+}
+
+.drill__run-list li.is-fail .drill__run-round {
+  color: var(--fm-err);
+}
+
+.drill__run-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__run-empty {
+  color: var(--fm-text-muted);
+}
+
+/* ---------- 校验回放 ---------- */
+
+.drill__modal--replay {
+  width: min(1040px, 94vw);
+  padding: 0;
+}
+
+.drill__modal--replay .drill__modal-head {
+  padding: 10px 12px;
+}
+
+.drill__replay-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__replay-stats > div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.drill__replay-stats dt {
+  color: var(--fm-text-muted);
+  font-size: 9.5px;
+}
+
+.drill__replay-stats dd {
+  margin: 0;
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 11px;
+}
+
+.drill__replay-stats dd.is-ok {
+  color: var(--fm-ok);
+}
+
+.drill__replay-stats dd.is-err {
+  color: var(--fm-err);
+}
+
+.drill__replay-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: 0;
+}
+
+.drill__replay-board {
+  position: relative;
+  aspect-ratio: 7 / 4;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background-color: var(--fm-bg);
+  background-image:
+    repeating-linear-gradient(to right, var(--fm-border) 0 1px, transparent 1px calc(100% / 7)),
+    repeating-linear-gradient(to bottom, var(--fm-border) 0 1px, transparent 1px 25%);
+  overflow: hidden;
+}
+
+.drill__replay-unit {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 5px;
+  border-left: 2px solid var(--fm-ok);
+  font-size: 9.5px;
+  transition: left 0.1s linear, top 0.1s linear;
+}
+
+.drill__replay-unit b {
+  overflow: hidden;
+  color: var(--fm-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__replay-unit.is-enemy {
+  border-left-color: var(--fm-err);
+}
+
+.drill__replay-unit.is-dead {
+  opacity: 0.25;
+}
+
+.drill__replay-hp {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--fm-border);
+}
+
+.drill__replay-hp i {
+  display: block;
+  height: 100%;
+  background: var(--fm-ok);
+}
+
+.drill__replay-unit.is-enemy .drill__replay-hp i {
+  background: var(--fm-err);
+}
+
+.drill__replay-side {
+  position: absolute;
+  top: 2px;
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+}
+
+.drill__replay-side--ally {
+  left: 6px;
+}
+
+.drill__replay-side--enemy {
+  right: 6px;
+}
+
+.drill__replay-log {
+  overflow-y: auto;
+  max-height: 46vh;
+  margin: 0;
+  padding: 0 0 0 2px;
+  list-style: none;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.drill__replay-log li {
+  display: flex;
+  gap: 7px;
+  color: var(--fm-text-dim);
+}
+
+.drill__replay-log li .drill__mono {
+  flex: none;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+
+.drill__replay-log li.is-skill {
+  color: var(--fm-link);
+}
+
+.drill__replay-log li.is-down {
+  color: var(--fm-err);
+}
+
+.drill__replay-log li.is-revive {
+  color: var(--fm-ok);
+}
+
+.drill__replay-log li.is-idle {
+  color: var(--fm-text-muted);
+}
+
+.drill__replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--fm-border);
+}
+
+.drill__replay-speed {
+  display: flex;
+  gap: 4px;
+}
+
+.drill__replay-speed .drill__ghost.is-on {
+  border-color: var(--fm-accent);
+  color: var(--fm-link);
+}
+
+.drill__replay-scrub {
+  flex: 1;
+  height: 3px;
+  accent-color: var(--fm-accent);
+}
+
+.drill__replay-clock {
+  flex: none;
+  color: var(--fm-text-dim);
+  font-size: 10px;
+}
+
+.drill__run-mode {
+  flex: none;
+  padding: 0 3px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+/* ---------- 阶段轨（排式 tab） ---------- */
+
+.drill__panel--stage {
+  flex: none;
+}
+
+.drill__stage-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 5px 6px 0;
+}
+
+.drill__stage-tab {
+  position: relative;
+  flex: 1;
+  height: 18px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.drill__stage-tab.is-on {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill__stage-tab.is-current::after {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--fm-ok);
+  content: '';
+}
+
+.drill__stage-now {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 8px 0;
+}
+
+.drill__stage-code {
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.drill__stage-now span {
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+
+.drill__stage-rounds {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  margin: 0;
+  padding: 5px 8px 8px;
+  list-style: none;
+}
+
+.drill__stage-round {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 19px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+}
+
+.drill__stage-round.is-win {
+  border-color: var(--fm-ok);
+  color: var(--fm-ok);
+}
+
+.drill__stage-round.is-loss {
+  border-color: var(--fm-err);
+  color: var(--fm-err);
+}
+
+.drill__stage-round.is-pending {
+  border-style: dashed;
+  color: var(--fm-text-dim);
+}
+
+.drill__stage-round.is-empty {
+  opacity: 0.3;
+}
+
+/* ---------- 选秀轮盘 ---------- */
+
+.drill__modal--draft {
+  width: min(800px, 94vw);
+  padding: 0;
+}
+
+.drill__modal--draft .drill__modal-head {
+  padding: 10px 12px;
+}
+
+.drill__draft-clock {
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__draft-clock.is-warn {
+  color: var(--fm-warn);
+}
+
+.drill__draft-body {
+  display: grid;
+  grid-template-columns: 356px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+
+.drill__draft-ring {
+  position: relative;
+  width: 340px;
+  height: 340px;
+  margin: 0 auto;
+  border: 1px dashed var(--fm-border);
+  border-radius: 50%;
+  background: var(--fm-bg);
+}
+
+.drill__draft-orbit {
+  position: absolute;
+  inset: 16%;
+  border: 1px solid var(--fm-border);
+  border-radius: 50%;
+  opacity: 0.45;
+  transition: border-color 0.2s;
+}
+
+.drill__draft-orbit.is-pulse {
+  border-color: var(--fm-accent);
+}
+
+.drill__draft-item {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 76px;
+  padding: 4px 3px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  background: var(--fm-panel);
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.drill__draft-item:hover,
+.drill__draft-item.is-target {
+  border-color: var(--fm-accent);
+  color: var(--fm-link);
+}
+
+.drill__draft-item b {
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.drill__draft-item em {
+  color: var(--fm-text-muted);
+  font-size: 8.5px;
+  font-style: normal;
+}
+
+.drill__draft-anno {
+  position: absolute;
+  top: -8px;
+  right: -5px;
+  padding: 0 3px;
+  border: 1px solid var(--fm-accent);
+  border-radius: 2px;
+  background: var(--fm-panel);
+  color: var(--fm-link);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.drill__draft-avatar {
+  position: absolute;
+  padding: 3px 6px;
+  border: 1px solid var(--fm-ok);
+  border-radius: 3px;
+  background: var(--fm-bg);
+  color: var(--fm-ok);
+  font-size: 9px;
+  transform: translate(-50%, -50%);
+}
+
+.drill__draft-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: start;
+  padding: 9px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  color: var(--fm-text-dim);
+  font-size: 10px;
+}
+
+.drill__draft-hint b {
+  color: var(--fm-text);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.drill__draft-hint p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+/* ---------- 命名管理（管理员） ---------- */
+
+.drill__modal--naming {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 94vw);
+  max-height: 84vh;
+  padding: 0;
+}
+
+.drill__modal--naming .drill__modal-head {
+  padding: 10px 12px;
+}
+
+.drill__naming-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--fm-border);
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__naming-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.drill__naming-tabs .drill__ghost.is-on {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill__naming-search {
+  flex: 1;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  background: var(--fm-bg);
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.drill__naming-search:focus {
+  border-color: var(--fm-accent);
+  outline: none;
+}
+
+.drill__naming-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 6px 12px;
+}
+
+.drill__naming-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drill__naming-row {
+  display: grid;
+  grid-template-columns: 118px 40px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.drill__naming-id {
+  overflow: hidden;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__naming-cost {
+  color: var(--fm-text-dim);
+  font-size: 9px;
+}
+
+.drill__naming-input {
+  width: 100%;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  background: var(--fm-bg);
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.drill__naming-input::placeholder {
+  color: var(--fm-text-muted);
+}
+
+.drill__naming-input:focus {
+  border-color: var(--fm-accent);
+  outline: none;
+}
+
+.drill__naming-reset {
+  height: 20px;
+  border: 1px solid var(--fm-border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.drill__naming-reset:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.drill__naming-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--fm-border);
+}
+
+.drill__naming-count {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__naming-count b {
+  color: var(--fm-accent);
+  font-family: var(--fm-mono);
+}
+
+.drill__naming-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- 演练观察窗（放开做打击感） ---------- */
+
+.drill__overlay--arena {
+  background: rgb(4 6 9 / 78%);
+  padding: 18px;
+}
+
+.drill__modal--arena {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-color: #2a3038;
+  background: #0b0e13;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* 八向缩放热区：四条边 + 四个角 */
+.drill__arena-grip {
+  position: absolute;
+  z-index: 10;
+}
+
+.drill__arena-grip.is-n,
+.drill__arena-grip.is-s {
+  right: 14px;
+  left: 14px;
+  height: 7px;
+  cursor: ns-resize;
+}
+
+.drill__arena-grip.is-n {
+  top: 0;
+}
+
+.drill__arena-grip.is-s {
+  bottom: 0;
+}
+
+.drill__arena-grip.is-e,
+.drill__arena-grip.is-w {
+  top: 14px;
+  bottom: 14px;
+  width: 7px;
+  cursor: ew-resize;
+}
+
+.drill__arena-grip.is-e {
+  right: 0;
+}
+
+.drill__arena-grip.is-w {
+  left: 0;
+}
+
+.drill__arena-grip.is-ne,
+.drill__arena-grip.is-nw,
+.drill__arena-grip.is-se,
+.drill__arena-grip.is-sw {
+  width: 16px;
+  height: 16px;
+}
+
+.drill__arena-grip.is-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.drill__arena-grip.is-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.drill__arena-grip.is-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.drill__arena-grip.is-se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.drill__arena-head {
+  display: flex;
+  cursor: move;
+  user-select: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #232a33;
+}
+
+.drill__arena-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drill__arena-title b {
+  overflow: hidden;
+  color: #e6edf3;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__arena-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drill__arena-score {
+  padding: 1px 7px;
+  border: 1px solid currentcolor;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+.drill__arena-score.is-ok {
+  color: #4ade80;
+}
+
+.drill__arena-score.is-err {
+  color: #f87171;
+}
+
+.drill__arena-clock {
+  color: #7d8794;
+  font-size: 10px;
+}
+
+.drill__arena-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 300px;
+  padding: 20px 14px 8px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.12), transparent 62%),
+    #080b10;
+  overflow: hidden;
+}
+
+.drill__arena-persp {
+  position: absolute;
+  inset: 20px 14px 8px;
+  perspective: 1100px;
+  perspective-origin: 50% 18%;
+}
+
+
+.drill__arena-floor {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #232a33;
+  border-radius: 3px;
+  background-color: #0c1118;
+  background-image:
+    repeating-linear-gradient(to right, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px calc(100% / 7)),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 25%);
+  transform-origin: 50% 100%;
+  transition: transform 0.12s linear;
+  box-shadow: 0 30px 60px rgb(0 0 0 / 55%);
+}
+
+.drill__arena-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  pointer-events: none;
+}
+
+.drill__arena-zone--ally {
+  left: 0;
+  background: linear-gradient(to right, rgba(63, 185, 80, 0.1), transparent 70%);
+}
+
+.drill__arena-zone--enemy {
+  right: 0;
+  background: linear-gradient(to left, rgba(248, 113, 113, 0.1), transparent 70%);
+}
+
+/* 单位不再套卡片框：只有人、名字和一条血线，靠颜色区分阵营 */
+.drill__arena-unit {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  padding: 0;
+  border: 0;
+  background: none;
+  transition:
+    left 0.09s linear,
+    top 0.09s linear;
+  pointer-events: none;
+}
+
+.drill__arena-name {
+  max-width: 96%;
+  overflow: hidden;
+  color: #9aa6b2;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+.drill__arena-unit.is-ally .drill__arena-name {
+  color: #8fe0a4;
+}
+
+.drill__arena-unit.is-enemy .drill__arena-name {
+  color: #f3a1a1;
+}
+
+.drill__arena-hp {
+  display: block;
+  width: 44px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgb(255 255 255 / 14%);
+}
+
+.drill__arena-hp i {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+  background: #56d364;
+  box-shadow: 0 0 5px rgb(86 211 100 / 70%);
+  transition: width 0.09s linear;
+}
+
+.drill__arena-unit.is-enemy .drill__arena-hp i {
+  background: #f87171;
+  box-shadow: 0 0 5px rgb(248 113 113 / 70%);
+}
+
+/* 退役：倒下、变灰，不再占地方 */
+.drill__arena-unit.is-down {
+  opacity: 0.4;
+}
+
+.drill__arena-unit.is-down .drill__arena-fig-wrap {
+  animation: none;
+  transform: rotate(72deg) translateY(4px);
+  transform-origin: 50% 90%;
+  transition: transform 0.35s ease-in, opacity 0.35s ease-in;
+}
+
+.drill__arena-unit.is-down .drill__arena-name,
+.drill__arena-unit.is-down .drill__arena-hp {
+  opacity: 0.5;
+}
+
+.drill__arena-float {
+  position: absolute;
+  z-index: 3;
+  color: #fff;
+  font-family: var(--fm-mono);
+  font-size: 15px;
+  font-weight: 700;
+  text-shadow:
+    0 0 10px rgb(248 113 113 / 95%),
+    0 1px 2px rgb(0 0 0 / 90%);
+  pointer-events: none;
+  animation: arena-float 0.72s ease-out forwards;
+}
+
+.drill__arena-float.is-down {
+  color: #f87171;
+  font-size: 12px;
+}
+
+.drill__arena-float.is-skill {
+  color: #bfdbfe;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-shadow:
+    0 0 12px rgb(147 197 253 / 95%),
+    0 1px 2px rgb(0 0 0 / 90%);
+}
+
+@keyframes arena-float {
+  0% { opacity: 0; transform: translate(-50%, -80%) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, -130%) scale(1.16); }
+  100% { opacity: 0; transform: translate(-50%, -210%) scale(1); }
+}
+
+.drill__arena-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 14px;
+  border: 1px solid #3b82f6;
+  border-radius: 2px;
+  background: rgb(8 12 18 / 90%);
+  box-shadow: 0 0 26px rgb(59 130 246 / 40%);
+  transform: translateX(-50%);
+  animation: arena-banner 0.95s ease-out;
+}
+
+.drill__arena-banner span {
+  color: #9db2c8;
+  font-size: 10px;
+}
+
+.drill__arena-banner b {
+  color: #93c5fd;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgb(147 197 253 / 60%);
+}
+
+@keyframes arena-banner {
+  0% { opacity: 0; transform: translate(-50%, -8px) scale(0.94); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+.drill__arena-result {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 34px;
+  border: 1px solid #2f3944;
+  border-radius: 3px;
+  background: rgb(8 12 18 / 94%);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 70%);
+  transform: translate(-50%, -50%);
+  animation: arena-result 0.3s ease-out;
+}
+
+.drill__arena-result b {
+  color: #e6edf3;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+
+.drill__arena-result span {
+  color: #8b949e;
+  font-size: 10px;
+}
+
+@keyframes arena-result {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.drill__arena-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid #232a33;
+  background: #0a0e13;
+}
+
+.drill__arena-speeds {
+  display: flex;
+  gap: 4px;
+}
+
+.drill__arena-controls .drill__ghost.is-on {
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+.drill__arena-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #7d8794;
+  font-size: 9px;
+}
+
+.drill__arena-zoom input {
+  width: 74px;
+  accent-color: #3b82f6;
+}
+
+.drill__arena-scrub {
+  flex: 1;
+  accent-color: #3b82f6;
+}
+
+.drill__arena-pct {
+  color: #7d8794;
+  font-size: 10px;
+}
+
+/* ---------- 发起校验的询问 ---------- */
+
+.drill__modal--prompt {
+  width: min(400px, 92vw);
+}
+
+.drill__prompt-text {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.drill__prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--fm-border);
+}
+
+
+/* ---------- 观察窗里的「人」与动作 ---------- */
+
+.drill__arena-fig-wrap {
+  display: block;
+  width: 34px;
+  height: 46px;
+  transform-origin: 50% 100%;
+  animation: fig-idle 3s ease-in-out infinite;
+}
+
+.drill__fig {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.drill__arena-unit.is-ally .drill__fig {
+  filter: drop-shadow(0 0 9px rgb(74 222 128 / 32%));
+}
+
+.drill__arena-unit.is-enemy .drill__fig {
+  filter: drop-shadow(0 0 9px rgb(248 113 113 / 32%));
+}
+
+.drill__fig .head {
+  fill: #c7d2de;
+}
+
+.drill__fig .visor {
+  fill: #232b34;
+}
+
+.drill__fig .crest {
+  stroke: #7d8794;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.drill__fig .torso {
+  fill: #245636;
+  stroke: #4ade80;
+  stroke-width: 0.9;
+}
+
+.drill__fig .chest {
+  fill: rgb(74 222 128 / 20%);
+}
+
+.drill__fig.is-enemy .torso {
+  fill: #5c262a;
+  stroke: #f87171;
+}
+
+.drill__fig.is-enemy .chest {
+  fill: rgb(248 113 113 / 20%);
+}
+
+.drill__fig .arm,
+.drill__fig .leg {
+  stroke: #8b949e;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transform-box: view-box;
+}
+
+.drill__fig .arm--back,
+.drill__fig .leg--back {
+  opacity: 0.7;
+}
+
+.drill__fig.is-dead .torso {
+  fill: #2b333d;
+  stroke: #4d5560;
+}
+
+@keyframes fig-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+.drill__arena-fig-wrap.is-striking {
+  animation: fig-lunge 0.2s ease-out;
+}
+
+@keyframes fig-lunge {
+  0% { transform: translate(0, 0); }
+  38% { transform: translate(var(--lunge-x, 11px), var(--lunge-y, 0)) scale(1.05); }
+  100% { transform: translate(0, 0); }
+}
+
+.drill__arena-fig-wrap.is-hit {
+  animation: fig-hit 0.22s ease-out;
+}
+
+@keyframes fig-hit {
+  0% { filter: brightness(2.2); transform: translateX(0); }
+  32% { filter: brightness(2.6); transform: translateX(-6px); }
+  100% { filter: brightness(1); transform: translateX(0); }
+}
+
+.drill__arena-fig-wrap.is-casting {
+  animation: fig-cast 0.62s ease-out;
+}
+
+.drill__arena-fig-wrap.is-casting .arm--front {
+  transform-origin: 15.8px 15px;
+  animation: fig-arm-up 0.62s ease-out;
+}
+
+.drill__arena-fig-wrap.is-casting .arm--back {
+  transform-origin: 8.2px 15px;
+  animation: fig-arm-up 0.62s ease-out 0.04s;
+}
+
+@keyframes fig-cast {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes fig-arm-up {
+  0% { transform: rotate(0); }
+  40% { transform: rotate(-168deg); }
+  100% { transform: rotate(0); }
+}
+
+/* ---------- 特效层 ---------- */
+
+.drill__arena-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.drill__fx-beam {
+  stroke: #93c5fd;
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 7px rgb(147 197 253 / 85%));
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: fx-beam 0.3s linear forwards;
+}
+
+.drill__fx-beam.is-line {
+  stroke: #7dd3fc;
+  stroke-width: 11;
+  filter: drop-shadow(0 0 12px rgb(125 211 252 / 90%));
+  animation-duration: 0.36s;
+}
+
+@keyframes fx-beam {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  55% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+.drill__fx-slash {
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 7px #ffd7a1);
+  animation: fx-fade 0.24s ease-out forwards;
+}
+
+@keyframes fx-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.drill__fx-ring {
+  fill: none;
+  stroke: #ffb86b;
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-ring 0.56s ease-out forwards;
+}
+
+@keyframes fx-ring {
+  0% { transform: scale(0.4); opacity: 0.95; }
+  100% { transform: scale(5); opacity: 0; }
+}
+
+.drill__fx-aura {
+  fill: none;
+  stroke: #4ade80;
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-aura 0.7s ease-out forwards;
+}
+
+@keyframes fx-aura {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  60% { transform: scale(2.4); opacity: 0.55; }
+  100% { transform: scale(3.4); opacity: 0; }
+}
+
+.drill__fx-spark {
+  fill: #7ee787;
+  filter: drop-shadow(0 0 5px rgb(126 231 135 / 85%));
+  animation: fx-spark 0.6s ease-out forwards;
+}
+
+@keyframes fx-spark {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-7px); opacity: 0; }
+}
+
+/* 普攻拖尾 / 命中闪白 / 施法法阵 */
+
+.drill__fx-trail {
+  stroke: rgb(255 236 200 / 85%);
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgb(255 214 150 / 80%));
+  animation: fx-trail 0.18s ease-out forwards;
+}
+
+@keyframes fx-trail {
+  0% { opacity: 0.2; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.drill__fx-flash {
+  fill: rgb(255 255 255 / 90%);
+  stroke: #fff;
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-flash 0.22s ease-out forwards;
+}
+
+@keyframes fx-flash {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+.drill__fx-castring {
+  fill: none;
+  stroke: #a78bfa;
+  stroke-width: 2.4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-castring 0.43s ease-out forwards;
+}
+
+@keyframes fx-castring {
+  0% { transform: scale(0.35); opacity: 0.95; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ---------- 本轮对阵 ---------- */
+
+.drill__match-round {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 9px;
+}
+
+.drill__match-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drill__match-item {
+  padding: 2px 0;
+}
+
+.drill__match-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drill__match-row:hover {
+  border-color: var(--fm-border);
+  background: var(--fm-hover);
+}
+
+.drill__match-row.is-pending {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.drill__match-row.is-player {
+  color: var(--fm-text);
+}
+
+.drill__match-side {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__match-side--home {
+  text-align: right;
+}
+
+.drill__match-vs {
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+  text-align: center;
+}
+
+.drill__match-tag {
+  padding: 0 5px;
+  border: 1px solid currentcolor;
+  border-radius: 2px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.drill__match-tag.is-ok {
+  color: var(--fm-ok);
+}
+
+.drill__match-tag.is-err {
+  color: var(--fm-err);
+}
+
+.drill__match-tag.is-pending {
+  color: var(--fm-text-muted);
+}
+
+.drill__match-detail {
+  display: block;
+  padding: 0 5px 2px;
+  color: var(--fm-text-muted);
+  font-family: var(--fm-mono);
+  font-size: 8px;
+}
+
+.drill__match-hint,
+.drill__match-empty {
+  margin: 6px 0 0;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+/* ---------- 阵容入口与面板 ---------- */
+
+.drill__lineup-switch {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--fm-border);
+  border-radius: 5px;
+}
+
+.drill__lineup-switch button {
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.drill__lineup-switch button + button {
+  border-left: 1px solid var(--fm-border);
+}
+
+.drill__lineup-switch button:hover {
+  background: var(--fm-hover);
+  color: var(--fm-text);
+}
+
+.drill__lineup {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, 92vw);
+  border-left: 1px solid var(--fm-border);
+  background: var(--fm-bg);
+  box-shadow: -24px 0 48px rgb(0 0 0 / 45%);
+}
+
+.drill__lineup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__lineup-head b {
+  display: block;
+  font-size: 15px;
+}
+
+.drill__lineup-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.drill__lineup-tabs button {
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.drill__lineup-tabs button.is-on {
+  border-bottom-color: var(--fm-accent);
+  color: var(--fm-text);
+}
+
+.drill__lineup-tabs em {
+  margin-left: 4px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.drill__lineup-tip {
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.drill__lineup-tip b {
+  color: var(--fm-text);
+  font-weight: 600;
+}
+
+.drill__lineup-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  list-style: none;
+}
+
+.drill__lineup-card {
+  padding: 10px 12px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+}
+
+.drill__lineup-card.is-active {
+  border-color: var(--fm-accent);
+  box-shadow: 0 0 0 1px rgb(56 189 248 / 25%);
+}
+
+.drill__lineup-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drill__lineup-card-head b {
+  font-size: 13px;
+}
+
+.drill__lineup-tag {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  color: var(--fm-text-muted);
+  font-size: 9.5px;
+}
+
+.drill__lineup-card-head .drill__mono {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.drill__lineup-summary {
+  margin: 6px 0;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.drill__lineup-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.drill__lineup-traits span {
+  padding: 1px 6px;
+  border: 1px solid var(--fm-border);
+  border-radius: 3px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__lineup-traits span.is-on {
+  border-color: var(--fm-accent);
+  color: var(--fm-link);
+}
+
+.drill__lineup-traits i {
+  margin-left: 3px;
+  font-style: normal;
+  color: var(--fm-warn);
+  font-size: 9px;
+}
+
+.drill__lineup-rows,
+.drill__lineup-equip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.drill__lineup-rows > div,
+.drill__lineup-equip {
+  display: flex;
+  gap: 6px;
+}
+
+.drill__lineup-row {
+  flex: 0 0 52px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__lineup-units {
+  color: var(--fm-text);
+}
+
+.drill__lineup-equip {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drill__lineup-equip em {
+  color: var(--fm-text-dim);
+  font-style: normal;
+  padding-left: 58px;
+}
+
+.drill__lineup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.drill__lineup-empty {
+  padding: 28px 12px;
+  color: var(--fm-text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.drill__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fm-link);
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.drill__resource-dot {
+  position: absolute;
+  top: 4px;
+  right: 28px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f87171;
+  box-shadow: 0 0 8px rgb(248 113 113 / 85%);
+  animation: lineup-dot 1.6s ease-in-out infinite;
+}
+
+.drill__draft-item {
+  position: relative;
+}
+
+.drill__draft-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f87171;
+  box-shadow: 0 0 8px rgb(248 113 113 / 85%);
+  animation: lineup-dot 1.6s ease-in-out infinite;
+}
+
+.drill__draft-need {
+  color: #f3a1a1;
+  font-size: 11px;
+}
+
+@keyframes lineup-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1.35);
+  }
+}

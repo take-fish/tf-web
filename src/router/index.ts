@@ -44,6 +44,18 @@ const router = createRouter({
       meta: { title: 'Dashboards' },
     },
     {
+      path: '/games/autochess',
+      name: 'capacity-drill',
+      component: () => import('../views/DrillEntryView.vue'),
+      meta: { title: 'Dashboards' },
+    },
+    {
+      path: '/games/autochess/run',
+      name: 'capacity-drill-run',
+      component: () => import('../views/DrillView.vue'),
+      meta: { title: 'Dashboards' },
+    },
+    {
       path: '/music',
       name: 'music',
       component: () => import('../views/MusicView.vue'),

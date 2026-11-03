@@ -1,0 +1,202 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+import type { DrillMode, PartySeat } from '@/modules/drill/types'
+import { useDrillStore } from '@/modules/drill/stores/drill'
+import { useAuthStore } from '@/stores/auth'
+import { useTournamentStore } from '@/stores/tournament'
+
+/**
+ * 容量编排入口：先分流「组队 / 单练」，再进演练工作区。
+ *
+ * 组队是 8 个席位：席位 0 固定自己，其余可以拉在线用户，拉不满由 AI 补齐。
+ */
+
+const router = useRouter()
+const drill = useDrillStore()
+const auth = useAuthStore()
+const tournament = useTournamentStore()
+
+const tab = ref<DrillMode>('solo')
+const seats = ref<PartySeat[]>(buildSeats())
+
+const selfId = computed(() => String(auth.user?.id ?? 'self'))
+
+const onlineUsers = computed(() =>
+  tournament.onlineMembers.filter((member) => member.userId !== selfId.value),
+)
+const invitedCount = computed(() => seats.value.filter((seat) => !seat.isAi).length - 1)
+
+function buildSeats(): PartySeat[] {
+  const list: PartySeat[] = []
+  for (let index = 0; index < 8; index += 1) {
+    list.push({
+      seat: index,
+      userId: index === 0 ? String(auth.user?.id ?? 'self') : `ai-${index}`,
+      nickname: index === 0 ? (auth.user?.nickname ?? '我') : '',
+      isAi: index !== 0,
+    })
+  }
+  return list
+}
+
+function aiName(seat: number): string {
+  return `对照组-${String(seat).padStart(2, '0')}`
+}
+
+function invite(userId: string, nickname: string) {
+  const slot = seats.value.find((seat) => seat.seat > 0 && seat.isAi)
+  if (!slot) return
+  seats.value = seats.value.map((seat) =>
+    seat.seat === slot.seat ? { ...seat, userId, nickname, isAi: false } : seat,
+  )
+}
+
+function kick(seat: number) {
+  seats.value = seats.value.map((entry) =>
+    entry.seat === seat
+      ? { ...entry, userId: `ai-${seat}`, nickname: '', isAi: true }
+      : entry,
+  )
+}
+
+function fillWithAi() {
+  seats.value = seats.value.map((seat) =>
+    seat.isAi ? { ...seat, nickname: '', userId: `ai-${seat.seat}` } : seat,
+  )
+}
+
+function enterSolo() {
+  drill.startSolo()
+  void router.push('/games/autochess/run')
+}
+
+function enterParty() {
+  const filled = seats.value.map((seat) => ({
+    ...seat,
+    nickname: seat.isAi ? aiName(seat.seat) : seat.nickname,
+  }))
+  drill.startParty(filled)
+  void router.push('/games/autochess/run')
+}
+
+onMounted(() => {
+  if (!tournament.started) tournament.start()
+})
+</script>
+
+<template>
+  <div class="drill-entry">
+    <header class="drill-entry__head">
+      <div class="drill-entry__title">
+        <span class="drill__eyebrow">CAPACITY ORCHESTRATION</span>
+        <b>容量编排</b>
+        <span class="drill-entry__sub">选择演练形式，进入编排工作区</span>
+      </div>
+      <button type="button" class="drill-entry__back" @click="router.push('/games')">
+        ← 返回工作台
+      </button>
+    </header>
+
+    <div class="drill-entry__tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        class="drill-entry__tab"
+        :class="{ 'is-on': tab === 'solo' }"
+        :aria-selected="tab === 'solo'"
+        @click="tab = 'solo'"
+      >
+        <b>单练</b>
+        <span>1 人 + 7 个对照组，25 轮 + 血潮决胜</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="drill-entry__tab"
+        :class="{ 'is-on': tab === 'party' }"
+        :aria-selected="tab === 'party'"
+        @click="tab = 'party'"
+      >
+        <b>组队</b>
+        <span>邀请在线用户，不足 8 人由 AI 补齐</span>
+      </button>
+    </div>
+
+    <section v-if="tab === 'solo'" class="drill-entry__panel">
+      <dl class="drill-entry__facts">
+        <div>
+          <dt>席位</dt>
+          <dd>8 人桌 · 1 人 + 7 AI</dd>
+        </div>
+        <div>
+          <dt>赛程</dt>
+          <dd>5 阶段 + 血潮</dd>
+        </div>
+        <div>
+          <dt>时长</dt>
+          <dd>15–18 分钟</dd>
+        </div>
+        <div>
+          <dt>算力</dt>
+          <dd>纯前端演练，本地存档</dd>
+        </div>
+      </dl>
+      <button type="button" class="drill-entry__go" @click="enterSolo">
+        进入单练 →
+      </button>
+    </section>
+
+    <section v-else class="drill-entry__panel">
+      <div class="drill-entry__party">
+        <div class="drill-entry__seats">
+          <button
+            v-for="seat in seats"
+            :key="seat.seat"
+            type="button"
+            class="drill-entry__seat"
+            :class="{ 'is-ai': seat.isAi, 'is-self': seat.seat === 0 }"
+            :title="seat.seat === 0 ? '自己' : seat.isAi ? 'AI 补齐' : '点击移除邀请'"
+            @click="seat.seat > 0 && !seat.isAi && kick(seat.seat)"
+          >
+            <span class="drill-entry__seat-index">{{ seat.seat === 0 ? '你' : seat.seat + 1 }}</span>
+            <b>{{ seat.isAi ? (seat.nickname || aiName(seat.seat)) : seat.nickname }}</b>
+            <span class="drill-entry__seat-tag">{{ seat.isAi ? 'AI' : '在线' }}</span>
+          </button>
+        </div>
+
+        <aside class="drill-entry__invite">
+          <div class="drill-entry__invite-head">
+            <b>在线用户</b>
+            <span class="drill__mono">{{ onlineUsers.length }}</span>
+          </div>
+          <ul v-if="onlineUsers.length" class="drill-entry__online">
+            <li v-for="user in onlineUsers" :key="user.userId">
+              <span>{{ user.nickname }}</span>
+              <button
+                type="button"
+                class="drill__ghost"
+                :disabled="invitedCount >= 7 || seats.some((seat) => seat.userId === user.userId)"
+                @click="invite(user.userId, user.nickname)"
+              >
+                邀请
+              </button>
+            </li>
+          </ul>
+          <p v-else class="drill-entry__empty">暂无其他在线用户，开始时会由 AI 补齐</p>
+          <p class="drill-entry__hint">
+            当前 {{ invitedCount }} 位真人 · {{ 8 - invitedCount }} 席由 AI 接管
+          </p>
+          <button type="button" class="drill__ghost" @click="fillWithAi">全部交回 AI</button>
+        </aside>
+      </div>
+
+      <button type="button" class="drill-entry__go" @click="enterParty">
+        开始组队演练 →
+      </button>
+    </section>
+  </div>
+</template>
+
+<style scoped src="./drill-entry.css"></style>
