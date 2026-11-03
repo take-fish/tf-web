@@ -15,6 +15,9 @@ import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const router = useRouter()
 
+/** 服务实例网格只展示登记为卡片的模块；智能助手不在网格里出卡，入口与左侧栏保留 */
+const serviceCards = MODULES.filter((module) => module.serviceCard !== false)
+
 const lastUpdated = ref(new Date())
 const groups = ref<ChatGroup[]>([])
 const restOnline = ref<OnlineMember[]>([])
@@ -292,7 +295,7 @@ onUnmounted(() => {
         <span>命名空间 fishmatrix · 采集间隔 30s</span>
       </div>
       <div class="service-grid">
-        <RouterLink v-for="item in MODULES" :key="item.id" :to="item.path" class="service-card">
+        <RouterLink v-for="item in serviceCards" :key="item.id" :to="item.path" class="service-card">
           <div class="service-card__head">
             <span class="service-card__icon"><AppIcon :name="item.icon" :size="18" /></span>
             <span class="status-chip status-chip--ok"><i class="dot dot--ok" /> Running</span>
