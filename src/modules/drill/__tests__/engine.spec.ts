@@ -169,7 +169,7 @@ describe('drill engine', () => {
     }
 
     expect(state.phase).toBe('END')
-    expect(state.round).toBeLessThan(20)
+    expect(state.round).toBeLessThan(25)
     expect(state.placement).toBeGreaterThanOrEqual(1)
     expect(state.placement).toBeLessThanOrEqual(8)
     expect(state.matchPoints ?? 0).toBeGreaterThanOrEqual(0)
@@ -221,10 +221,11 @@ describe('替换与回放', () => {
   })
 })
 describe('阶段与选秀', () => {
-  it('20 回合切成 4 个阶段，每阶段 5 回合', () => {
+  it('25 回合切成 5 个阶段，每阶段 5 回合', () => {
     expect(stageOf(1)).toEqual({ stage: 1, index: 1 })
     expect(stageOf(6)).toEqual({ stage: 2, index: 1 })
     expect(stageOf(20)).toEqual({ stage: 4, index: 5 })
+    expect(stageOf(25)).toEqual({ stage: 5, index: 5 })
   })
 
   it('进入新阶段首回合触发选秀，抢到后带注解进待命席', () => {
