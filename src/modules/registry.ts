@@ -1,6 +1,6 @@
 import type { SkinId } from '@/skins/registry'
 
-export type ModuleIcon = 'overview' | 'terminal' | 'file' | 'activity' | 'build'
+export type ModuleIcon = 'overview' | 'terminal' | 'file' | 'activity' | 'build' | 'spark'
 
 export interface ModuleDef {
   id: string
@@ -81,6 +81,19 @@ export const MODULES: readonly ModuleDef[] = [
     documentTitle: 'Pipeline #128',
     service: 'tf-music',
     port: 8105,
+  },
+  {
+    id: 'agent',
+    path: '/agent',
+    routeName: 'agent',
+    label: '智能助手',
+    disguiseLabel: 'Agent',
+    description: '对话式排障：查日志 / 查服务 / 查知识库 / 触发发布',
+    icon: 'spark',
+    defaultSkin: 'ide',
+    documentTitle: 'FishMatrix Agent',
+    service: 'tf-agent',
+    port: 8201,
   },
 ]
 

@@ -167,8 +167,8 @@ export function useChatSession() {
     unread.value.total += 1
   }
 
-  function dmLines(message: ChatMessage): string[] {
-    if (message.fromUserId !== selfUserId.value) return formatDmLines(message)
+  function dmLines(message: ChatMessage, continued = false): string[] {
+    if (message.fromUserId !== selfUserId.value) return formatDmLines(message, continued)
     const time = new Date(message.ts).toLocaleTimeString('zh-CN', { hour12: false })
     const target = dmPeer.value?.nickname ?? message.toUserId ?? 'peer'
     if (message.recalled) {
@@ -178,6 +178,19 @@ export function useChatSession() {
       return [`[${time}] [DM] -> ${target}: [图片] #${shortId(message.id)}`]
     }
     return [`[${time}] [DM] -> ${target}: ${message.content}`]
+  }
+
+  // 智能助手的流式回答：同一 streamId 的后续片段不再重复消息头，接成一个块。
+  const activeStreams = new Map<string, string>()
+  function isStreamContinuation(scope: string, message: ChatMessage): boolean {
+    const streamId = message.streamId ?? null
+    if (!streamId) {
+      activeStreams.delete(scope)
+      return false
+    }
+    const previous = activeStreams.get(scope)
+    activeStreams.set(scope, streamId)
+    return previous === streamId
   }
 
   function focusTerminal() {
@@ -339,15 +352,20 @@ export function useChatSession() {
     // 群聊消息仅在群会话打开时实时显示；不在其他群积攒未读。
     if (!current || dmPeer.value) return
     if (!fresh) return
-    terminalRef.value?.writeLiveLines(formatMessageLines(message), 'message')
+    const continuation = isStreamContinuation(`group:${message.groupId ?? ''}`, message)
+    terminalRef.value?.writeLiveLines(formatMessageLines(message, continuation), 'message')
     messages.addGallery(message)
   }
 
   function onDm(message: ChatMessage) {
     const fresh = messages.rememberMessage(message)
+    // 智能助手的私聊消息 from 是 agent、to 是「对面那个真人」，
+    // 所以收件人要用 toUserId 认出会话对端；普通私聊规则不变。
     const peerId = message.fromUserId === selfUserId.value
       ? message.toUserId
-      : message.fromUserId
+      : message.toUserId === selfUserId.value
+        ? message.fromUserId
+        : message.toUserId
     const current = Boolean(
       dmPeer.value && peerId === dmPeer.value.userId && message.groupId === null,
     )
@@ -356,7 +374,8 @@ export function useChatSession() {
     if (!peerId) return
 
     if (current) {
-      terminalRef.value?.writeLiveLines(dmLines(message), 'message')
+      const continuation = isStreamContinuation(`dm:${peerId}`, message)
+      terminalRef.value?.writeLiveLines(dmLines(message, continuation), 'message')
       messages.addGallery(message)
       if (message.fromUserId !== selfUserId.value) markCurrentRead()
       return

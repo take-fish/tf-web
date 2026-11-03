@@ -21,6 +21,8 @@ export interface ChatMessage {
   ts: number
   clientMsgId: string | null
   recalled: boolean
+  /** 智能助手流式回答的分段 ID：同一 ID 的连续消息合并成一个块显示。 */
+  streamId?: string | null
 }
 
 export interface ChatGroup {

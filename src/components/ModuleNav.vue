@@ -54,3 +54,7 @@ function tagName(item: ModuleDef): string {
     </RouterLink>
   </nav>
 </template>
+
+<style scoped>
+/* 各模块入口统一成普通 tab，不再给Agent做额外高亮 */
+</style>

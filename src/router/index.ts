@@ -50,6 +50,30 @@ const router = createRouter({
       meta: { title: 'Pipeline' },
     },
     {
+      path: '/agent',
+      name: 'agent',
+      component: () => import('../views/agent/AgentChatView.vue'),
+      meta: { title: 'FishMatrix Agent' },
+    },
+    {
+      path: '/agent/kb',
+      name: 'agent-kb',
+      component: () => import('../views/agent/KbView.vue'),
+      meta: { title: 'Agent 知识库' },
+    },
+    {
+      path: '/agent/profile',
+      name: 'agent-profile',
+      component: () => import('../views/agent/AgentProfileView.vue'),
+      meta: { title: 'Agent 试衣间', requiresPermission: 'agent.profile.manage' },
+    },
+    {
+      path: '/agent/admin',
+      name: 'agent-admin',
+      component: () => import('../views/agent/AdminView.vue'),
+      meta: { title: 'Agent 管理台', requiresPermission: 'agent.console.view' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },
@@ -89,6 +113,12 @@ router.beforeEach(async (to) => {
     if (!auth.hasToken) {
       return { name: 'login', query: { redirect: to.fullPath } }
     }
+  }
+
+  // 按用户中台下发的权限码拦路由（前端只负责隐藏入口，真正的校验在 tf-agent 侧）
+  const required = to.meta.requiresPermission as string | undefined
+  if (required && !auth.hasPermission(required)) {
+    return { name: 'home' }
   }
 
   return true
