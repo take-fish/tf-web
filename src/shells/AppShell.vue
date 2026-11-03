@@ -4,11 +4,13 @@ import { RouterView, useRoute } from 'vue-router'
 
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import SkinSwitcher from '@/components/SkinSwitcher.vue'
+import { ChatSocketClient } from '@/modules/chat/chatSocket'
 import DuelPanel from '@/modules/games/components/DuelPanel.vue'
 import GameNotificationCenter from '@/modules/games/components/GameNotificationCenter.vue'
 import TournamentLobby from '@/modules/games/components/TournamentLobby.vue'
 import { moduleByPath } from '@/modules/registry'
 import { documentTitle } from '@/skins/state'
+import { useAuthStore } from '@/stores/auth'
 import { useIdentityStore } from '@/stores/identity'
 import { useSettingsStore } from '@/stores/settings'
 import { useSkinStore } from '@/stores/skin'
@@ -24,10 +26,34 @@ const skinStore = useSkinStore()
 const settings = useSettingsStore()
 const identity = useIdentityStore()
 const tournament = useTournamentStore()
+const auth = useAuthStore()
 
 const settingsOpen = ref(false)
 const skinsOpen = ref(false)
 let leaveTimer: ReturnType<typeof setTimeout> | undefined
+/** 全局在线心跳：任何页面都保持一条聊天连接，在线用户按「打开应用的人」统计。 */
+let presenceSocket: ChatSocketClient | null = null
+
+function openPresence(): void {
+  if (!auth.hasToken || presenceSocket) return
+  presenceSocket = new ChatSocketClient({
+    onAuthError: () => closePresence(),
+  })
+  void presenceSocket.connect()
+}
+
+function closePresence(): void {
+  presenceSocket?.close()
+  presenceSocket = null
+}
+
+watch(
+  () => auth.hasToken,
+  (hasToken) => {
+    if (hasToken) openPresence()
+    else closePresence()
+  },
+)
 
 const moduleInfo = computed(() => moduleByPath(route.path))
 const pageTitle = computed(() =>
@@ -115,11 +141,13 @@ onMounted(() => {
   document.documentElement.addEventListener('pointerleave', onDocumentPointerLeave)
   document.documentElement.addEventListener('pointerenter', onDocumentPointerEnter)
   tournament.start()
+  openPresence()
 })
 
 onBeforeUnmount(() => {
   clearLeaveTimer()
   tournament.stop()
+  closePresence()
   window.removeEventListener('keydown', onKeydown, true)
   document.documentElement.removeEventListener('pointerleave', onDocumentPointerLeave)
   document.documentElement.removeEventListener('pointerenter', onDocumentPointerEnter)

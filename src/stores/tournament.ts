@@ -37,6 +37,8 @@ import { createLobbyModule } from './tournament/lobby'
 import { createNotificationModule } from './tournament/notifications'
 
 const NOTIFICATION_POLL_MS = 30_000
+/** 在线列表轮询：聊天通道只在上下线时推送，全局在线数靠轮询刷新。 */
+const ONLINE_POLL_MS = 30_000
 
 export const useTournamentStore = defineStore('tournament', () => {
   const auth = useAuthStore()
@@ -73,6 +75,7 @@ export const useTournamentStore = defineStore('tournament', () => {
 
   let socket: GameSocketClient | null = null
   let notificationTimer: ReturnType<typeof setInterval> | undefined
+  let onlineTimer: ReturnType<typeof setInterval> | undefined
 
   const ownUserId = computed(
     () => selfUserId.value || (auth.user ? `u${auth.user.id}` : ''),
@@ -245,6 +248,10 @@ export const useTournamentStore = defineStore('tournament', () => {
     notificationTimer = setInterval(() => {
       void notifications.pollNotifications()
     }, NOTIFICATION_POLL_MS)
+    if (onlineTimer) clearInterval(onlineTimer)
+    onlineTimer = setInterval(() => {
+      void refreshOnline()
+    }, ONLINE_POLL_MS)
   }
 
   function stop() {
@@ -252,6 +259,10 @@ export const useTournamentStore = defineStore('tournament', () => {
     if (notificationTimer) {
       clearInterval(notificationTimer)
       notificationTimer = undefined
+    }
+    if (onlineTimer) {
+      clearInterval(onlineTimer)
+      onlineTimer = undefined
     }
     socket?.close()
     socket = null
@@ -338,6 +349,20 @@ export const useTournamentStore = defineStore('tournament', () => {
     }
     socket?.refreshLobby()
     lobbyLoading.value = false
+  }
+
+  /** 只刷新在线用户：工作台与组队页共用这一份快照，避免各自维护导致数字不一致。 */
+  async function refreshOnline(): Promise<void> {
+    if (!auth.hasToken) return
+    try {
+      const members = await fetchOnline()
+      onlineMembers.value = members.map((member) => ({
+        userId: member.userId,
+        nickname: member.nickname,
+      }))
+    } catch {
+      // 在线列表刷新失败不阻断主流程，等下一轮轮询
+    }
   }
 
   function upsertTournament(tournament: GameTournament) {
@@ -698,6 +723,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     start,
     stop,
     refreshLobby,
+    refreshOnline,
     watch,
     refreshCurrentMatch,
     leaveWatch,
