@@ -352,6 +352,23 @@ export function createStage(parent: HTMLElement, bridge: StageBridge): StageHand
   const observer =
     typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => resize())
   observer?.observe(parent)
+  function onDragOver(event: DragEvent) {
+    if (!event.dataTransfer) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  function onAnnotationDrop(event: DragEvent) {
+    event.preventDefault()
+    const annotationId = event.dataTransfer?.getData('text/plain')
+    if (!annotationId) return
+    const rect = canvas.getBoundingClientRect()
+    const unitId = unitAt(event.clientX - rect.left, event.clientY - rect.top)
+    if (unitId) bridge.onAnnotationDrop?.(unitId, annotationId)
+  }
+
+  canvas.addEventListener('dragover', onDragOver)
+  canvas.addEventListener('drop', onAnnotationDrop)
   canvas.addEventListener('pointerdown', onPointerDown)
   canvas.addEventListener('pointermove', onPointerMove)
   canvas.addEventListener('pointerup', onPointerUp)
@@ -367,7 +384,9 @@ export function createStage(parent: HTMLElement, bridge: StageBridge): StageHand
       window.cancelAnimationFrame(frame)
       observer?.disconnect()
       window.removeEventListener('resize', resize)
-      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('dragover', onDragOver)
+  canvas.removeEventListener('drop', onAnnotationDrop)
+  canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointerleave', onPointerLeave)

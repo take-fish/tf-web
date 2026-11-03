@@ -181,6 +181,8 @@ export interface StageBridge {
   onUnitPointer(unitId: string): void
   onHover(payload: { unitId: string | null; x: number; y: number }): void
   onDrop?(payload: { unitId: string; zone: 'board' | 'bench'; slot: number }): void
+  /** 注解拖到实例上：把仓库里的注解装到该实例 */
+  onAnnotationDrop?(unitId: string, annotationId: string): void
 }
 
 export interface StageHandle {
