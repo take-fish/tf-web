@@ -40,7 +40,7 @@ describe('演练观察窗', () => {
     const units = wrapper.findAll('.drill__arena-unit')
     expect(units.length).toBeGreaterThanOrEqual(2)
     expect(wrapper.findAll('.drill__arena-hp').length).toBe(units.length)
-    expect(wrapper.text()).toContain('顺风尧')
+    expect(wrapper.text()).toContain('顺丰尧')
     // 每个实例都有一个「人」，且有独立的特效层
     expect(wrapper.findAll('.drill__fig').length).toBe(units.length)
     expect(wrapper.find('.drill__arena-fx').exists()).toBe(true)

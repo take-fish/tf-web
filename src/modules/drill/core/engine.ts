@@ -346,6 +346,22 @@ export function computeMods(state: GameState): Mods {
     mods.deathAoe = Math.max(mods.deathAoe, effect.deathAoe ?? 0)
   }
 
+  // 佳妹：注解越多越强（每件注解 +8% 攻速、+5% 法强，封顶 20 件）
+  const board = state.units.filter((item) => item.zone === 'board')
+  if (board.some((item) => item.defId === 'jiamei')) {
+    const notes = Math.min(
+      board.reduce((sum, item) => sum + item.annotations.length, 0),
+      20,
+    )
+    mods.as += notes * 0.08
+    mods.ap += notes * 0.05
+  }
+  // 野露洁：每淘汰一个对照组 +6% 伤害
+  if (board.some((item) => item.defId === 'yelujie')) {
+    const gone = state.opponents.filter((seat) => !seat.alive || seat.eliminatedAt !== undefined).length
+    mods.damageMul *= 1 + gone * 0.06
+  }
+
   const picks = state.picks
   if (picks.includes('S5')) {
     mods.earlyAs = 0.08
