@@ -20,6 +20,9 @@ onMounted(() => {
     onDrop: ({ unitId, zone, slot }) => {
       drill.move(unitId, zone, slot)
     },
+    onAnnotationDrop: (unitId, annotationId) => {
+      drill.equip(unitId, annotationId)
+    },
   })
 })
 

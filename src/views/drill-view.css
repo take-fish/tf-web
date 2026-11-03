@@ -2858,3 +2858,29 @@
   color: var(--fm-text-muted);
   font-size: 10px;
 }
+
+/* ---------- 技能特效按定位着色 ---------- */
+
+.drill__fx-beam.tone-mage,
+.drill__fx-line.tone-mage { stroke: #b07bff; }
+.drill__fx-beam.tone-tank,
+.drill__fx-line.tone-tank { stroke: #5fd47c; }
+.drill__fx-beam.tone-melee,
+.drill__fx-line.tone-melee { stroke: #f39a5c; }
+.drill__fx-beam.tone-ranged,
+.drill__fx-line.tone-ranged { stroke: #45d4e0; }
+
+.drill__fx-ring.tone-mage { stroke: #b07bff; }
+.drill__fx-ring.tone-tank { stroke: #5fd47c; }
+.drill__fx-ring.tone-melee { stroke: #f39a5c; }
+.drill__fx-ring.tone-ranged { stroke: #45d4e0; }
+
+.drill__fx-aura.tone-mage { background: radial-gradient(circle, rgb(176 123 255 / 45%), transparent 70%); }
+.drill__fx-aura.tone-tank { background: radial-gradient(circle, rgb(95 212 124 / 50%), transparent 70%); }
+.drill__fx-aura.tone-melee { background: radial-gradient(circle, rgb(243 154 92 / 45%), transparent 70%); }
+.drill__fx-aura.tone-ranged { background: radial-gradient(circle, rgb(69 212 224 / 45%), transparent 70%); }
+
+.drill__fx-spark.tone-mage { background: #b07bff; }
+.drill__fx-spark.tone-tank { background: #5fd47c; }
+.drill__fx-spark.tone-melee { background: #f39a5c; }
+.drill__fx-spark.tone-ranged { background: #45d4e0; }
