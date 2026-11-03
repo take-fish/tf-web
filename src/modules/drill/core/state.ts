@@ -53,6 +53,8 @@ export interface OpponentState {
   name: string
   sli: number
   alive: boolean
+  /** 被淘汰的轮次，用于名次排序 */
+  eliminatedAt?: number
 }
 
 export interface BattleReport {
@@ -96,6 +98,10 @@ export interface GameState {
   carousel: CarouselState | null
   /** 本局是否已用掉 X1 的复活 */
   usedSecondLife: boolean
+  /** 终局名次（1 为第一），未结束时为空 */
+  placement?: number
+  /** 终局积分，按名次与人数换算 */
+  matchPoints?: number
   mergedCount: number
 }
 

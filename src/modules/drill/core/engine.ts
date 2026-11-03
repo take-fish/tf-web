@@ -403,7 +403,14 @@ function settle(state: GameState): GameState {
   next = rollShop(next, true)
 
   if (next.round > next.totalRounds) {
-    return { ...next, phase: 'END' }
+    // 打满 20 轮仍没分出胜负：按存活与血量收口
+    const placement = placementOf(next)
+    return {
+      ...next,
+      phase: 'END',
+      placement,
+      matchPoints: pointsFor(placement, next.opponents.length + 1),
+    }
   }
 
   if (AUGMENT_ROUNDS.includes(next.round)) {
@@ -435,11 +442,65 @@ function offerAugments(state: GameState): readonly string[] {
   return picked
 }
 
-function battleDamage(state: GameState, survivors: number, won: boolean): number {
-  const base = 4 + Math.floor(state.round / 4) + survivors * 2
+/**
+ * 落败掉血：6 + 2·floor(轮次/2) + 3·存活敌方，1–3 轮（PVE）减半。
+ * 8 人局平均每场掉 16 血左右，6 场败局见底，整局落在 10–12 轮。
+ */
+function seatDamage(state: GameState, survivors: number, won: boolean): number {
   if (won) return 0
   if (state.picks.includes('S8') && state.round <= 3) return 0
-  return state.round <= 3 ? Math.ceil(base / 2) : base
+  const raw = 6 + 2 * Math.floor(state.round / 2) + survivors * 3
+  return state.round <= 3 ? Math.ceil(raw / 2) : raw
+}
+
+/** 名次积分：3 × (N − 名次) / (N − 1)，保留 0.5，跨人数可比。 */
+function pointsFor(placement: number, total: number): number {
+  if (total < 2) return 0
+  const raw = (3 * (total - placement)) / (total - 1)
+  return Math.round(raw * 2) / 2
+}
+
+/** 终局名次：血量高者靠前，已淘汰的排在存活者之后。 */
+function placementOf(state: GameState): number {
+  if (state.sli <= 0) {
+    return state.opponents.filter((seat) => seat.alive).length + 1
+  }
+  const ahead = state.opponents.filter((seat) => seat.alive && seat.sli > state.sli).length
+  return 1 + ahead
+}
+
+/** 其余席位两两对拼，败者掉血，归零即淘汰。 */
+function advanceOpponents(state: GameState): OpponentState[] {
+  const seats = state.opponents.map((seat) => ({ ...seat }))
+  const alive = seats.filter((seat) => seat.alive)
+  if (alive.length < 2) return seats
+
+  const rng = mulberry32(hashString(`${state.seed}:${state.round}:seats`))
+  const order = [...alive]
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(rng() * (index + 1))
+    const held = order[index]!
+    order[index] = order[swap]!
+    order[swap] = held
+  }
+
+  for (let index = 0; index + 1 < order.length; index += 2) {
+    const first = order[index]!
+    const second = order[index + 1]!
+    const boardA = makeBotBoard(hashString(`${state.seed}:${state.round}:${first.id}`), state.round)
+    const boardB = makeBotBoard(hashString(`${state.seed}:${state.round}:${second.id}`), state.round)
+    const outcome = simulateBattle(boardA.units, boardB.units, EMPTY_MODS, EMPTY_MODS)
+    if (outcome.winner === 'draw') continue
+    const loser = outcome.winner === 'ally' ? second : first
+    const survivors = outcome.winner === 'ally' ? outcome.allyAlive : outcome.enemyAlive
+    loser.sli = Math.max(0, loser.sli - seatDamage(state, survivors, false))
+    if (loser.sli === 0 && loser.alive) {
+      loser.alive = false
+      loser.eliminatedAt = state.round
+    }
+  }
+
+  return seats
 }
 
 function fight(state: GameState): CommandResult {
@@ -472,7 +533,7 @@ function fight(state: GameState): CommandResult {
 
   const sliBefore = next.sli
   const won = outcome.winner === 'ally'
-  const damage = battleDamage(next, outcome.enemyAlive, won)
+  const damage = seatDamage(next, outcome.enemyAlive, won)
   let sli = Math.max(0, next.sli - damage)
 
   if (sli === 0 && !next.usedSecondLife && next.picks.includes('X1')) {
@@ -509,12 +570,23 @@ function fight(state: GameState): CommandResult {
   }
 
   const trace = outcome.trace
+  const seats = advanceOpponents({ ...settled, sli })
+  const aliveSeats = seats.filter((seat) => seat.alive).length
+  const withSeats: GameState = { ...settled, sli, opponents: seats }
 
   if (sli === 0) {
-    return { state: { ...settled, phase: 'END' }, trace }
+    const placement = aliveSeats + 1
+    return {
+      state: { ...withSeats, phase: 'END', placement, matchPoints: pointsFor(placement, seats.length + 1) },
+      trace,
+    }
   }
 
-  return { state: settle(settled), trace }
+  if (aliveSeats === 0) {
+    return { state: { ...withSeats, phase: 'END', placement: 1, matchPoints: pointsFor(1, seats.length + 1) }, trace }
+  }
+
+  return { state: settle(withSeats), trace }
 }
 
 export function dispatch(state: GameState, command: Command): CommandResult {
