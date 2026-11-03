@@ -9,6 +9,10 @@ import { useDrillUiStore } from '../stores/ui'
 const drill = useDrillStore()
 const ui = useDrillUiStore()
 
+const battleLocked = computed(
+  () => drill.snapshot.phase === 'BATTLE' || drill.snapshot.phase === 'SETTLE',
+)
+
 const SKILL_FORM: Record<string, string> = {
   single: '单体打击',
   aoe: '范围打击',
@@ -95,7 +99,25 @@ function equip() {
       <div><dt>吞吐</dt><dd>{{ unit.throughput }}</dd></div>
       <div>
         <dt>注解</dt>
-        <dd>{{ unit.annotations.length ? unit.annotations.join('、') : '无' }}</dd>
+        <dd class="drill__drawer-notes">
+          <span
+            v-for="(note, index) in unit.annotations"
+            :key="`${note}-${index}`"
+            class="drill__drawer-note"
+          >
+            {{ note }}
+            <button
+              type="button"
+              class="drill__note-off"
+              :disabled="battleLocked"
+              :title="battleLocked ? '战斗中不能调整注解' : '卸下该注解'"
+              @click="drill.unequip(unit.id, index)"
+            >
+              卸下
+            </button>
+          </span>
+          <span v-if="unit.annotations.length === 0">无</span>
+        </dd>
       </div>
       <div>
         <dt>技能</dt>
