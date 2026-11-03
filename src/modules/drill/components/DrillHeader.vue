@@ -13,6 +13,10 @@ const ui = useDrillUiStore()
 const auth = useAuthStore()
 const router = useRouter()
 
+const emit = defineEmits<{
+  restart: []
+}>()
+
 function switchMode() {
   drill.resetMode()
   void router.push('/games/autochess')
@@ -66,6 +70,14 @@ const snapshot = computed(() => drill.snapshot)
         {{ ui.meetingMode ? '退出会议模式' : '会议模式' }}
       </button>
       <button type="button" class="drill__ghost" @click="switchMode()">切换模式</button>
+      <button
+        type="button"
+        class="drill__ghost"
+        title="退出当前演练，以新种子重开一局"
+        @click="emit('restart')"
+      >
+        重新演练
+      </button>
       <button
         v-if="auth.isAdmin"
         type="button"

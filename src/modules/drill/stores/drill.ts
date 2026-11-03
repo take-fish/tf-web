@@ -526,6 +526,8 @@ watch(
     elapsed.value = 0
     error.value = null
     lastTrace.value = null
+    paused.value = false
+    preview.value = null
   }
 
   return {
