@@ -26,6 +26,7 @@ const ui = useDrillUiStore()
 const battleActive = ref(false)
 const progress = ref(0)
 const confirmOpen = ref(false)
+const restartOpen = ref(false)
 
 let clockTimer: number | undefined
 let battleTimer: number | undefined
@@ -67,6 +68,14 @@ function skipBattle() {
 
 function requestRemove() {
   confirmOpen.value = true
+}
+
+function confirmRestart() {
+  restartOpen.value = false
+  ui.closeArena()
+  ui.closeReport()
+  ui.closePrompt()
+  drill.restart()
 }
 
 function confirmRemove() {
@@ -116,7 +125,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="drill" :class="{ 'is-meeting': ui.meetingMode }">
-    <DrillHeader />
+    <DrillHeader @restart="restartOpen = true" />
 
     <div class="drill__body">
       <TraitPanel v-if="!ui.meetingMode" />
@@ -165,6 +174,14 @@ onBeforeUnmount(() => {
 
     <ProposalModal />
     <ReportModal />
+    <ConfirmDialog
+      :open="restartOpen"
+      title="重新演练"
+      text="当前演练会退出，已上阵的实例与配额进度不保留；组队席位不变，以新种子重开一局。"
+      confirm-label="退出并重开"
+      @confirm="confirmRestart"
+      @cancel="restartOpen = false"
+    />
     <ConfirmDialog
       :open="confirmOpen"
       title="下架实例"
