@@ -2737,3 +2737,76 @@
   color: var(--fm-text-muted);
   font-size: 10px;
 }
+
+/* ---------- 战斗小窗：血条/蓝条/星级/装备/角色 ---------- */
+
+.drill__arena-bars {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drill__arena-mana {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.drill__arena-mana i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #2f6fed, #5b9cff);
+  transition: width 0.12s linear;
+}
+
+.drill__arena-tags {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 1px;
+}
+
+.drill__arena-star {
+  color: #f5c04a;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 1px;
+}
+
+.drill__arena-note {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 8%);
+  color: var(--fm-text-muted);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.drill__arena-unit.role-melee .drill__arena-hp i {
+  background: linear-gradient(90deg, #d2662f, #f39a5c);
+}
+
+.drill__arena-unit.role-ranged .drill__arena-hp i {
+  background: linear-gradient(90deg, #1f9aa8, #45d4e0);
+}
+
+.drill__arena-unit.role-mage .drill__arena-hp i {
+  background: linear-gradient(90deg, #7b3fe4, #b07bff);
+}
+
+.drill__arena-unit.role-tank .drill__arena-hp i {
+  background: linear-gradient(90deg, #2b9d4a, #5fd47c);
+}
+
+.drill__drawer-skill {
+  display: block;
+  margin-top: 3px;
+  color: var(--fm-text-muted);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.5;
+}

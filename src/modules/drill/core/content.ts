@@ -94,7 +94,7 @@ export const UNIT_DEFS: readonly UnitDef[] = [
   unit('baoyanlong', '保研龙', 3, ['xiaoshida', 'sorrow'], { name: '灰度回灌', form: 'line', target: 'nearest', base: 330, coef: 1.2, stat: 'ap', radius: 3, duration: 0 }),
   unit('jingtao', '京涛', 3, ['rich', 'xiaoshida'], { name: '地基加固', form: 'buff', target: 'team', base: 35, coef: 0, stat: 'ap', radius: 0, duration: 8 }),
   unit('qiewang', '企鹅王', 3, ['arch', 'ai'], { name: '探活保底', form: 'sustain', target: 'self', base: 340, coef: 0, stat: 'ap', radius: 0, duration: 4 }),
-  unit('dingshuoai', '顶硕艾', 3, ['arch', 'xiaozhao'], { name: '地基校验', form: 'buff', target: 'team', base: 32, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
+  unit('dingshuoai', '顶硕艾', 3, ['arch', 'xiaozhao', 'boyu'], { name: '地基校验', form: 'buff', target: 'team', base: 32, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
   unit('zhangtianshi', '张天师', 3, ['ai', 'xiaozhao', 'guanyu'], { name: '模型对齐', form: 'line', target: 'nearest', base: 380, coef: 1.3, stat: 'ap', radius: 3, duration: 0 }),
   unit('ganbu', '干部郭', 3, ['ai', 'xiaozhao', 'sorrow'], { name: '双活切换', form: 'sustain', target: 'team', base: 300, coef: 0, stat: 'ap', radius: 0, duration: 0 }),
   unit('fayanhao', '发烟豪', 3, ['frontend', 'sorrow'], { name: '摘流', form: 'aoe', target: 'nearest', base: 220, coef: 1.0, stat: 'ap', radius: 1, duration: 0 }),

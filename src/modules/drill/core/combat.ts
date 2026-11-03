@@ -81,6 +81,8 @@ interface Fighter {
   stuckTicks: number
   revived: boolean
   buffs: { atk: number; ap: number; as: number; armor: number; mr: number; until: number }[]
+  role: UnitRole
+  annotations: readonly AnnotationKind[]
 }
 
 export interface BattleOutcome {
@@ -103,11 +105,13 @@ export interface TraceUnit {
   col: number
   row: number
   maxHp: number
+  role: UnitRole
+  annotations: readonly AnnotationKind[]
 }
 
 export interface TraceFrame {
   t: number
-  units: { uid: string; col: number; row: number; hp: number; alive: boolean }[]
+  units: { uid: string; col: number; row: number; hp: number; mana: number; alive: boolean }[]
 }
 
 export interface TraceEvent {
@@ -127,14 +131,23 @@ export interface BattleTrace {
   duration: number
 }
 
+export type UnitRole = 'melee' | 'ranged' | 'mage' | 'tank'
+
+function roleOf(def: UnitDef): UnitRole {
+  const skill = def.skill
+  if (skill.form === 'sustain') return 'tank'
+  if (skill.stat === 'ap') return skill.form === 'aoe' || skill.form === 'line' ? 'mage' : 'ranged'
+  return 'melee'
+}
+
 const DT = 0.1
 /** 单场上限 45 秒；15 / 30 秒各来一次数值膨胀，到点按人数判胜负。 */
 export const MAX_TICKS = 450
 export const BATTLE_SECONDS = MAX_TICKS * DT
 /** 数值膨胀的时间点与幅度：攻击/法强 +30%，生命 +12%。 */
 export const SURGE_TIMES: readonly number[] = [15, 30]
-export const SURGE_ATK = 0.3
-export const SURGE_HP = 0.12
+export const SURGE_ATK = 0.6
+export const SURGE_HP = 0.2
 /** 战场横向扩成两侧：左半己方 0..6，右半对手 7..13。 */
 export const BATTLE_COLS = BOARD_COLS * 2
 const MAX_EVENTS = 1500
@@ -213,6 +226,8 @@ function buildFighter(input: FighterInput, side: 'ally' | 'enemy', mods: Mods): 
     stuckTicks: 0,
     revived: false,
     buffs: [],
+    role: roleOf(def),
+    annotations: input.annotations,
   }
 }
 
@@ -300,6 +315,8 @@ export function simulateBattle(
     col: fighter.col,
     row: fighter.row,
     maxHp: fighter.maxHp,
+    role: fighter.role,
+    annotations: fighter.annotations,
   }))
   const events: TraceEvent[] = []
   const frames: TraceFrame[] = []
@@ -426,6 +443,7 @@ export function simulateBattle(
         col: fighter.col,
         row: fighter.row,
         hp: Math.round(fighter.hp),
+        mana: Math.round(fighter.mana),
         alive: fighter.alive,
       })),
     })

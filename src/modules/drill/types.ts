@@ -12,6 +12,8 @@ export type ProposalTier = 'local' | 'module' | 'global'
 
 export interface UnitNode {
   id: string
+  /** 归属实例定义（用于技能详述等静态信息） */
+  defId?: string
   name: string
   cost: number
   star: 1 | 2 | 3
