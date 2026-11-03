@@ -93,6 +93,7 @@ export interface BattleSummary {
 /** 选秀轮盘上的候选：实例 + 附带注解。 */
 export interface DraftCandidate {
   id: string
+  defId: string
   name: string
   cost: number
   traits: readonly string[]

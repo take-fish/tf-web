@@ -212,6 +212,7 @@ function project(
     const def = UNIT_BY_ID[item.defId]
     return {
       id: item.id,
+      defId: item.defId,
       name: def ? unitName(item.defId, def.name) : item.defId,
       cost: def?.cost ?? 1,
       traits: (def?.traits ?? []).map(

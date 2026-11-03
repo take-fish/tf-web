@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useLineupStore } from '../stores/lineup'
 import { useDrillStore } from '../stores/drill'
 
 const drill = useDrillStore()
+const lineup = useLineupStore()
 
 function pick(index: number) {
   drill.buy(index)
@@ -39,6 +41,11 @@ function lock(index: number) {
           <span class="drill__resource-advice">建议{{ slot.advice }}</span>
           <span class="drill__resource-cost">配额 {{ slot.cost }}</span>
         </button>
+        <span
+          v-if="!slot.soldOut && lineup.isWanted(slot.unitId)"
+          class="drill__resource-dot"
+          title="当前阵容需要的实例"
+        />
         <button
           type="button"
           class="drill__resource-lock"
