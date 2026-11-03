@@ -514,6 +514,9 @@ watch(
   function equip(uid: string, annotationId: string) {
     return run({ type: 'EQUIP', uid, annotationId })
   }
+  function unequip(uid: string, index: number) {
+    return run({ type: 'UNEQUIP', uid, index })
+  }
 
   function pickAugment(id: string) {
     return run({ type: 'PICK_AUGMENT', id })
@@ -566,6 +569,7 @@ watch(
     toggleLock,
     buyXp,
     equip,
+    unequip,
     pickAugment,
     pickCarousel,
     startBattle,

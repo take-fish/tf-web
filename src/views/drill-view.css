@@ -2810,3 +2810,51 @@
   font-style: normal;
   line-height: 1.5;
 }
+
+/* ---------- 注解仓库：悬停提示 ---------- */
+
+.drill__slot {
+  position: relative;
+  cursor: grab;
+}
+
+.drill__slot:disabled {
+  cursor: not-allowed;
+}
+
+.drill__slot-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 70;
+  width: 180px;
+  padding: 7px 9px;
+  transform: translateX(-50%);
+  border: 1px solid var(--fm-border);
+  border-radius: 7px;
+  background: var(--fm-panel, #171b21);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 45%);
+  text-align: left;
+  pointer-events: none;
+}
+
+.drill__slot-tip b {
+  display: block;
+  color: var(--fm-text);
+  font-size: 11px;
+}
+
+.drill__slot-tip em {
+  display: block;
+  margin-top: 2px;
+  color: var(--fm-accent);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.drill__slot-tip-sub {
+  display: block;
+  margin-top: 3px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
