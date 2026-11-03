@@ -2,11 +2,43 @@
 import { computed } from 'vue'
 
 import AppIcon from '@/components/AppIcon.vue'
+import { UNIT_BY_ID } from '../core/content'
 import { useDrillStore } from '../stores/drill'
 import { useDrillUiStore } from '../stores/ui'
 
 const drill = useDrillStore()
 const ui = useDrillUiStore()
+
+const SKILL_FORM: Record<string, string> = {
+  single: '单体打击',
+  aoe: '范围打击',
+  line: '直线贯穿',
+  buff: '全队增益',
+  sustain: '持续治疗',
+}
+
+const SKILL_TARGET: Record<string, string> = {
+  nearest: '最近目标',
+  lowest: '血量最低',
+  highest: '血量最高',
+  self: '自身',
+  team: '全队',
+}
+
+const skillDetail = computed(() => {
+  const current = unit.value
+  if (!current) return ''
+  const def = UNIT_BY_ID[current.defId ?? '']
+  if (!def) return ''
+  const skill = def.skill
+  const parts = [
+    `${SKILL_FORM[skill.form] ?? skill.form} · ${SKILL_TARGET[skill.target] ?? skill.target}`,
+    `基础 ${skill.base}，${skill.stat === 'ap' ? '法强' : '攻击'}加成 ${Math.round((skill.coef ?? 0) * 100)}%`,
+  ]
+  if (skill.radius) parts.push(`波及半径 ${skill.radius}`)
+  if (skill.duration) parts.push(`持续 ${skill.duration}s`)
+  return parts.join(' · ')
+})
 
 const unit = computed(() => {
   const id = ui.drawerUnitId
@@ -65,7 +97,13 @@ function equip() {
         <dt>注解</dt>
         <dd>{{ unit.annotations.length ? unit.annotations.join('、') : '无' }}</dd>
       </div>
-      <div><dt>技能</dt><dd>{{ unit.skill }}</dd></div>
+      <div>
+        <dt>技能</dt>
+        <dd>
+          {{ unit.skill }}
+          <em class="drill__drawer-skill">{{ skillDetail }}</em>
+        </dd>
+      </div>
     </dl>
 
     <div class="drill__drawer-actions">

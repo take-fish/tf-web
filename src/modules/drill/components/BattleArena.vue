@@ -225,10 +225,14 @@ const placed = computed(() => {
       col: unit.col,
       row: unit.row,
       hp: unit.hp,
+      mana: unit.mana,
       alive: unit.alive,
       name: info?.name ?? unit.uid,
       side: info?.side ?? 'ally',
       maxHp: info?.maxHp ?? 1,
+      star: info?.star ?? 1,
+      role: info?.role ?? 'melee',
+      annotations: info?.annotations ?? [],
     }
   })
 })
@@ -500,7 +504,7 @@ onBeforeUnmount(() => {
               v-for="unit in placed"
               :key="unit.uid"
               class="drill__arena-unit"
-              :class="[`is-${unit.side}`, { 'is-down': !unit.alive }]"
+              :class="[`is-${unit.side}`, `role-${unit.role}`, { 'is-down': !unit.alive }]"
               :style="cell(unit.col, unit.row)"
             >
               <span
@@ -514,8 +518,17 @@ onBeforeUnmount(() => {
                 <DrillFigure :side="unit.side" :dead="!unit.alive" />
               </span>
               <span class="drill__arena-name">{{ unit.name }}</span>
-              <span class="drill__arena-hp">
-                <i :style="{ width: hpWidth(unit.hp, unit.maxHp) }" />
+              <span class="drill__arena-bars">
+                <span class="drill__arena-hp">
+                  <i :style="{ width: hpWidth(unit.hp, unit.maxHp) }" />
+                </span>
+                <span class="drill__arena-mana">
+                  <i :style="{ width: hpWidth(unit.mana, 100) }" />
+                </span>
+              </span>
+              <span class="drill__arena-tags">
+                <em class="drill__arena-star">{{ '★'.repeat(unit.star) }}</em>
+                <em v-for="note in unit.annotations" :key="note" class="drill__arena-note">{{ note }}</em>
               </span>
             </div>
 

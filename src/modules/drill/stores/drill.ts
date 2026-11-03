@@ -121,6 +121,7 @@ function project(
     const coord = cellToCoord(unit.slot)
     return {
       id: unit.uid,
+      defId: unit.defId,
       name: def ? unitName(unit.defId, def.name) : unit.defId,
       cost: def?.cost ?? 1,
       star: unit.star,
@@ -142,6 +143,7 @@ function project(
     const def = UNIT_BY_ID[unit.defId]
     return {
       id: unit.uid,
+      defId: unit.defId,
       name: def ? unitName(unit.defId, def.name) : unit.defId,
       cost: def?.cost ?? 1,
       star: unit.star,
