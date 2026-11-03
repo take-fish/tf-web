@@ -9,6 +9,8 @@ export const useDrillUiStore = defineStore('drillUi', () => {
   const arenaOpen = ref(false)
   const promptOpen = ref(false)
   const namingOpen = ref(false)
+  const lineupOpen = ref(false)
+  const lineupTab = ref<'mine' | 'recommended'>('mine')
   const selectedAnnotationId = ref<string | null>(null)
   const toast = ref<string | null>(null)
 
@@ -48,6 +50,15 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     arenaOpen.value = false
   }
 
+  function openLineup(tab: 'mine' | 'recommended' = 'mine') {
+    lineupTab.value = tab
+    lineupOpen.value = true
+  }
+
+  function closeLineup() {
+    lineupOpen.value = false
+  }
+
   function openNaming() {
     namingOpen.value = true
   }
@@ -74,6 +85,8 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     arenaOpen,
     promptOpen,
     namingOpen,
+    lineupOpen,
+    lineupTab,
     selectedAnnotationId,
     toast,
     openDrawer,
@@ -87,6 +100,8 @@ export const useDrillUiStore = defineStore('drillUi', () => {
     closePrompt,
     openNaming,
     closeNaming,
+    openLineup,
+    closeLineup,
     selectAnnotation,
     notify,
   }

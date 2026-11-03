@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { useDrillStore } from '../stores/drill'
+import { useLineupStore } from '../stores/lineup'
 
 /**
  * 选秀轮盘。
@@ -12,6 +13,7 @@ import { useDrillStore } from '../stores/drill'
  */
 
 const drill = useDrillStore()
+const lineup = useLineupStore()
 
 const items = computed(() => drill.snapshot.carousel)
 const open = computed(() => items.value.length > 0)
@@ -198,6 +200,11 @@ onBeforeUnmount(() => {
             :style="unitStyle(screenAngle(item.angle))"
             @click="aim(item.angle)"
           >
+            <span
+              v-if="lineup.isWanted(item.defId)"
+              class="drill__draft-dot"
+              title="当前阵容需要的实例"
+            />
             <b>{{ item.name }}</b>
             <em>{{ item.cost }} 费</em>
             <span v-if="item.annotation" class="drill__draft-anno">{{ item.annotation }}</span>
@@ -210,6 +217,9 @@ onBeforeUnmount(() => {
           <b>行动说明</b>
           <p>方向键 ← → 移动主体，或直接点候选让主体走过去；靠到候选身边即完成抢夺。</p>
           <p>每个候选附带 1 件注解，抢到手后自动进入待命实例池。</p>
+          <p v-if="lineup.active" class="drill__draft-need">
+            当前阵容「{{ lineup.active.name }}」需要：亮红点的候选优先抢。
+          </p>
           <p class="drill__mono">剩余 {{ remaining }}s · 超时自动就近选取</p>
         </aside>
       </div>

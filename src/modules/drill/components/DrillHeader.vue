@@ -72,6 +72,10 @@ const snapshot = computed(() => drill.snapshot)
     </dl>
 
     <div class="drill__actions">
+      <div class="drill__lineup-switch" role="tablist" aria-label="阵容">
+        <button type="button" role="tab" @click="ui.openLineup('mine')">我的阵容</button>
+        <button type="button" role="tab" @click="ui.openLineup('recommended')">推荐阵容</button>
+      </div>
       <button type="button" class="drill__ghost" @click="drill.togglePause()">
         <AppIcon :name="drill.paused ? 'play' : 'pause'" :size="12" />
         {{ drill.paused ? '继续' : '暂停' }}

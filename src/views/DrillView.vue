@@ -7,6 +7,7 @@ import CommandBar from '@/modules/drill/components/CommandBar.vue'
 import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
 import DrillStage from '@/modules/drill/components/DrillStage.vue'
+import LineupPanel from '@/modules/drill/components/LineupPanel.vue'
 import DraftCarousel from '@/modules/drill/components/DraftCarousel.vue'
 import NamingBoard from '@/modules/drill/components/NamingBoard.vue'
 import ProposalModal from '@/modules/drill/components/ProposalModal.vue'
@@ -19,10 +20,12 @@ import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
 import { BLOOD_TIDE_ROUND } from '@/modules/drill/core/engine'
 import { useDrillStore } from '@/modules/drill/stores/drill'
+import { useLineupStore } from '@/modules/drill/stores/lineup'
 import { useDrillUiStore } from '@/modules/drill/stores/ui'
 
 const drill = useDrillStore()
 const ui = useDrillUiStore()
+const lineup = useLineupStore()
 
 const battleActive = ref(false)
 const progress = ref(0)
@@ -76,6 +79,7 @@ function confirmRestart() {
   ui.closeArena()
   ui.closeReport()
   ui.closePrompt()
+  lineup.clearActive()
   drill.restart()
 }
 
@@ -158,6 +162,7 @@ onBeforeUnmount(() => {
     </template>
 
     <UnitDrawer @remove="requestRemove" />
+    <LineupPanel />
     <DraftCarousel />
     <NamingBoard />
     <BattleArena />
