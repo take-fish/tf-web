@@ -1,5 +1,5 @@
 /**
- * 内容表：36 个实例、10 条亲和组、24 个技术专项。
+ * 内容表：39 个实例、14 条亲和组、24 个技术专项。
  * 数值来自《良跑跑-棋子技能设计》《良跑跑-羁绊设计》《良跑跑-技术专项设计》。
  */
 
@@ -17,6 +17,10 @@ export type TraitId =
   | 'rich'
   | 'qa'
   | 'sorrow'
+  | 'xiaozhao'
+  | 'boyu'
+  | 'guanyu'
+  | 'gongdou'
 
 export interface UnitDef {
   id: string
@@ -63,42 +67,54 @@ function unit(
 }
 
 export const UNIT_DEFS: readonly UnitDef[] = [
-  unit('shunfengyao', '顺风尧', 1, ['xiaoshida', 'order'], { name: '灰度放量', form: 'single', target: 'nearest', base: 180, coef: 1.2, stat: 'atk', radius: 0, duration: 0 }),
-  unit('yuetao', '粤涛', 1, ['xiaoshida', 'ai'], { name: '预热加载', form: 'buff', target: 'self', base: 20, coef: 0, stat: 'ap', radius: 0, duration: 5 }),
-  unit('qiewang', '企鹅王', 1, ['arch', 'ai'], { name: '探活保底', form: 'sustain', target: 'self', base: 220, coef: 0, stat: 'ap', radius: 0, duration: 4 }),
-  unit('jingyingqi', '经营齐', 1, ['frontend', 'qa'], { name: '首屏直出', form: 'single', target: 'highest', base: 170, coef: 1.0, stat: 'atk', radius: 0, duration: 0 }),
-  unit('yelu', '夜露', 1, ['rich', 'qa'], { name: '缓存回填', form: 'sustain', target: 'lowest', base: 200, coef: 0.08, stat: 'ap', radius: 0, duration: 0 }),
-  unit('fayanhao', '发烟豪', 1, ['frontend', 'sorrow'], { name: '摘流', form: 'aoe', target: 'nearest', base: 120, coef: 0.8, stat: 'ap', radius: 1, duration: 0 }),
-  unit('kang', '抗', 1, ['flash'], { name: '秒杀兜底', form: 'single', target: 'highest', base: 240, coef: 1.0, stat: 'atk', radius: 0, duration: 0 }),
-  unit('meitao', '美涛', 1, ['supervisor'], { name: '熔断', form: 'single', target: 'lowest', base: 240, coef: 1.0, stat: 'atk', radius: 0, duration: 0 }),
-  unit('liangqiang', '良强', 2, ['xiaoshida', 'arch'], { name: '扩容', form: 'buff', target: 'team', base: 25, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
-  unit('zuoshen', '左肾', 2, ['xiaoshida', 'flash'], { name: '瞬时放量', form: 'single', target: 'nearest', base: 260, coef: 1.3, stat: 'atk', radius: 0, duration: 0 }),
-  unit('da0zi', '大0子', 2, ['xiaoshida', 'frontend'], { name: '链路直连', form: 'line', target: 'nearest', base: 200, coef: 1.0, stat: 'atk', radius: 3, duration: 0 }),
-  unit('zhentian', '震天', 2, ['order', 'ai'], { name: '订单洪峰', form: 'buff', target: 'team', base: 20, coef: 0, stat: 'atk', radius: 0, duration: 6 }),
-  unit('laohuang', '牢黄', 2, ['ai', 'qa'], { name: '重试保底', form: 'sustain', target: 'self', base: 260, coef: 0, stat: 'ap', radius: 0, duration: 4 }),
-  unit('weijin', '围巾', 2, ['frontend', 'rich'], { name: '预取', form: 'aoe', target: 'highest', base: 180, coef: 1.1, stat: 'ap', radius: 1, duration: 0 }),
-  unit('meiyouzheren', '煤油这人', 2, ['supervisor', 'rich'], { name: '告警升级', form: 'single', target: 'highest', base: 250, coef: 1.2, stat: 'atk', radius: 0, duration: 0 }),
-  unit('mangningfeng', '芒柠锋', 2, ['order', 'sorrow'], { name: '削峰填谷', form: 'sustain', target: 'lowest', base: 240, coef: 0.1, stat: 'ap', radius: 0, duration: 0 }),
-  unit('hemadeng', '河马峰', 3, ['xiaoshida', 'supervisor'], { name: '巡检处决', form: 'single', target: 'lowest', base: 400, coef: 1.5, stat: 'atk', radius: 0, duration: 0 }),
-  unit('dange', '蛋哥', 3, ['xiaoshida', 'rich'], { name: '资源调度', form: 'buff', target: 'team', base: 30, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
-  unit('yongqi', '勇气', 3, ['order', 'arch'], { name: '限流', form: 'aoe', target: 'nearest', base: 220, coef: 1.0, stat: 'ap', radius: 1, duration: 3 }),
-  unit('yayiwei', '压抑伟', 3, ['order', 'qa'], { name: '压测对齐', form: 'buff', target: 'team', base: 25, coef: 0, stat: 'ap', radius: 0, duration: 5 }),
-  unit('yujie', '御姐', 3, ['ai', 'frontend'], { name: '推理加速', form: 'line', target: 'nearest', base: 260, coef: 1.2, stat: 'ap', radius: 3, duration: 0 }),
-  unit('zhongliudizhu', '肿瘤地主', 3, ['ai', 'rich'], { name: '缓存预热', form: 'sustain', target: 'team', base: 150, coef: 0.06, stat: 'ap', radius: 0, duration: 0 }),
-  unit('xiao0zi', '小0子', 3, ['flash', 'sorrow'], { name: '秒杀洪峰', form: 'aoe', target: 'nearest', base: 300, coef: 1.2, stat: 'ap', radius: 2, duration: 0 }),
-  unit('dashixiong', '大师兄', 4, ['xiaoshida', 'qa'], { name: '全链路回归', form: 'aoe', target: 'lowest', base: 450, coef: 1.3, stat: 'atk', radius: 2, duration: 0 }),
-  unit('ade', '阿德', 4, ['order', 'frontend'], { name: '首屏接管', form: 'single', target: 'highest', base: 600, coef: 1.8, stat: 'atk', radius: 0, duration: 0 }),
-  unit('meilin', '美林', 4, ['order', 'supervisor'], { name: '熔断降级', form: 'single', target: 'lowest', base: 580, coef: 1.6, stat: 'atk', radius: 0, duration: 0 }),
-  unit('jimuzeng', '积木曾', 4, ['arch', 'flash'], { name: '弹性伸缩', form: 'sustain', target: 'team', base: 280, coef: 0.08, stat: 'ap', radius: 0, duration: 0 }),
-  unit('jingtao', '京涛', 4, ['arch', 'rich'], { name: '地基加固', form: 'buff', target: 'team', base: 40, coef: 0, stat: 'ap', radius: 0, duration: 8 }),
-  unit('meiyun', '美云', 4, ['ai', 'supervisor'], { name: '模型寻优', form: 'line', target: 'nearest', base: 420, coef: 1.4, stat: 'ap', radius: 3, duration: 0 }),
-  unit('longge', '龙哥', 4, ['xiaoshida', 'sorrow'], { name: '摘流回滚', form: 'aoe', target: 'lowest', base: 400, coef: 1.2, stat: 'ap', radius: 2, duration: 0 }),
-  unit('beiyao', '北垚', 5, ['xiaoshida', 'sorrow'], { name: '灰度回滚·全量', form: 'aoe', target: 'lowest', base: 700, coef: 1.6, stat: 'ap', radius: 2, duration: 0 }),
-  unit('guozong', '郭总', 5, ['ai', 'sorrow'], { name: '双活切换', form: 'sustain', target: 'team', base: 280, coef: 0, stat: 'ap', radius: 0, duration: 0 }),
-  unit('miwei', '米威', 5, ['xiaoshida', 'arch', 'qa'], { name: '全链路压测', form: 'buff', target: 'team', base: 25, coef: 0, stat: 'atk', radius: 0, duration: 8 }),
-  unit('depang', '德旁', 5, ['order', 'rich', 'qa'], { name: '资源编排', form: 'aoe', target: 'highest', base: 600, coef: 1.4, stat: 'ap', radius: 2, duration: 0 }),
-  unit('buxiaode', '布晓得', 5, ['order', 'flash'], { name: '秒杀兜底·终局', form: 'single', target: 'highest', base: 850, coef: 2.0, stat: 'atk', radius: 0, duration: 0 }),
-  unit('meide', '媚得', 5, ['frontend', 'supervisor'], { name: '告警终结', form: 'single', target: 'lowest', base: 800, coef: 1.8, stat: 'atk', radius: 0, duration: 0 }),
+  // ── 1 费（9） ──
+  unit('shunfengyao', '顺丰尧', 1, ['xiaoshida'], { name: '灰度放量', form: 'single', target: 'nearest', base: 170, coef: 1.1, stat: 'atk', radius: 0, duration: 0 }),
+  unit('hemadeng', '河马峰', 1, ['xiaoshida'], { name: '巡检处决', form: 'single', target: 'lowest', base: 180, coef: 1.2, stat: 'atk', radius: 0, duration: 0 }),
+  unit('kang', '抗', 1, ['flash'], { name: '秒杀兜底', form: 'single', target: 'highest', base: 190, coef: 1.1, stat: 'atk', radius: 0, duration: 0 }),
+  unit('jimuzeng', '积木曾', 1, ['flash'], { name: '弹性伸缩', form: 'sustain', target: 'team', base: 120, coef: 0.06, stat: 'ap', radius: 0, duration: 0 }),
+  unit('jingyingqi', '经营齐', 1, ['frontend'], { name: '首屏直出', form: 'single', target: 'highest', base: 170, coef: 1.0, stat: 'atk', radius: 0, duration: 0 }),
+  unit('pipi', '皮皮', 1, ['frontend'], { name: '首屏骨架', form: 'single', target: 'nearest', base: 180, coef: 1.1, stat: 'atk', radius: 0, duration: 0 }),
+  unit('weijin', '围巾', 1, ['qa'], { name: '预取', form: 'aoe', target: 'highest', base: 140, coef: 0.9, stat: 'ap', radius: 1, duration: 0 }),
+  unit('yelu', '夜露', 1, ['rich'], { name: '缓存回填', form: 'sustain', target: 'lowest', base: 160, coef: 0.06, stat: 'ap', radius: 0, duration: 0 }),
+  unit('yongqi', '勇气', 1, ['order'], { name: '限流', form: 'aoe', target: 'nearest', base: 150, coef: 0.9, stat: 'ap', radius: 1, duration: 3 }),
+
+  // ── 2 费（9） ──
+  unit('dange', '蛋哥', 2, ['xiaoshida'], { name: '资源调度', form: 'buff', target: 'team', base: 20, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
+  unit('beiyao', '北垚', 2, ['rich'], { name: '灰度回滚', form: 'aoe', target: 'lowest', base: 240, coef: 1.2, stat: 'ap', radius: 1, duration: 0 }),
+  unit('qilianhao', '祁连浩', 2, ['arch'], { name: '容灾演练', form: 'single', target: 'highest', base: 250, coef: 1.2, stat: 'atk', radius: 0, duration: 0 }),
+  unit('meitao', '美涛', 2, ['gongdou', 'supervisor'], { name: '熔断', form: 'single', target: 'lowest', base: 250, coef: 1.1, stat: 'atk', radius: 0, duration: 0 }),
+  unit('shangzhu', '上祝', 2, ['gongdou', 'supervisor'], { name: '问责', form: 'single', target: 'lowest', base: 260, coef: 1.1, stat: 'atk', radius: 0, duration: 0 }),
+  unit('meiyun', '美云', 2, ['ai'], { name: '模型寻优', form: 'line', target: 'nearest', base: 250, coef: 1.2, stat: 'ap', radius: 3, duration: 0 }),
+  unit('weidengnan', '尾灯楠', 2, ['qa'], { name: '回放比对', form: 'single', target: 'highest', base: 240, coef: 1.1, stat: 'atk', radius: 0, duration: 0 }),
+  unit('laohuang', '牢黄', 2, ['ai', 'xiaozhao'], { name: '重试保底', form: 'sustain', target: 'self', base: 260, coef: 0, stat: 'ap', radius: 0, duration: 4 }),
+  unit('yayiwei', '压抑伟', 2, ['order', 'xiaozhao'], { name: '压测对齐', form: 'buff', target: 'team', base: 22, coef: 0, stat: 'ap', radius: 0, duration: 5 }),
+
+  // ── 3 费（9） ──
+  unit('yuetao', '粤涛', 3, ['xiaoshida', 'ai'], { name: '预热加载', form: 'buff', target: 'self', base: 30, coef: 0, stat: 'ap', radius: 0, duration: 5 }),
+  unit('baoyanlong', '保研龙', 3, ['xiaoshida', 'sorrow'], { name: '灰度回灌', form: 'line', target: 'nearest', base: 330, coef: 1.2, stat: 'ap', radius: 3, duration: 0 }),
+  unit('jingtao', '京涛', 3, ['rich', 'xiaoshida'], { name: '地基加固', form: 'buff', target: 'team', base: 35, coef: 0, stat: 'ap', radius: 0, duration: 8 }),
+  unit('qiewang', '企鹅王', 3, ['arch', 'ai'], { name: '探活保底', form: 'sustain', target: 'self', base: 340, coef: 0, stat: 'ap', radius: 0, duration: 4 }),
+  unit('dingshuoai', '顶硕艾', 3, ['arch', 'xiaozhao'], { name: '地基校验', form: 'buff', target: 'team', base: 32, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
+  unit('zhangtianshi', '张天师', 3, ['ai', 'xiaozhao', 'guanyu'], { name: '模型对齐', form: 'line', target: 'nearest', base: 380, coef: 1.3, stat: 'ap', radius: 3, duration: 0 }),
+  unit('ganbu', '干部郭', 3, ['ai', 'xiaozhao', 'sorrow'], { name: '双活切换', form: 'sustain', target: 'team', base: 300, coef: 0, stat: 'ap', radius: 0, duration: 0 }),
+  unit('fayanhao', '发烟豪', 3, ['frontend', 'sorrow'], { name: '摘流', form: 'aoe', target: 'nearest', base: 220, coef: 1.0, stat: 'ap', radius: 1, duration: 0 }),
+  unit('meilin', '美林', 3, ['order'], { name: '熔断降级', form: 'single', target: 'lowest', base: 400, coef: 1.5, stat: 'atk', radius: 0, duration: 0 }),
+
+  // ── 4 费（6） ──
+  unit('dashixiong', '大师兄', 4, ['xiaoshida', 'xiaozhao', 'boyu', 'guanyu'], { name: '全链路回归', form: 'aoe', target: 'lowest', base: 450, coef: 1.3, stat: 'atk', radius: 2, duration: 0 }),
+  unit('zuoshen', '左肾', 4, ['xiaoshida', 'xiaozhao', 'flash', 'guanyu'], { name: '瞬时放量', form: 'single', target: 'nearest', base: 470, coef: 1.4, stat: 'atk', radius: 0, duration: 0 }),
+  unit('jiamei', '佳妹', 4, ['xiaozhao', 'boyu'], { name: '注解合成', form: 'buff', target: 'self', base: 40, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
+  unit('xuejie', '学姐', 4, ['frontend'], { name: '首屏接管', form: 'single', target: 'highest', base: 560, coef: 1.7, stat: 'atk', radius: 0, duration: 0 }),
+  unit('zhentian', '震天', 4, ['order'], { name: '订单洪峰', form: 'buff', target: 'team', base: 30, coef: 0, stat: 'atk', radius: 0, duration: 6 }),
+  unit('mangningfeng', '芒柠锋', 4, ['order'], { name: '削峰填谷', form: 'sustain', target: 'lowest', base: 380, coef: 0.1, stat: 'ap', radius: 0, duration: 0 }),
+
+  // ── 5 费（6） ──
+  unit('miwei', '米威', 5, ['xiaoshida'], { name: '全链路压测', form: 'buff', target: 'team', base: 40, coef: 0, stat: 'atk', radius: 0, duration: 8 }),
+  unit('xiao0zi', '小0子', 5, ['flash', 'xiaozhao', 'sorrow'], { name: '秒杀洪峰', form: 'aoe', target: 'nearest', base: 520, coef: 1.3, stat: 'ap', radius: 2, duration: 0 }),
+  unit('laomode', '劳模德', 5, ['order', 'xiaozhao', 'boyu'], { name: '资源编排', form: 'aoe', target: 'highest', base: 700, coef: 1.4, stat: 'ap', radius: 2, duration: 0 }),
+  unit('yujie', '御姐', 5, ['ai'], { name: '推理加速', form: 'line', target: 'nearest', base: 560, coef: 1.3, stat: 'ap', radius: 3, duration: 0 }),
+  unit('liangqiang', '良强', 5, ['arch'], { name: '扩容', form: 'buff', target: 'team', base: 45, coef: 0, stat: 'ap', radius: 0, duration: 6 }),
+  unit('yelujie', '野露洁', 5, ['supervisor', 'boyu'], { name: '血潮巡检', form: 'single', target: 'lowest', base: 720, coef: 1.6, stat: 'atk', radius: 0, duration: 0 }),
 ]
 
 export const UNIT_BY_ID: Readonly<Record<string, UnitDef>> = Object.fromEntries(
@@ -132,62 +148,86 @@ export const TRAIT_DEFS: readonly TraitDef[] = [
   {
     id: 'xiaoshida',
     label: '小狮达',
-    tiers: [3, 6, 9, 10],
-    effects: [{ atk: 0.12 }, { atk: 0.2, as: 0.12 }, { atk: 0.3, as: 0.2 }, { atk: 0.4, as: 0.25 }],
+    tiers: [3, 6, 9],
+    effects: [{ atk: 0.12 }, { atk: 0.2, as: 0.12 }, { atk: 0.3, as: 0.2 }],
   },
   {
     id: 'order',
-    label: '订单中台',
-    tiers: [2, 4, 7],
-    effects: [{ goldPerRound: 1 }, { goldPerRound: 2, interestCap: 2 }, { goldPerRound: 5, interestCap: 4 }],
+    label: '订单中心',
+    tiers: [2, 4, 6],
+    effects: [{ goldPerRound: 1 }, { goldPerRound: 2, interestCap: 2 }, { goldPerRound: 4, interestCap: 4 }],
   },
   {
     id: 'arch',
     label: '架构',
-    tiers: [2, 3, 5],
-    effects: [{ armor: 20, mr: 20 }, { armor: 35, mr: 35 }, { armor: 60, mr: 60 }],
+    tiers: [2, 4],
+    effects: [{ armor: 20, mr: 20 }, { armor: 40, mr: 40 }],
   },
   {
     id: 'flash',
     label: '闪购',
-    tiers: [2, 3, 4],
-    effects: [{ as: 0.1 }, { as: 0.15 }, { as: 0.25 }],
+    tiers: [2, 4],
+    effects: [{ as: 0.1 }, { as: 0.2, atk: 0.1 }],
   },
   {
     id: 'ai',
     label: 'AI',
-    tiers: [2, 4, 7],
+    tiers: [2, 4, 6],
     effects: [{ ap: 0.15 }, { ap: 0.3 }, { ap: 0.5, as: 0.2 }],
   },
   {
     id: 'frontend',
     label: '前端',
-    tiers: [2, 4, 6],
-    effects: [{ onHitFlat: 8 }, { onHitFlat: 16 }, { onHitFlat: 28 }],
+    tiers: [2, 4],
+    effects: [{ onHitFlat: 8 }, { onHitFlat: 18 }],
   },
   {
     id: 'supervisor',
     label: '监工',
-    tiers: [2, 3, 4],
-    effects: [{ executeBonus: 0.15 }, { executeBonus: 0.25 }, { executeBonus: 0.4 }],
+    tiers: [2, 3],
+    effects: [{ executeBonus: 0.15 }, { executeBonus: 0.3 }],
   },
   {
     id: 'rich',
     label: '小狮富',
-    tiers: [2, 4, 6],
-    effects: [{ goldPerRound: 1 }, { goldPerRound: 2 }, { goldPerRound: 4 }],
+    tiers: [2, 3],
+    effects: [{ goldPerRound: 1 }, { goldPerRound: 3 }],
   },
   {
     id: 'qa',
     label: '测试',
-    tiers: [2, 4, 6],
-    effects: [{ reviveRatio: 0.3 }, { reviveRatio: 0.4 }, { reviveRatio: 0.5 }],
+    tiers: [2],
+    effects: [{ reviveRatio: 0.35 }],
   },
   {
     id: 'sorrow',
     label: '离殇',
-    tiers: [2, 3, 4],
-    effects: [{ deathAoe: 60 }, { deathAoe: 120 }, { deathAoe: 200 }],
+    tiers: [2, 4],
+    effects: [{ deathAoe: 80 }, { deathAoe: 180 }],
+  },
+  {
+    id: 'xiaozhao',
+    label: '笑照',
+    tiers: [2, 5, 8],
+    effects: [{ as: 0.06 }, { as: 0.12, hp: 0.08 }, { as: 0.2, hp: 0.15 }],
+  },
+  {
+    id: 'boyu',
+    label: '泊寓',
+    tiers: [2, 4],
+    effects: [{ goldPerRound: 1 }, { goldPerRound: 2, hp: 0.06 }],
+  },
+  {
+    id: 'guanyu',
+    label: '冠寓',
+    tiers: [2, 3],
+    effects: [{ hp: 0.08 }, { hp: 0.16 }],
+  },
+  {
+    id: 'gongdou',
+    label: '宫斗',
+    tiers: [2],
+    effects: [{ executeBonus: 0.2 }],
   },
 ]
 
@@ -210,7 +250,7 @@ export interface AugmentDef {
 
 export const AUGMENT_DEFS: readonly AugmentDef[] = [
   { id: 'S1', name: '缓存预热', tier: 'silver', scope: 'local', effect: '每轮第一次刷新不消耗配额', upside: '收益：配额', risk: '风险：无' },
-  { id: 'S2', name: '弹性额度', tier: 'silver', scope: 'local', effect: '利息上限 5 → 6（与订单中台叠加封顶 8）', upside: '收益：利息', risk: '风险：无' },
+  { id: 'S2', name: '弹性额度', tier: 'silver', scope: 'local', effect: '利息上限 5 → 6（与订单中心叠加封顶 8）', upside: '收益：利息', risk: '风险：无' },
   { id: 'S3', name: '冷启动优化', tier: 'silver', scope: 'local', effect: '每个 PVE 轮额外掉落 1 个元注解', upside: '收益：注解', risk: '风险：无' },
   { id: 'S4', name: '灰度发布', tier: 'silver', scope: 'local', effect: '3 费出现概率 +5%', upside: '收益：中期补强', risk: '风险：低费变薄' },
   { id: 'S5', name: '监控补点', tier: 'silver', scope: 'local', effect: '战斗开始后 8 秒内全队攻速 +8%', upside: '收益：快攻', risk: '风险：无' },
@@ -242,14 +282,14 @@ export const AUGMENT_BY_ID: Readonly<Record<string, AugmentDef>> = Object.fromEn
 /** 商店各等级的费用概率（1..5 费），与《经济与节奏设计》一致。 */
 export const SHOP_ODDS: Readonly<Record<number, readonly number[]>> = {
   3: [75, 25, 0, 0, 0],
-  4: [55, 30, 15, 0, 0],
+  4: [60, 30, 10, 0, 0],
   5: [45, 33, 20, 2, 0],
-  6: [30, 40, 25, 5, 0],
-  7: [20, 35, 35, 9, 1],
-  8: [15, 25, 35, 20, 5],
-  9: [10, 15, 25, 30, 20],
+  6: [30, 38, 25, 7, 0],
+  7: [20, 30, 32, 13, 5],
+  8: [12, 22, 30, 24, 12],
+  9: [8, 15, 25, 30, 22],
 }
 
 export const XP_TABLE: Readonly<Record<number, number>> = { 3: 6, 4: 10, 5: 16, 6: 22, 7: 30, 8: 60 }
 
-export const POOL_COUNTS: Readonly<Record<number, number>> = { 1: 20, 2: 16, 3: 14, 4: 12, 5: 10 }
+export const POOL_COUNTS: Readonly<Record<number, number>> = { 1: 22, 2: 18, 3: 15, 4: 12, 5: 9 }
