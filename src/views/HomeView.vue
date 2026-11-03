@@ -30,6 +30,7 @@ const smokeOpen = ref(false)
 const seenInvites = ref<string[]>([])
 
 let groupTimer: ReturnType<typeof setInterval> | undefined
+let onlineTimer: ReturnType<typeof setInterval> | undefined
 
 const socket = new ChatSocketClient({
   onSmokeState: (state) => {
@@ -173,6 +174,16 @@ async function refresh(): Promise<void> {
   await loadDashboard()
 }
 
+/** 在线列表单独轮询：上下线不会主动推送全量，靠这个保持数字实时。 */
+async function loadOnline(): Promise<void> {
+  try {
+    const members = await fetchOnline()
+    if (!smokeState.value) restOnline.value = members
+  } catch {
+    // 单次失败不提示，等下一轮
+  }
+}
+
 function openOnline(): void {
   onlineOpen.value = true
 }
@@ -227,11 +238,15 @@ onMounted(() => {
   groupTimer = setInterval(() => {
     void loadGroups()
   }, 20_000)
+  onlineTimer = setInterval(() => {
+    void loadOnline()
+  }, 30_000)
 })
 
 onUnmounted(() => {
   socket.close()
   if (groupTimer) clearInterval(groupTimer)
+  if (onlineTimer) clearInterval(onlineTimer)
 })
 </script>
 
