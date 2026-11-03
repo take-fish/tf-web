@@ -92,4 +92,42 @@ describe('战斗轨迹', () => {
 
     expect(outcome.trace.events.some((event) => event.kind === 'surge')).toBe(false)
   })
+
+  it('常规对局不会卡住：能在 45 秒上限内分出胜负', () => {
+    const setups = [
+      { allies: ['kang', 'jimuzeng', 'zuoshen'], enemies: ['kang', 'jimuzeng', 'zuoshen'] },
+      { allies: ['miwei', 'zuoshen', 'kang', 'jimuzeng'], enemies: ['jingyingqi', 'kang', 'zuoshen'] },
+      { allies: ['kang', 'kang'], enemies: ['jimuzeng', 'jimuzeng', 'kang'] },
+    ]
+    for (const setup of setups) {
+      const outcome = simulateBattle(
+        setup.allies.map((defId, index) => fighter(`a${index}`, defId, index)),
+        setup.enemies.map((defId, index) => fighter(`e${index}`, defId, index)),
+        EMPTY_MODS,
+        EMPTY_MODS,
+      )
+      expect(outcome.ticks).toBeLessThan(MAX_TICKS)
+      expect(outcome.allyAlive + outcome.enemyAlive).toBeLessThan(
+        setup.allies.length + setup.enemies.length,
+      )
+    }
+  })
+
+  it('阵亡单位让出格子：最后一帧存活单位不重叠', () => {
+    const outcome = simulateBattle(
+      ['kang', 'jimuzeng', 'zuoshen', 'miwei'].map((defId, index) =>
+        fighter(`a${index}`, defId, index),
+      ),
+      ['kang', 'jimuzeng', 'zuoshen', 'miwei'].map((defId, index) =>
+        fighter(`e${index}`, defId, index),
+      ),
+      EMPTY_MODS,
+      EMPTY_MODS,
+    )
+    const lastFrame = outcome.trace.frames.at(-1)
+    expect(lastFrame).toBeTruthy()
+    const alive = (lastFrame?.units ?? []).filter((unit) => unit.alive)
+    const cells = new Set(alive.map((unit) => `${unit.col},${unit.row}`))
+    expect(cells.size).toBe(alive.length)
+  })
 })

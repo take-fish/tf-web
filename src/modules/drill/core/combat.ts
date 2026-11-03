@@ -77,6 +77,8 @@ interface Fighter {
   mana: number
   alive: boolean
   attackCd: number
+  /** 连续多少帧没有移动也没有攻击：用来兜底卡位（被围死时直接开打） */
+  stuckTicks: number
   revived: boolean
   buffs: { atk: number; ap: number; as: number; armor: number; mr: number; until: number }[]
 }
@@ -208,6 +210,7 @@ function buildFighter(input: FighterInput, side: 'ally' | 'enemy', mods: Mods): 
     mana: Math.min(100, manaStart),
     alive: true,
     attackCd: 0,
+    stuckTicks: 0,
     revived: false,
     buffs: [],
   }
@@ -346,20 +349,37 @@ export function simulateBattle(
       if (distance > reach) {
         // 移动是匀速的：0.25s 一格，避免远程单位原地罚站
         fighter.attackCd += DT * 4
+        let moved = false
         if (fighter.attackCd >= 1) {
           fighter.attackCd = 0
-          const options = neighbors(fighter.col, fighter.row)
-            .filter((cell) => !occupied.has(`${cell.col},${cell.row}`))
+          const options = neighbors(fighter.col, fighter.row).filter(
+            (cell) => !occupied.has(`${cell.col},${cell.row}`),
+          )
+          const forward = options
+            .filter((cell) => hexDistance(cell, target) < distance)
             .sort((a, b) => hexDistance(a, target) - hexDistance(b, target))
-          const step = options[0]
-          if (step && hexDistance(step, target) < distance) {
+          // 前方被占时允许横向绕行，避免贴身堵死
+          const lateral = options
+            .filter((cell) => hexDistance(cell, target) === distance)
+            .sort((a, b) => hexDistance(a, target) - hexDistance(b, target))
+          const step = forward[0] ?? lateral[0]
+          if (step) {
             occupied.delete(`${fighter.col},${fighter.row}`)
             fighter.col = step.col
             fighter.row = step.row
             occupied.add(`${fighter.col},${fighter.row}`)
+            moved = true
           }
         }
-        continue
+        if (moved) {
+          fighter.stuckTicks = 0
+        } else {
+          fighter.stuckTicks += 1
+        }
+        // 兜底：被完全堵住 3 秒后直接开打，避免整场「打着打着不动了」
+        if (fighter.stuckTicks < 30) continue
+      } else {
+        fighter.stuckTicks = 0
       }
 
       fighter.attackCd += effective(fighter, 'as', elapsed) * DT
@@ -389,6 +409,12 @@ export function simulateBattle(
     for (const fighter of fighters) {
       if (!fighter.alive || fighter.hp > 0) continue
       handleDeath(fighter, fighters, elapsed, fighter.side === 'ally' ? allyMods : enemyMods)
+    }
+    // 尸体不再占格子，否则存活单位会被卡住、打着打着就不动了；复活则重新占位
+    for (const fighter of fighters) {
+      const key = `${fighter.col},${fighter.row}`
+      if (fighter.alive) occupied.add(key)
+      else occupied.delete(key)
     }
 
     const allyHp = living(fighters, 'ally').reduce((sum, fighter) => sum + fighter.hp, 0)
@@ -457,7 +483,6 @@ function handleDeath(fighter: Fighter, fighters: Fighter[], elapsed: number, mod
       if (!enemy.alive || enemy.side !== enemySide) continue
       if (hexDistance(fighter, enemy) > 2) continue
       enemy.hp = Math.max(0, enemy.hp - mods.deathAoe)
-      if (enemy.hp === 0) enemy.alive = false
     }
   }
   void elapsed

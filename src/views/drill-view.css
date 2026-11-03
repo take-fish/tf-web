@@ -2573,3 +2573,167 @@
     transform: scale(1.35);
   }
 }
+/* ---------- 亲和组：悬停预览 + 点击详情 ---------- */
+
+.drill__trait {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.12s ease;
+}
+
+.drill__trait:hover,
+.drill__trait.is-hover {
+  background: color-mix(in srgb, var(--fm-accent) 10%, transparent);
+}
+
+.drill__trait:focus-visible {
+  outline: 1px solid var(--fm-accent);
+  outline-offset: 1px;
+}
+
+.drill__trait-pop {
+  position: fixed;
+  z-index: 60;
+  width: 268px;
+  padding: 10px 12px;
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  background: var(--fm-panel, #171b21);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+  pointer-events: auto;
+}
+
+.drill__trait-pop-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.drill__trait-pop-head b {
+  color: var(--fm-text);
+  font-size: 12px;
+}
+
+.drill__trait-pop-head em {
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.drill__trait-pop-tiers,
+.drill__trait-card-tiers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drill__trait-pop-tiers li,
+.drill__trait-card-tiers li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  color: var(--fm-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.drill__trait-pop-tiers li.is-on,
+.drill__trait-card-tiers li.is-on {
+  color: var(--fm-text);
+}
+
+.drill__tier-threshold {
+  flex: none;
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill__trait-pop-tiers li.is-on .drill__tier-threshold,
+.drill__trait-card-tiers li.is-on .drill__tier-threshold {
+  color: var(--fm-accent);
+}
+
+.drill__tier-effect {
+  flex: 1;
+}
+
+.drill__tier-on {
+  flex: none;
+  color: var(--fm-accent);
+  font-size: 10px;
+}
+
+.drill__trait-pop-hint {
+  margin: 6px 0 0;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  text-align: right;
+}
+
+.drill__trait-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 45%);
+}
+
+.drill__trait-card {
+  width: min(420px, calc(100vw - 48px));
+  padding: 16px 18px 14px;
+  border: 1px solid var(--fm-border);
+  border-radius: 10px;
+  background: var(--fm-panel, #171b21);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 55%);
+}
+
+.drill__trait-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.drill__trait-card-head b {
+  display: block;
+  color: var(--fm-text);
+  font-size: 14px;
+}
+
+.drill__trait-card-head span {
+  color: var(--fm-text-muted);
+  font-size: 11px;
+}
+
+.drill__trait-close {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fm-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.drill__trait-close:hover {
+  color: var(--fm-text);
+  border-color: var(--fm-accent);
+}
+
+.drill__trait-card-tiers li {
+  padding: 6px 0;
+  border-top: 1px dashed var(--fm-border);
+}
+
+.drill__trait-card-hint {
+  margin: 10px 0 0;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
