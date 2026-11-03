@@ -84,7 +84,7 @@ function makeOpponents(): OpponentState[] {
   return Array.from({ length: 7 }, (_, index) => ({
     id: `r${index + 1}`,
     name: `对照组-${String(index + 1).padStart(2, '0')}`,
-    sli: 60 + Math.round(Math.random() * 40),
+    sli: 100,
     alive: true,
   }))
 }
