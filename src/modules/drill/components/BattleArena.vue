@@ -271,15 +271,69 @@ function at(uid: string | undefined): { x: number; y: number } | null {
 }
 
 /** 技能形态 → 观察窗里的特效：单体=光束，直线=粗光束，AOE=扩散环，增益=脚下光环，持续=回升粒子 */
-function skillFx(kind: string, from: { x: number; y: number }, to: { x: number; y: number }, tone?: Fx['tone']) {
-  if (kind === 'single') pushFx({ kind: 'beam', x: from.x, y: from.y, x2: to.x, y2: to.y, tone }, 320)
-  else if (kind === 'line') pushFx({ kind: 'line', x: from.x, y: from.y, x2: to.x, y2: to.y, tone }, 360)
-  else if (kind === 'aoe') pushFx({ kind: 'ring', x: to.x, y: to.y, x2: to.x, y2: to.y, tone }, 560)
-  else if (kind === 'buff') pushFx({ kind: 'aura', x: from.x, y: from.y, x2: from.x, y2: from.y, tone }, 700)
-  else {
-    pushFx({ kind: 'spark', x: to.x, y: to.y - 2, x2: to.x, y2: to.y, tone }, 560)
-    pushFx({ kind: 'spark', x: to.x - 1.6, y: to.y, x2: to.x, y2: to.y, tone }, 620)
-    pushFx({ kind: 'spark', x: to.x + 1.8, y: to.y - 1, x2: to.x, y2: to.y, tone }, 680)
+/** 技能名 → 稳定的视觉签名：同一技能每次长得一样，不同技能之间能区分开 */
+function skillSignature(name: string): number {
+  let hash = 0
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + name.charCodeAt(index)) % 997
+  }
+  return hash
+}
+
+function skillFx(
+  kind: string,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  tone: Fx['tone'] | undefined,
+  name: string,
+) {
+  const seed = skillSignature(name)
+  const sparks = 2 + (seed % 3)
+  const layers = 1 + (seed % 2)
+  if (kind === 'single') {
+    pushFx({ kind: 'beam', x: from.x, y: from.y, x2: to.x, y2: to.y, tone }, 320 + (seed % 120))
+    for (let index = 0; index < sparks; index += 1) {
+      pushFx(
+        {
+          kind: 'spark',
+          x: to.x + Math.sin((seed + index * 47) % 360) * 1.6,
+          y: to.y + Math.cos((seed + index * 53) % 360) * 1.4,
+          x2: to.x,
+          y2: to.y,
+          tone,
+        },
+        520 + index * 60,
+      )
+    }
+  } else if (kind === 'line') {
+    for (let index = 0; index < layers + 1; index += 1) {
+      pushFx(
+        { kind: 'line', x: from.x, y: from.y + index * 0.4, x2: to.x, y2: to.y + index * 0.4, tone },
+        360 + index * 70,
+      )
+    }
+  } else if (kind === 'aoe') {
+    for (let index = 0; index < layers + 1; index += 1) {
+      pushFx({ kind: 'ring', x: to.x, y: to.y, x2: to.x, y2: to.y, tone }, 480 + index * 110)
+    }
+  } else if (kind === 'buff') {
+    pushFx({ kind: 'aura', x: from.x, y: from.y, x2: from.x, y2: from.y, tone }, 700)
+    if (seed % 2 === 0) pushFx({ kind: 'ring', x: from.x, y: from.y, x2: from.x, y2: from.y, tone }, 520)
+  } else {
+    for (let index = 0; index < sparks + 1; index += 1) {
+      const angle = (seed % 360) + index * 60
+      pushFx(
+        {
+          kind: 'spark',
+          x: to.x + Math.sin((angle * Math.PI) / 180) * 1.8,
+          y: to.y + Math.cos((angle * Math.PI) / 180) * 1.5,
+          x2: to.x,
+          y2: to.y,
+          tone,
+        },
+        520 + index * 70,
+      )
+    }
   }
 }
 
@@ -324,7 +378,7 @@ function process(from: number, to: number) {
       if (casterAt) flagMotion('cast', event.uid)
       if (casterAt) {
         pushFx({ kind: 'castring', x: casterAt.x, y: casterAt.y, x2: casterAt.x, y2: casterAt.y }, 430)
-        if (targetAt && form) skillFx(form, casterAt, targetAt, caster?.role)
+        if (targetAt && form) skillFx(form, casterAt, targetAt, caster?.role, event.text ?? '技能')
       }
 
       if (casterAt) {
