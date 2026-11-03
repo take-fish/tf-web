@@ -137,6 +137,12 @@ export interface DrillSnapshot {
   round: number
   totalRounds: number
   sli: number
+  /** 终局名次，未结束时为 null */
+  placement: number | null
+  /** 终局积分，未结束时为 null */
+  matchPoints: number | null
+  /** 仍在场的席位数（含自己） */
+  aliveSeats: number
   scale: number
   elapsed: number
   phase: DrillPhase

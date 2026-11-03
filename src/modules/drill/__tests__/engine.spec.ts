@@ -127,6 +127,56 @@ describe('drill engine', () => {
     expect(state.round).toBeGreaterThan(3)
     expect(state.log.length).toBeGreaterThan(0)
   })
+
+  it('血量归零即淘汰：终局有名次与积分', () => {
+    let state = createGame(99)
+    let guard = 0
+    while (state.phase !== 'END' && guard < 400) {
+      guard += 1
+      const index = state.shop.findIndex((slot) => {
+        if (slot.sold || !slot.defId) return false
+        const def = UNIT_BY_ID[slot.defId]
+        return def !== undefined && state.quotas >= def.cost
+      })
+      if (index >= 0) state = apply(state, { type: 'BUY', slot: index })
+
+      const bench = state.units.find((unit) => unit.zone === 'bench')
+      if (bench) {
+        const used = new Set(
+          state.units.filter((unit) => unit.zone === 'board').map((unit) => unit.slot),
+        )
+        const cell = Array.from({ length: 28 }, (_, value) => value).find(
+          (value) => !used.has(value),
+        )
+        if (cell !== undefined) {
+          state = apply(state, { type: 'MOVE', uid: bench.uid, zone: 'board', slot: cell })
+        }
+      }
+
+      const pending = state.pendingAugment
+      if (pending && pending.length > 0) {
+        state = apply(state, { type: 'PICK_AUGMENT', id: pending[0] ?? '' })
+      }
+
+      if (state.phase === 'DRAFT' && state.carousel) {
+        const item = state.carousel.items[0]
+        if (item) state = apply(state, { type: 'PICK_CAROUSEL', itemId: item.id })
+      }
+
+      if (state.phase === 'PREP' && state.units.some((unit) => unit.zone === 'board')) {
+        state = apply(state, { type: 'START_BATTLE' })
+      }
+    }
+
+    expect(state.phase).toBe('END')
+    expect(state.round).toBeLessThan(20)
+    expect(state.placement).toBeGreaterThanOrEqual(1)
+    expect(state.placement).toBeLessThanOrEqual(8)
+    expect(state.matchPoints ?? 0).toBeGreaterThanOrEqual(0)
+    // 其余席位也会掉血：不再是一排恒定的 60–100
+    const changed = state.opponents.some((seat) => seat.sli !== 100 && (seat.eliminatedAt ?? 0) > 0 || !seat.alive)
+    expect(changed).toBe(true)
+  })
 })
 
 describe('替换与回放', () => {
