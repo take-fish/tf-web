@@ -127,7 +127,7 @@ export function createGame(seed = Date.now()): GameState {
   const base: GameState = {
     seed,
     round: 1,
-    totalRounds: 20,
+    totalRounds: 25,
     phase: 'PREP',
     quotas: 10,
     level: 3,
@@ -403,7 +403,7 @@ function settle(state: GameState): GameState {
   next = rollShop(next, true)
 
   if (next.round > next.totalRounds) {
-    // 打满 20 轮仍没分出胜负：按存活与血量收口
+    // 打满 25 轮（第 6 阶段之前）仍没分出胜负：按存活与血量收口
     const placement = placementOf(next)
     return {
       ...next,
