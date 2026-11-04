@@ -91,7 +91,7 @@ onBeforeUnmount(() => {
         <button type="button" class="drill__primary" :disabled="knockout.loading" @click="startBracket">
           开启淘汰赛
         </button>
-        <p class="drill__hint">需要 8 名选手；不足 8 人时暂不能开赛。</p>
+        <p class="drill__hint">至少 2 名真人即可开赛；不足 8 人时由机器人教练补位。</p>
       </div>
 
       <template v-else>
