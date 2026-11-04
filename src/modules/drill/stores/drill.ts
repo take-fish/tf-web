@@ -308,8 +308,14 @@ export const useDrillStore = defineStore('drill', () => {
     }
   }
 
-  function resetState(tournament: boolean, seed?: number, rounds?: number, carry?: GameState) {
-    state.value = createGame(seed ?? Date.now(), { tournament, rounds, carry })
+  function resetState(
+    tournament: boolean,
+    seed?: number,
+    rounds?: number,
+    carry?: GameState,
+    rewardOnEnd = true,
+  ) {
+    state.value = createGame(seed ?? Date.now(), { tournament, rounds, carry, rewardOnEnd })
     elapsed.value = 0
     error.value = null
     lastTrace.value = null
@@ -362,7 +368,7 @@ export const useDrillStore = defineStore('drill', () => {
     mode.value = 'tournament'
     party.value = []
     persistParty()
-    resetState(true, seed, rounds, carry)
+    resetState(true, seed, rounds, carry, false)
   }
 
   /** 给淘汰赛局间带入用的原始状态（等级/经验/配额/阵容/装备/强化）。 */

@@ -123,7 +123,7 @@ function rollShop(state: GameState, free: boolean): GameState {
 
 export function createGame(
   seed = Date.now(),
-  options: { tournament?: boolean; rounds?: number; carry?: GameState } = {},
+  options: { tournament?: boolean; rounds?: number; carry?: GameState; rewardOnEnd?: boolean } = {},
 ): GameState {
   const pool: Record<string, number> = {}
   for (const def of UNIT_DEFS) pool[def.id] = POOL_COUNTS[def.cost] ?? 0
@@ -156,6 +156,7 @@ export function createGame(
   carousel: null,
     usedSecondLife: false,
     mergedCount: 0,
+    rewardOnEnd: options.rewardOnEnd ?? true,
   }
 
   // 淘汰赛局间带入：等级 / 经验 / 配额 / 阵容 / 装备 / 强化保留，商店重刷
@@ -456,6 +457,14 @@ function settle(state: GameState): GameState {
     // 锦标赛：15 轮排位结束，按战绩（胜 > 负少 > 平多）排名
     const placement = next.tournament ? tournamentPlacement(next.standings ?? []) : placementOf(next)
     if (next.tournament) {
+      // 淘汰赛单局不发排位奖励，避免每局重复发装备/配额
+      if (next.rewardOnEnd === false) {
+        return {
+          ...next,
+          phase: 'END',
+          placement,
+        }
+      }
       const reward = tournamentReward(placement)
       return {
         ...grantTournamentReward(next, reward),
