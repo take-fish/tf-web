@@ -3113,6 +3113,22 @@
   z-index: 5;
 }
 
+.drill__prep-skip {
+  margin-left: 8px;
+  padding: 0 8px;
+  border: 1px solid #5a3c1c;
+  border-radius: 999px;
+  background: transparent;
+  color: #f0b877;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.drill__prep-skip:hover {
+  background: #3a2a16;
+}
+
 /* ---------- 同局临时聊天（右下角固定小窗） ---------- */
 
 .drill__chat {
@@ -3211,26 +3227,4 @@
   color: #f0b877;
   font-size: 11px;
   cursor: pointer;
-}
-
-.drill__prep-skip {
-  margin-left: 8px;
-  padding: 0 8px;
-  border: 1px solid #5a3c1c;
-  border-radius: 999px;
-  background: transparent;
-  color: #f0b877;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.drill__prep-skip:hover {
-  background: #3a2a16;
-}
-
-.drill__prep-wait {
-  margin-left: 8px;
-  color: var(--fm-text-muted);
-  font-style: normal;
-  font-size: 10px;
 }

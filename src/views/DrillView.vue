@@ -38,12 +38,6 @@ const restartOpen = ref(false)
 const PRELUDE_SECONDS = 35
 const INTERMISSION_SECONDS = 25
 const prepLeft = ref<number | null>(null)
-const skipRequested = ref(false)
-
-/** 直接开始：只发请求，必须对方也点才生效（等待对方确认期间可继续等待或放弃） */
-function requestSkip() {
-  skipRequested.value = true
-}
 let prepTimer: number | undefined
 
 function stopPrep() {
@@ -56,7 +50,6 @@ function startPrep() {
   stopPrep()
   if (!drill.snapshot.tournament || drill.snapshot.over) return
   prepLeft.value = drill.snapshot.round <= 1 ? PRELUDE_SECONDS : INTERMISSION_SECONDS
-  skipRequested.value = false
   prepTimer = window.setInterval(() => {
     if (prepLeft.value === null) return
     prepLeft.value -= 1
@@ -64,6 +57,13 @@ function startPrep() {
     stopPrep()
     if (!battleActive.value && !drill.snapshot.over) requestBattle()
   }, 1000)
+}
+
+/** 备战窗口「直接开始」：本地演练跳过剩余等待，立即进入本局。 */
+function skipPrep() {
+  if (prepLeft.value === null) return
+  stopPrep()
+  if (!battleActive.value && !drill.snapshot.over) requestBattle()
 }
 
 watch(
@@ -178,6 +178,7 @@ watch(
 
 onMounted(() => {
   if (drill.mode === null) drill.startSolo()
+  else if (drill.mode === 'tournament' && !drill.snapshot.tournament) drill.startTournament()
   clockTimer = window.setInterval(() => drill.tick(), 1000)
 })
 
@@ -192,8 +193,7 @@ onBeforeUnmount(() => {
     <DrillHeader @restart="restartOpen = true" />
     <span v-if="prepLeft !== null" class="drill__prep-chip">
       备战 {{ prepLeft }}s
-      <button v-if="!skipRequested" type="button" class="drill__prep-skip" @click="requestSkip()">直接开始</button>
-      <em v-else class="drill__prep-wait">已请求，等待对方…</em>
+      <button type="button" class="drill__prep-skip" @click="skipPrep">直接开始</button>
     </span>
 
     <div class="drill__body">
