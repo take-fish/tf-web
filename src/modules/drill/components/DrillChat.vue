@@ -1,22 +1,24 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import { useAuthStore } from '@/stores/auth'
+import { useDrillRoomStore } from '../stores/room'
 
 interface ChatMessage {
-  id: number
+  id: number | string
   who: string
   text: string
   at: number
 }
 
 const auth = useAuthStore()
+const room = useDrillRoomStore()
 const open = ref(true)
 const draft = ref('')
 const listEl = ref<HTMLElement | null>(null)
 let nextId = 1
 
-const messages = ref<ChatMessage[]>([
+const localMessages = ref<ChatMessage[]>([
   {
     id: 0,
     who: '系统',
@@ -25,15 +27,32 @@ const messages = ref<ChatMessage[]>([
   },
 ])
 
+const messages = computed<ChatMessage[]>(() => {
+  if (room.active) {
+    return (room.room?.chats ?? []).map((chat, index) => ({
+      id: `${chat.at}-${chat.userId}-${index}`,
+      who: chat.nickname || chat.userId,
+      text: chat.text,
+      at: chat.at,
+    }))
+  }
+  return localMessages.value
+})
+
 function send(): void {
   const text = draft.value.trim()
   if (!text) return
-  messages.value = [
-    ...messages.value,
-    { id: nextId++, who: auth.user?.nickname ?? '我', text: text.slice(0, 200), at: Date.now() },
-  ]
-  if (messages.value.length > 50) messages.value = messages.value.slice(-50)
+  const body = text.slice(0, 200)
   draft.value = ''
+  if (room.active) {
+    void room.chat(body)
+    return
+  }
+  localMessages.value = [
+    ...localMessages.value,
+    { id: nextId++, who: auth.user?.nickname ?? '我', text: body, at: Date.now() },
+  ]
+  if (localMessages.value.length > 50) localMessages.value = localMessages.value.slice(-50)
 }
 
 watch(
@@ -48,7 +67,7 @@ watch(
 <template>
   <section class="drill__chat" :class="{ 'is-closed': !open }" aria-label="同局临时聊天">
     <header class="drill__chat-head">
-      <b>同局频道</b>
+      <b>{{ room.active ? `房间 ${room.room?.id}` : '同局频道' }}</b>
       <button type="button" class="drill__chat-toggle" @click="open = !open">
         {{ open ? '收起' : '展开' }}
       </button>
@@ -56,6 +75,9 @@ watch(
 
     <template v-if="open">
       <ul ref="listEl" class="drill__chat-list">
+        <li v-if="messages.length === 0" class="drill__chat-row">
+          <span class="drill__chat-text">还没有人说话，打个招呼吧。</span>
+        </li>
         <li v-for="message in messages" :key="message.id" class="drill__chat-row">
           <span class="drill__chat-who">{{ message.who }}</span>
           <span class="drill__chat-text">{{ message.text }}</span>

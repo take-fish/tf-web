@@ -308,8 +308,8 @@ export const useDrillStore = defineStore('drill', () => {
     }
   }
 
-  function resetState(tournament: boolean) {
-    state.value = createGame(Date.now(), { tournament })
+  function resetState(tournament: boolean, seed?: number) {
+    state.value = createGame(seed ?? Date.now(), { tournament })
     elapsed.value = 0
     error.value = null
     lastTrace.value = null
@@ -337,6 +337,24 @@ export const useDrillStore = defineStore('drill', () => {
     party.value = []
     persistParty()
     resetState(true)
+  }
+
+  /**
+   * 联机房间开局：按服务端 seed 重开本地引擎。
+   * 返回 false 表示本地已走到别的轮次，无法追赶服务端。
+   */
+  function adoptRoom(seed: number, tournament: boolean, round = 1): boolean {
+    const same =
+      state.value.seed === seed &&
+      (state.value.tournament === true) === tournament &&
+      state.value.round === round
+    mode.value = tournament ? 'tournament' : 'party'
+    party.value = []
+    persistParty()
+    if (same) return true
+    if (round > 1) return false
+    resetState(tournament, seed)
+    return true
   }
 
   function resetMode() {
@@ -581,6 +599,7 @@ watch(
     startSolo,
     startParty,
     startTournament,
+    adoptRoom,
     resetMode,
     matchups,
     preview,

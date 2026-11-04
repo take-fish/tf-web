@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import AnnotationTray from '@/modules/drill/components/AnnotationTray.vue'
 import BattleArena from '@/modules/drill/components/BattleArena.vue'
 import CommandBar from '@/modules/drill/components/CommandBar.vue'
 import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
+import DraftCarousel from '@/modules/drill/components/DraftCarousel.vue'
 import DrillChat from '@/modules/drill/components/DrillChat.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
 import DrillStage from '@/modules/drill/components/DrillStage.vue'
 import LineupPanel from '@/modules/drill/components/LineupPanel.vue'
-import DraftCarousel from '@/modules/drill/components/DraftCarousel.vue'
 import NamingBoard from '@/modules/drill/components/NamingBoard.vue'
 import ProposalModal from '@/modules/drill/components/ProposalModal.vue'
 import ReportModal from '@/modules/drill/components/ReportModal.vue'
@@ -22,12 +23,19 @@ import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
 import { BLOOD_TIDE_ROUND } from '@/modules/drill/core/engine'
 import { useDrillStore } from '@/modules/drill/stores/drill'
+import { useDrillRoomStore } from '@/modules/drill/stores/room'
 import { useLineupStore } from '@/modules/drill/stores/lineup'
 import { useDrillUiStore } from '@/modules/drill/stores/ui'
 
+const route = useRoute()
+const router = useRouter()
 const drill = useDrillStore()
+const room = useDrillRoomStore()
 const ui = useDrillUiStore()
 const lineup = useLineupStore()
+
+const roomMode = computed(() => room.active)
+const queryRoom = typeof route.query.room === 'string' ? route.query.room : ''
 
 const battleActive = ref(false)
 const progress = ref(0)
@@ -48,6 +56,7 @@ function stopPrep() {
 
 function startPrep() {
   stopPrep()
+  if (room.active) return
   if (!drill.snapshot.tournament || drill.snapshot.over) return
   prepLeft.value = drill.snapshot.round <= 1 ? PRELUDE_SECONDS : INTERMISSION_SECONDS
   prepTimer = window.setInterval(() => {
@@ -59,8 +68,12 @@ function startPrep() {
   }, 1000)
 }
 
-/** 备战窗口「直接开始」：本地演练跳过剩余等待，立即进入本局。 */
+/** 备战窗口「直接开始」：本地演练跳过剩余等待；联机房间交给服务端投票。 */
 function skipPrep() {
+  if (room.active) {
+    void room.skip()
+    return
+  }
   if (prepLeft.value === null) return
   stopPrep()
   if (!battleActive.value && !drill.snapshot.over) requestBattle()
@@ -69,6 +82,10 @@ function skipPrep() {
 watch(
   () => [drill.snapshot.tournament, drill.snapshot.round, drill.snapshot.phase, drill.snapshot.over],
   () => {
+    if (room.active) {
+      stopPrep()
+      return
+    }
     if (drill.snapshot.tournament && drill.snapshot.phase === 'PREP' && !drill.snapshot.over) {
       if (prepLeft.value === null) startPrep()
     } else {
@@ -86,13 +103,34 @@ function requestBattle() {
   if (battleActive.value) return
   if (drill.snapshot.proposals.length > 0) return
   if (drill.snapshot.over) return
+  if (room.active && !room.canFight) {
+    ui.notify(room.gateMessage)
+    return
+  }
   ui.openPrompt()
+}
+
+/** 本地结算一局；联机房间把「刚打完的轮次 + 胜负」上报给服务端。 */
+function completeBattle(): boolean {
+  const finishedRound = drill.snapshot.round
+  const before = drill.snapshot.record
+  if (!drill.startBattle()) return false
+  if (!room.active) return true
+  const after = drill.snapshot.record
+  const result =
+    after.wins > before.wins ? 'WIN' : after.draws > before.draws ? 'DRAW' : 'LOSS'
+  void room.report({
+    round: finishedRound,
+    hp: drill.snapshot.sli,
+    result,
+  })
+  return true
 }
 
 function resolveBattle(watchLive: boolean) {
   ui.closePrompt()
   if (watchLive) {
-    if (drill.startBattle()) ui.openArena()
+    if (completeBattle()) ui.openArena()
     return
   }
   battleActive.value = true
@@ -104,7 +142,7 @@ function resolveBattle(watchLive: boolean) {
     battleTimer = undefined
     battleActive.value = false
     progress.value = 0
-    drill.startBattle()
+    completeBattle()
   }, 60)
 }
 
@@ -113,7 +151,7 @@ function skipBattle() {
   battleTimer = undefined
   battleActive.value = false
   progress.value = 0
-  drill.startBattle()
+  completeBattle()
 }
 
 function requestRemove() {
@@ -126,7 +164,16 @@ function confirmRestart() {
   ui.closeReport()
   ui.closePrompt()
   lineup.clearActive()
+  if (room.active) {
+    leaveRoom()
+    return
+  }
   drill.restart()
+}
+
+function leaveRoom() {
+  room.leave()
+  void router.push('/games/autochess')
 }
 
 function confirmRemove() {
@@ -176,24 +223,76 @@ watch(
   },
 )
 
-onMounted(() => {
-  if (drill.mode === null) drill.startSolo()
-  else if (drill.mode === 'tournament' && !drill.snapshot.tournament) drill.startTournament()
+onMounted(async () => {
+  if (queryRoom) {
+    const ok = await room.connect(queryRoom)
+    if (!ok) {
+      ui.notify(room.error ?? '进入房间失败')
+      void router.replace('/games/autochess')
+      return
+    }
+    const view = room.room
+    if (view) {
+      const adopted = drill.adoptRoom(view.seed, view.mode === 'TOURNAMENT', view.round)
+      if (!adopted) ui.notify('本局已开始，暂不支持断线重连；请等本局结束后再进入')
+    }
+  } else if (drill.mode === null) {
+    drill.startSolo()
+  } else if (drill.mode === 'tournament' && !drill.snapshot.tournament) {
+    drill.startTournament()
+  }
+  room.setLocalRound(drill.snapshot.round)
   clockTimer = window.setInterval(() => drill.tick(), 1000)
 })
+
+watch(
+  () => drill.snapshot.round,
+  (round) => room.setLocalRound(round),
+)
+
+watch(
+  () => room.error,
+  (value) => {
+    if (value) ui.notify(value)
+  },
+)
+
+// 服务端放行本轮后自动弹「演练开始/观战」，和本地备战倒计时归零的体验一致
+watch(
+  () => [room.status, room.phase, room.room?.round, room.selfReported, room.localRound],
+  () => {
+    if (!room.active || drill.snapshot.over) return
+    if (!room.canFight) return
+    if (battleActive.value || ui.promptOpen) return
+    if (drill.snapshot.proposals.length > 0) return
+    requestBattle()
+  },
+)
 
 onBeforeUnmount(() => {
   if (clockTimer) window.clearInterval(clockTimer)
   if (battleTimer) window.clearInterval(battleTimer)
+  room.leave()
 })
 </script>
 
 <template>
   <div class="drill" :class="{ 'is-meeting': ui.meetingMode }">
     <DrillHeader @restart="restartOpen = true" />
-    <span v-if="prepLeft !== null" class="drill__prep-chip">
-      备战 {{ prepLeft }}s
-      <button type="button" class="drill__prep-skip" @click="skipPrep">直接开始</button>
+    <span v-if="roomMode" class="drill__room-chip">
+      联机 {{ room.room?.id }} · 第 {{ room.room?.round }} 轮
+      <em v-if="room.selfReported">已上报</em>
+    </span>
+    <span v-if="roomMode ? room.prepRemaining !== null : prepLeft !== null" class="drill__prep-chip">
+      备战 {{ roomMode ? room.prepRemaining : prepLeft }}s
+      <button
+        type="button"
+        class="drill__prep-skip"
+        :disabled="roomMode && room.selfSkipped"
+        @click="skipPrep"
+      >
+        {{ roomMode && room.selfSkipped ? `已请求 ${room.skipCount}/${room.playerCount}` : '直接开始' }}
+      </button>
     </span>
 
     <div class="drill__body">
@@ -265,6 +364,48 @@ onBeforeUnmount(() => {
       @confirm="confirmRemove"
       @cancel="confirmOpen = false"
     />
+
+    <div
+      v-if="roomMode && room.status === 'WAITING'"
+      class="drill__overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="房间候场"
+    >
+      <div class="drill__modal drill__modal--lobby">
+        <header class="drill__modal-head">
+          <div>
+            <span class="drill__eyebrow">{{ room.isTournament ? 'TOURNAMENT ROOM' : 'PARTY ROOM' }}</span>
+            <b>候场 · 房间号 {{ room.room?.id }}</b>
+          </div>
+        </header>
+        <p class="drill__prompt-text">
+          把房间号发给同伴，至少 2 人准备后开局；{{ room.isTournament ? '8 人同局、15 轮、按战绩排名。' : '8 席，人少时由教练补位。' }}
+        </p>
+        <ul class="drill__lobby-list">
+          <li
+            v-for="player in room.room?.players ?? []"
+            :key="player.userId"
+            :class="{ 'is-self': player.userId === room.selfId, 'is-ready': player.ready }"
+          >
+            <span class="drill__lobby-name">{{ player.nickname || player.userId }}</span>
+            <em v-if="player.seat === 0">房主</em>
+            <b>{{ player.ready ? '已准备' : '未准备' }}</b>
+          </li>
+        </ul>
+        <footer class="drill__prompt-actions">
+          <button type="button" class="drill__ghost" @click="leaveRoom">退出房间</button>
+          <button
+            type="button"
+            class="drill__primary"
+            :disabled="!room.canReady"
+            @click="room.ready()"
+          >
+            {{ room.self?.ready ? '已准备，等待其他人' : '准备' }}
+          </button>
+        </footer>
+      </div>
+    </div>
 
     <div v-if="ui.toast" class="drill__toast">{{ ui.toast }}</div>
   </div>
