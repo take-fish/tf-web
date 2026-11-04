@@ -150,7 +150,8 @@ onBeforeUnmount(() => {
       <TraitPanel v-if="!ui.meetingMode" />
       <DrillStage />
       <div v-if="!ui.meetingMode" class="drill__side">
-        <RosterPanel />
+        <DrillStandings v-if="drill.snapshot.tournament" />
+        <RosterPanel v-else />
         <RoundMatchups />
         <StageTrack />
       </div>
