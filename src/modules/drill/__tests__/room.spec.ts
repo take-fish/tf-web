@@ -58,8 +58,8 @@ function respond(body: unknown, status = 200): Response {
 }
 
 function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
-  const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
-    handler(String(input), init),
+  const fn = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+    async (input, init) => handler(String(input), init),
   )
   vi.stubGlobal('fetch', fn)
   return fn
