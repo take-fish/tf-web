@@ -121,14 +121,14 @@ function rollShop(state: GameState, free: boolean): GameState {
   }
 }
 
-export function createGame(seed = Date.now()): GameState {
+export function createGame(seed = Date.now(), options: { tournament?: boolean } = {}): GameState {
   const pool: Record<string, number> = {}
   for (const def of UNIT_DEFS) pool[def.id] = POOL_COUNTS[def.cost] ?? 0
 
   const base: GameState = {
     seed,
     round: 1,
-    totalRounds: 30,
+    totalRounds: options.tournament ? 15 : 30,
     phase: 'PREP',
     quotas: 10,
     level: 3,
@@ -153,6 +153,24 @@ export function createGame(seed = Date.now()): GameState {
   carousel: null,
     usedSecondLife: false,
     mergedCount: 0,
+  }
+
+  if (options.tournament) {
+    const opponents = base.opponents.map((seat) => ({ ...seat, sli: 100, alive: true }))
+    const standings = [
+      { name: '我', wins: 0, losses: 0, draws: 0, self: true },
+      ...opponents.map((seat) => ({ name: seat.name, wins: 0, losses: 0, draws: 0, self: false })),
+    ]
+    return rollShop(
+      {
+        ...base,
+        opponents,
+        tournament: true,
+        record: { wins: 0, losses: 0, draws: 0 },
+        standings,
+      },
+      true,
+    )
   }
 
   return rollShop(base, true)
@@ -420,8 +438,8 @@ function settle(state: GameState): GameState {
   next = rollShop(next, true)
 
   if (next.round > next.totalRounds) {
-    // 血潮阶段（第 26 轮起）仍未分出胜负：按存活与血量收口
-    const placement = placementOf(next)
+    // 锦标赛：15 轮排位结束，按战绩（胜 > 负少 > 平多）排名
+    const placement = next.tournament ? tournamentPlacement(next.standings ?? []) : placementOf(next)
     return {
       ...next,
       phase: 'END',
@@ -496,6 +514,14 @@ function pointsFor(placement: number, total: number): number {
 }
 
 /** 终局名次：血量高者靠前，已淘汰的排在存活者之后。 */
+function tournamentPlacement(standings: readonly { wins: number; losses: number; draws: number; self: boolean }[]): number {
+  const ranked = [...standings].sort(
+    (a, b) => b.wins - a.wins || a.losses - b.losses || b.draws - a.draws,
+  )
+  const index = ranked.findIndex((row) => row.self)
+  return index < 0 ? 1 : index + 1
+}
+
 function placementOf(state: GameState): number {
   if (state.sli <= 0) {
     return state.opponents.filter((seat) => seat.alive).length + 1
@@ -568,7 +594,8 @@ function fight(state: GameState): CommandResult {
 
   const sliBefore = next.sli
   const won = outcome.winner === 'ally'
-  const damage = seatDamage(next, outcome.enemyAlive, won)
+  const tourney = next.tournament === true
+  const damage = tourney ? 0 : seatDamage(next, outcome.enemyAlive, won)
   let sli = Math.max(0, next.sli - damage)
 
   if (sli === 0 && !next.usedSecondLife && next.picks.includes('X1')) {
@@ -605,9 +632,29 @@ function fight(state: GameState): CommandResult {
   }
 
   const trace = outcome.trace
-  const seats = advanceOpponents({ ...settled, sli })
+  let tourneyState = settled
+  if (tourney) {
+    const record = {
+      wins: (next.record?.wins ?? 0) + (won ? 1 : 0),
+      losses: (next.record?.losses ?? 0) + (won ? 0 : outcome.winner === 'draw' ? 0 : 1),
+      draws: (next.record?.draws ?? 0) + (outcome.winner === 'draw' ? 1 : 0),
+    }
+    const opponents = (next.standings ?? []).map((row) => {
+      if (row.self) return { ...row, ...record }
+      const roll = mulberry32(hashString(`tourney:${next.seed}:${next.round}:${row.name}`))()
+      return {
+        ...row,
+        wins: row.wins + (roll < 0.5 ? 1 : 0),
+        losses: row.losses + (roll < 0.5 ? 0 : 1),
+      }
+    })
+    tourneyState = { ...settled, record, standings: opponents }
+  }
+  const seats = tourney ? next.opponents : advanceOpponents({ ...tourneyState, sli })
   const aliveSeats = seats.filter((seat) => seat.alive).length
-  const withSeats: GameState = { ...settled, sli, opponents: seats }
+  const withSeats: GameState = tourney
+    ? { ...tourneyState, opponents: seats }
+    : { ...settled, sli, opponents: seats }
 
   if (sli === 0) {
     const placement = aliveSeats + 1

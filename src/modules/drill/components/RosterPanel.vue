@@ -23,10 +23,13 @@ const alive = computed(() => roster.value.filter((entry) => entry.alive).length)
         :class="{ 'is-offline': !entry.alive }"
       >
         <span class="drill__roster-name">{{ entry.label }}</span>
-        <span class="drill__roster-bar">
-          <i :style="{ width: `${entry.alive ? entry.sli : 0}%` }" />
-        </span>
-        <span class="drill__roster-sli">{{ entry.alive ? entry.sli : '—' }}</span>
+        <template v-if="!drill.snapshot.tournament">
+          <span class="drill__roster-bar">
+            <i :style="{ width: `${entry.alive ? entry.sli : 0}%` }" />
+          </span>
+          <span class="drill__roster-sli">{{ entry.alive ? entry.sli : '—' }}</span>
+        </template>
+        <span v-else class="drill__roster-sli">在榜</span>
       </li>
     </ul>
   </section>

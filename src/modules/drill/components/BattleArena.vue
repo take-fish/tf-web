@@ -695,7 +695,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="finished" class="drill__arena-result">
-          <span class="drill__mono">SLI {{ battle?.sliBefore }} → {{ battle?.sliAfter }}</span>
+          <span v-if="!drill.snapshot.tournament" class="drill__mono">SLI {{ battle?.sliBefore }} → {{ battle?.sliAfter }}</span>
           <b>对齐完成</b>
           <span>剩余实例 {{ battle?.survivors ?? 0 }}</span>
         </div>
