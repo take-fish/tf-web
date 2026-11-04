@@ -429,7 +429,12 @@ onBeforeUnmount(() => {
       </button>
     </span>
     <span
-      v-if="knockoutContext && knockoutPrepLeft !== null"
+      v-if="
+        knockoutContext &&
+        knockoutPrepLeft !== null &&
+        drill.snapshot.round === 1 &&
+        drill.snapshot.phase === 'PREP'
+      "
       class="drill__prep-chip drill__prep-chip--knockout"
     >
       {{ knockoutPrepLeft > 0 ? `局间备战 ${knockoutPrepLeft}s` : '局间备战结束' }} ·

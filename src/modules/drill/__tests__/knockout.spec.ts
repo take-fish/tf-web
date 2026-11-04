@@ -174,4 +174,26 @@ describe('淘汰赛 store 与 10 轮对局', () => {
     expect(next.shop.length).toBeGreaterThan(0)
     expect(next.record).toEqual({ wins: 0, losses: 0, draws: 0 })
   })
+
+  it('连续多局：准备阶段的提升进入下一局，可以没有提升', () => {
+    const first = createGame(11, { tournament: true, rounds: 10 })
+    first.level = 5
+    first.xp = 6
+    first.quotas = 21
+
+    const second = createGame(12, { tournament: true, rounds: 10, carry: first })
+    // 准备阶段升一级、花配额，阵容再加一个单位
+    second.level = 6
+    second.quotas -= 6
+    second.units = [
+      ...second.units,
+      { uid: 'prep-1', defId: 'api', star: 1, zone: 'bench', slot: 0, annotations: [] },
+    ]
+
+    const third = createGame(13, { tournament: true, rounds: 10, carry: second })
+    expect(third.level).toBe(6)
+    expect(third.quotas).toBe(second.quotas)
+    expect(third.units.some((unit) => unit.uid === 'prep-1')).toBe(true)
+    expect(third.round).toBe(1)
+  })
 })
