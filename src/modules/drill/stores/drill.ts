@@ -308,8 +308,8 @@ export const useDrillStore = defineStore('drill', () => {
     }
   }
 
-  function resetState(tournament: boolean, seed?: number) {
-    state.value = createGame(seed ?? Date.now(), { tournament })
+  function resetState(tournament: boolean, seed?: number, rounds?: number) {
+    state.value = createGame(seed ?? Date.now(), { tournament, rounds })
     elapsed.value = 0
     error.value = null
     lastTrace.value = null
@@ -357,11 +357,18 @@ export const useDrillStore = defineStore('drill', () => {
     return true
   }
 
+  /** 淘汰赛一局：10 轮、无血量，按终局战绩上报。 */
+  function startKnockoutMatch(seed: number, rounds = 10) {
+    mode.value = 'tournament'
+    party.value = []
+    persistParty()
+    resetState(true, seed, rounds)
+  }
+
   function resetMode() {
     mode.value = null
     party.value = []
-    persistParty()
-  }
+    persistParty()  }
   const elapsedLabel = computed(() => formatElapsed(elapsed.value))
   const rerollCost = computed(() => (state.value.freeRerolls > 0 ? 0 : 2))
   const levelUpCost = 4
@@ -599,6 +606,7 @@ watch(
     startSolo,
     startParty,
     startTournament,
+    startKnockoutMatch,
     adoptRoom,
     resetMode,
     matchups,

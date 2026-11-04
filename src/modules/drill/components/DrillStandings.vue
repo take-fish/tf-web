@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUpdate, onUpdated, ref } from 'vue'
 
+import { useAuthStore } from '@/stores/auth'
 import { useDrillStore } from '../stores/drill'
+import { useDrillRoomStore } from '../stores/room'
 
 interface Row {
   key: string
@@ -13,10 +15,27 @@ interface Row {
   self: boolean
 }
 
+const auth = useAuthStore()
 const drill = useDrillStore()
+const room = useDrillRoomStore()
 
-const rows = computed<Row[]>(() =>
-  (drill.snapshot.standings ?? [])
+const rows = computed<Row[]>(() => {
+  // 联机房间以服务端战绩为准；本地机器人榜只在单练/组队时用
+  if (room.active && room.room) {
+    const selfId = auth.user ? `u${auth.user.id}` : ''
+    return room.room.players
+      .map((player) => ({
+        key: player.userId,
+        name: player.userId === selfId ? '我' : player.nickname,
+        wins: player.wins,
+        losses: player.losses,
+        draws: player.draws,
+        score: player.score,
+        self: player.userId === selfId,
+      }))
+      .sort((a, b) => b.score - a.score || b.wins - a.wins || a.losses - b.losses)
+  }
+  return (drill.snapshot.standings ?? [])
     .map((row) => ({
       key: row.name,
       name: row.self ? '我' : row.name,
@@ -26,8 +45,8 @@ const rows = computed<Row[]>(() =>
       score: row.wins * 3 + row.draws,
       self: row.self,
     }))
-    .sort((a, b) => b.score - a.score || b.wins - a.wins || a.losses - b.losses),
-)
+    .sort((a, b) => b.score - a.score || b.wins - a.wins || a.losses - b.losses)
+})
 
 const rankByKey = computed(() => new Map(rows.value.map((row, index) => [row.key, index + 1])))
 
