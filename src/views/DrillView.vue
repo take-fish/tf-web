@@ -233,7 +233,7 @@ function leaveRoom() {
   void router.push('/games/autochess')
 }
 
-/** 从对阵图进入自己的一局：按服务端 seed 跑 10 轮，带入上一局成长。 */
+/** 从对阵图进入自己的一局：按服务端 seed 打一轮，带入上一局成长。 */
 function startKnockoutGame(payload: {
   matchId: string
   game: number
@@ -253,11 +253,11 @@ function startKnockoutGame(payload: {
   ui.closeReport()
   ui.closePrompt()
   battleActive.value = false
-  drill.startKnockoutMatch(payload.seed, 10, carry)
+  drill.startKnockoutMatch(payload.seed, 1, carry)
   room.setLocalRound(drill.snapshot.round)
 }
 
-/** 10 轮打完，把终局战绩报给淘汰赛服务端，回到对阵图等待对手。 */
+/** 一轮打完，把本轮战绩报给淘汰赛服务端，回到对阵图等待对手。 */
 async function finishKnockoutGame() {
   const context = knockoutContext.value
   if (!context) return
