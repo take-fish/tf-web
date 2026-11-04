@@ -5,6 +5,7 @@ import AnnotationTray from '@/modules/drill/components/AnnotationTray.vue'
 import BattleArena from '@/modules/drill/components/BattleArena.vue'
 import CommandBar from '@/modules/drill/components/CommandBar.vue'
 import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
+import DrillChat from '@/modules/drill/components/DrillChat.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
 import DrillStage from '@/modules/drill/components/DrillStage.vue'
 import LineupPanel from '@/modules/drill/components/LineupPanel.vue'
@@ -37,6 +38,12 @@ const restartOpen = ref(false)
 const PRELUDE_SECONDS = 35
 const INTERMISSION_SECONDS = 25
 const prepLeft = ref<number | null>(null)
+const skipRequested = ref(false)
+
+/** 直接开始：只发请求，必须对方也点才生效（等待对方确认期间可继续等待或放弃） */
+function requestSkip() {
+  skipRequested.value = true
+}
 let prepTimer: number | undefined
 
 function stopPrep() {
@@ -49,6 +56,7 @@ function startPrep() {
   stopPrep()
   if (!drill.snapshot.tournament || drill.snapshot.over) return
   prepLeft.value = drill.snapshot.round <= 1 ? PRELUDE_SECONDS : INTERMISSION_SECONDS
+  skipRequested.value = false
   prepTimer = window.setInterval(() => {
     if (prepLeft.value === null) return
     prepLeft.value -= 1
@@ -182,7 +190,11 @@ onBeforeUnmount(() => {
 <template>
   <div class="drill" :class="{ 'is-meeting': ui.meetingMode }">
     <DrillHeader @restart="restartOpen = true" />
-    <span v-if="prepLeft !== null" class="drill__prep-chip">备战 {{ prepLeft }}s</span>
+    <span v-if="prepLeft !== null" class="drill__prep-chip">
+      备战 {{ prepLeft }}s
+      <button v-if="!skipRequested" type="button" class="drill__prep-skip" @click="requestSkip()">直接开始</button>
+      <em v-else class="drill__prep-wait">已请求，等待对方…</em>
+    </span>
 
     <div class="drill__body">
       <TraitPanel v-if="!ui.meetingMode" />
@@ -204,7 +216,7 @@ onBeforeUnmount(() => {
     <UnitDrawer @remove="requestRemove" />
     <LineupPanel />
     <DraftCarousel />
-    <NamingBoard />
+    <DrillChat />`n    <NamingBoard />
     <BattleArena />
 
     <div
