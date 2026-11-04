@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useDrillStore } from '../stores/drill'
@@ -11,6 +11,24 @@ const router = useRouter()
 
 const snapshot = computed(() => drill.snapshot)
 const battle = computed(() => snapshot.value.battle)
+const bracketOpen = ref(false)
+
+const seeds = computed(() =>
+  [...(snapshot.value.standings ?? [])]
+    .sort((a, b) => b.wins * 3 + b.draws - (a.wins * 3 + a.draws) || b.wins - a.wins || a.losses - b.losses)
+    .map((row, index) => ({ ...row, rank: index + 1 })),
+)
+
+const bracket = computed(() => {
+  const list = seeds.value
+  const pairs = [
+    [list[0], list[7]],
+    [list[1], list[6]],
+    [list[2], list[5]],
+    [list[3], list[4]],
+  ].filter((pair): pair is [typeof list[number], typeof list[number]] => !!pair[0] && !!pair[1])
+  return pairs
+})
 
 const curvePoints = computed(() => {
   const curve = battle.value?.curve ?? []
@@ -53,6 +71,32 @@ function replay() {
         <div><dt>人口</dt><dd>{{ snapshot.scale }} / {{ snapshot.popCap }}</dd></div>
         <div><dt>注解</dt><dd>{{ snapshot.annotations.filter((slot) => slot.label !== '').length }}</dd></div>
       </dl>
+
+      <div v-if="snapshot.tournament" class="drill__report-block">
+        <span>种子排名 · 战绩榜</span>
+        <ol class="drill__seeds">
+          <li v-for="seed in seeds" :key="seed.name" :class="{ 'is-self': seed.self }">
+            <b>{{ seed.rank }}</b>
+            <span>{{ seed.self ? '我' : seed.name }}</span>
+            <em>{{ seed.wins }}-{{ seed.losses }}-{{ seed.draws }}</em>
+            <i>{{ seed.wins * 3 + seed.draws }}</i>
+          </li>
+        </ol>
+        <p v-if="snapshot.reward" class="drill__reward-line">
+          奖励已入装备栏：已合成装备 ×{{ snapshot.reward.items }} · 配额 +{{ snapshot.reward.quota }}
+        </p>
+        <button type="button" class="drill__ghost" @click="bracketOpen = !bracketOpen">
+          {{ bracketOpen ? '收起对阵图' : '查看八强对阵图' }}
+        </button>
+        <div v-if="bracketOpen" class="drill__bracket">
+          <div v-for="(pair, index) in bracket" :key="index" class="drill__bracket-match">
+            <span class="drill__bracket-tag">八进四 · BO3 · 第 {{ index + 1 }} 场</span>
+            <div class="drill__bracket-side"><b>{{ pair[0].rank }}</b> {{ pair[0].self ? '我' : pair[0].name }}</div>
+            <div class="drill__bracket-side"><b>{{ pair[1].rank }}</b> {{ pair[1].self ? '我' : pair[1].name }}</div>
+          </div>
+          <p class="drill__bracket-note">四进二 BO5：一八胜者 vs 四五胜者；二七胜者 vs 三四胜者；决赛 BO5 复用决赛播报。</p>
+        </div>
+      </div>
 
       <div v-if="battle" class="drill__report-block">
         <span>最后一场 · {{ battle.opponent }}（{{ battle.mode }}）</span>
