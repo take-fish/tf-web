@@ -138,7 +138,8 @@ export const useDrillRoomStore = defineStore('drillRoom', () => {
     try {
       const view = await fetchRoom(roomId.value)
       apply(view)
-      if (view.status === 'FINISHED') stopTimers()
+      // 锦标赛结束后还要靠房间轮询接收淘汰赛播报，等离开页面再停
+      if (view.status === 'FINISHED' && view.mode !== 'TOURNAMENT') stopTimers()
       return true
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 404) {
