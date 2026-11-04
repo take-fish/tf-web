@@ -59,6 +59,13 @@ function startPrep() {
   }, 1000)
 }
 
+/** 备战窗口「直接开始」：本地演练跳过剩余等待，立即进入本局。 */
+function skipPrep() {
+  if (prepLeft.value === null) return
+  stopPrep()
+  if (!battleActive.value && !drill.snapshot.over) requestBattle()
+}
+
 watch(
   () => [drill.snapshot.tournament, drill.snapshot.round, drill.snapshot.phase, drill.snapshot.over],
   () => {
@@ -171,6 +178,7 @@ watch(
 
 onMounted(() => {
   if (drill.mode === null) drill.startSolo()
+  else if (drill.mode === 'tournament' && !drill.snapshot.tournament) drill.startTournament()
   clockTimer = window.setInterval(() => drill.tick(), 1000)
 })
 
@@ -183,7 +191,10 @@ onBeforeUnmount(() => {
 <template>
   <div class="drill" :class="{ 'is-meeting': ui.meetingMode }">
     <DrillHeader @restart="restartOpen = true" />
-    <span v-if="prepLeft !== null" class="drill__prep-chip">备战 {{ prepLeft }}s</span>
+    <span v-if="prepLeft !== null" class="drill__prep-chip">
+      备战 {{ prepLeft }}s
+      <button type="button" class="drill__prep-skip" @click="skipPrep">直接开始</button>
+    </span>
 
     <div class="drill__body">
       <TraitPanel v-if="!ui.meetingMode" />
