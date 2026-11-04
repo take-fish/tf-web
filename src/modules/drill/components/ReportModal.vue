@@ -44,7 +44,8 @@ function replay() {
 
       <dl class="drill__report-rows">
         <div><dt>亲和组达成</dt><dd>{{ snapshot.achievement }}</dd></div>
-        <div><dt>最终 SLI</dt><dd>{{ snapshot.sli }}</dd></div>
+        <div v-if="!snapshot.tournament"><dt>最终 SLI</dt><dd>{{ snapshot.sli }}</dd></div>
+        <div v-if="snapshot.tournament"><dt>战绩</dt><dd>{{ snapshot.record.wins }} 胜 / {{ snapshot.record.losses }} 负 / {{ snapshot.record.draws }} 平</dd></div>
         <div v-if="snapshot.placement"><dt>名次</dt><dd>第 {{ snapshot.placement }} 名 / 共 {{ snapshot.aliveSeats + snapshot.placement - 1 }} 席</dd></div>
         <div v-if="snapshot.matchPoints !== null"><dt>积分</dt><dd>{{ snapshot.matchPoints.toFixed(1) }}</dd></div>
         <div><dt>轮次</dt><dd>{{ snapshot.round }} / {{ snapshot.totalRounds }}</dd></div>
@@ -56,8 +57,9 @@ function replay() {
       <div v-if="battle" class="drill__report-block">
         <span>最后一场 · {{ battle.opponent }}（{{ battle.mode }}）</span>
         <p>
-          {{ battle.won ? '通过' : '未通过' }} · SLI {{ battle.sliBefore }} → {{ battle.sliAfter }} ·
-          剩余实例 {{ battle.survivors }}
+          {{ battle.won ? '通过' : '未通过' }}
+          <template v-if="!snapshot.tournament"> · SLI {{ battle.sliBefore }} → {{ battle.sliAfter }}</template>
+          · 剩余实例 {{ battle.survivors }}
         </p>
         <svg class="drill__curve" viewBox="0 0 100 100" preserveAspectRatio="none" v-if="curvePoints">
           <polyline :points="curvePoints" fill="none" stroke="currentColor" stroke-width="1.5" />

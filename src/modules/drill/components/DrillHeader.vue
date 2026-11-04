@@ -48,12 +48,12 @@ const snapshot = computed(() => drill.snapshot)
         <dt>轮次</dt>
         <dd>{{ snapshot.round }}/{{ snapshot.totalRounds }}</dd>
       </div>
-      <div class="drill__metric" :class="{ 'is-warn': snapshot.sli < 40 }">
+      <div v-if="!snapshot.tournament" class="drill__metric" :class="{ 'is-warn': snapshot.sli < 40 }">
         <dt>SLI</dt>
         <dd>{{ snapshot.sli }}</dd>
       </div>
       <div
-        v-if="snapshot.round >= BLOOD_TIDE_ROUND - 3"
+        v-if="!snapshot.tournament && snapshot.round >= BLOOD_TIDE_ROUND - 3"
         class="drill__metric"
         :class="{ 'is-warn': snapshot.round >= BLOOD_TIDE_ROUND }"
         :title="snapshot.round >= BLOOD_TIDE_ROUND ? '血潮进行中：掉血 ×2' : `第 ${BLOOD_TIDE_ROUND} 轮血潮来袭，掉血翻倍`"

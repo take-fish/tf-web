@@ -94,7 +94,7 @@ function equip() {
       <div><dt>位置</dt><dd>{{ unit.col >= 0 ? `网格 ${unit.col},${unit.row}` : '待命席' }}</dd></div>
       <div><dt>建议位置</dt><dd>{{ unit.advice }}</dd></div>
       <div><dt>亲和组</dt><dd>{{ unit.traits.join(' · ') }}</dd></div>
-      <div><dt>SLI</dt><dd>{{ unit.sli }}%</dd></div>
+      <div v-if="!drill.snapshot.tournament"><dt>SLI</dt><dd>{{ unit.sli }}%</dd></div>
       <div><dt>算力</dt><dd>{{ unit.power }}</dd></div>
       <div><dt>吞吐</dt><dd>{{ unit.throughput }}</dd></div>
       <div>
