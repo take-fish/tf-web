@@ -110,7 +110,7 @@ function equip() {
               type="button"
               class="drill__note-off"
               :disabled="battleLocked"
-              :title="battleLocked ? '战斗中不能调整注解' : '卸下该注解'"
+              :title="battleLocked ? '战斗中不能调整注解' : '卸下该注解（2 配额，S7 首次免费）'"
               @click="drill.unequip(unit.id, index)"
             >
               卸下
