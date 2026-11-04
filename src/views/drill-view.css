@@ -797,6 +797,42 @@
 
 /* ---------- 右栏：实例池 + 运行记录 ---------- */
 
+.drill__rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.drill__rail--left > .drill__panel--traits {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.drill__rail--left > .drill__panel--traits .drill__trait-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.drill__rail--left > .drill__chat {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  z-index: 1;
+  flex: none;
+  width: 100%;
+  max-height: 226px;
+  box-shadow: none;
+}
+
+.drill__rail--left > .drill__chat.is-closed {
+  width: 100%;
+}
+
+.drill__rail--left > .drill__chat .drill__chat-list {
+  height: 128px;
+}
+
 .drill__side {
   display: flex;
   flex-direction: column;

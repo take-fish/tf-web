@@ -457,7 +457,10 @@ onBeforeUnmount(() => {
     </span>
 
     <div class="drill__body">
-      <TraitPanel v-if="!ui.meetingMode" />
+      <div v-if="!ui.meetingMode" class="drill__rail drill__rail--left">
+        <TraitPanel />
+        <DrillChat />
+      </div>
       <DrillStage />
       <div v-if="!ui.meetingMode" class="drill__side">
         <DrillStandings v-if="drill.snapshot.tournament" />
@@ -476,7 +479,6 @@ onBeforeUnmount(() => {
     <UnitDrawer @remove="requestRemove" />
     <LineupPanel />
     <DraftCarousel />
-    <DrillChat />
     <NamingBoard />
     <BattleArena />
     <KnockoutBoard
