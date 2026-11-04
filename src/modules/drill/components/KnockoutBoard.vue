@@ -6,7 +6,7 @@ import { useDrillKnockoutStore } from '../stores/knockout'
 
 const props = defineProps<{ roomId: string }>()
 const emit = defineEmits<{
-  play: [payload: { matchId: string; game: number; seed: number }]
+  play: [payload: { matchId: string; game: number; seed: number; prepEndsAt: number }]
   close: []
 }>()
 
@@ -145,6 +145,7 @@ onBeforeUnmount(() => {
                   matchId: knockout.selfMatch.id,
                   game: knockout.selfMatch.game,
                   seed: knockout.selfMatch.seed,
+                  prepEndsAt: knockout.selfMatch.prepEndsAt,
                 })
               "
             >

@@ -3460,3 +3460,8 @@
   color: var(--fm-text-muted);
   font-size: 9px;
 }
+
+.drill__prep-chip--knockout {
+  border-color: rgba(240, 184, 119, 0.45);
+  color: #f0b877;
+}

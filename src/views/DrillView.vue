@@ -50,6 +50,49 @@ const knockoutContext = ref<{ matchId: string; game: number } | null>(null)
 /** 淘汰赛局间带入的上一局终态：等级/经验/配额/阵容/装备/强化 */
 const knockoutCarry = ref<GameState | null>(null)
 const knockoutEntered = ref(false)
+const knockoutPrepEndsAt = ref(0)
+
+const KO_CARRY_PREFIX = 'fm.drill.knockout.carry.'
+
+function knockoutCarryKey(): string {
+  return room.roomId ? `${KO_CARRY_PREFIX}${room.roomId}` : ''
+}
+
+function saveKnockoutCarry(state: GameState | null) {
+  const key = knockoutCarryKey()
+  if (!key || !state) return
+  try {
+    sessionStorage.setItem(key, JSON.stringify(state))
+  } catch {
+    // 存储满或被禁用时退回内存带入
+  }
+}
+
+function loadKnockoutCarry(): GameState | null {
+  const key = knockoutCarryKey()
+  if (!key) return null
+  try {
+    const raw = sessionStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as GameState) : null
+  } catch {
+    return null
+  }
+}
+
+function clearKnockoutCarry() {
+  const key = knockoutCarryKey()
+  if (!key) return
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // ignore
+  }
+}
+
+const knockoutPrepLeft = computed(() => {
+  if (!knockoutContext.value || !knockoutPrepEndsAt.value) return null
+  return Math.max(0, Math.ceil((knockoutPrepEndsAt.value - room.nowMs) / 1000))
+})
 
 /** 锦标赛备战倒计时：进局前 35 秒、局间 25 秒，归零后弹「演练开始/是否观战」 */
 const PRELUDE_SECONDS = 35
@@ -181,21 +224,31 @@ function confirmRestart() {
 }
 
 function leaveRoom() {
+  clearKnockoutCarry()
   room.leave()
   knockout.leave()
   knockoutCarry.value = null
   knockoutEntered.value = false
+  knockoutPrepEndsAt.value = 0
   void router.push('/games/autochess')
 }
 
 /** 从对阵图进入自己的一局：按服务端 seed 跑 10 轮，带入上一局成长。 */
-function startKnockoutGame(payload: { matchId: string; game: number; seed: number }) {
+function startKnockoutGame(payload: {
+  matchId: string
+  game: number
+  seed: number
+  prepEndsAt?: number
+}) {
   const carry =
-    knockoutCarry.value ?? (knockoutEntered.value ? undefined : drill.captureKnockoutCarry())
+    knockoutCarry.value ??
+    loadKnockoutCarry() ??
+    (knockoutEntered.value ? undefined : drill.captureKnockoutCarry())
   knockoutContext.value = { matchId: payload.matchId, game: payload.game }
   knockoutOpen.value = false
   knockoutEntered.value = true
   knockoutCarry.value = null
+  knockoutPrepEndsAt.value = payload.prepEndsAt ?? 0
   ui.closeArena()
   ui.closeReport()
   ui.closePrompt()
@@ -211,6 +264,7 @@ async function finishKnockoutGame() {
   const snapshot = drill.snapshot
   // 下一局沿用本局终态的等级/经验/配额/阵容/装备/强化
   knockoutCarry.value = drill.captureKnockoutCarry()
+  saveKnockoutCarry(knockoutCarry.value)
   let match = knockout.matches.find((entry) => entry.id === context.matchId)
   if (!match) {
     await knockout.refresh()
@@ -265,16 +319,20 @@ watch(
   () => ui.arenaOpen,
   (open) => {
     if (open || !drill.snapshot.over || knockoutContext.value) return
-    if (roomMode.value && room.isTournament) knockoutOpen.value = true
-    else ui.openReport()
+    if (roomMode.value && room.isTournament) {
+      // 排位终态先落盘，刷新/关页后进入八强仍能沿用
+      if (room.status === 'FINISHED') saveKnockoutCarry(drill.captureKnockoutCarry())
+      knockoutOpen.value = true
+    } else ui.openReport()
   },
 )
 
-// 排位赛结束：自动打开淘汰赛对阵
+// 排位赛结束：自动打开淘汰赛对阵，并保存排位终态作为八强第一局的带入
 watch(
   () => [room.status, room.isTournament],
   () => {
     if (room.active && room.isTournament && room.status === 'FINISHED' && !knockoutContext.value) {
+      if (drill.snapshot.over) saveKnockoutCarry(drill.captureKnockoutCarry())
       knockoutOpen.value = true
     }
   },
@@ -349,6 +407,7 @@ watch(
 onBeforeUnmount(() => {
   if (clockTimer) window.clearInterval(clockTimer)
   if (battleTimer) window.clearInterval(battleTimer)
+  clearKnockoutCarry()
   room.leave()
   knockout.leave()
 })
@@ -368,6 +427,13 @@ onBeforeUnmount(() => {
       >
         对阵
       </button>
+    </span>
+    <span
+      v-if="knockoutContext && knockoutPrepLeft !== null"
+      class="drill__prep-chip drill__prep-chip--knockout"
+    >
+      {{ knockoutPrepLeft > 0 ? `局间备战 ${knockoutPrepLeft}s` : '局间备战结束' }} ·
+      可升级/购买/装备
     </span>
     <span v-if="roomMode ? room.prepRemaining !== null : prepLeft !== null" class="drill__prep-chip">
       备战 {{ roomMode ? room.prepRemaining : prepLeft }}s
