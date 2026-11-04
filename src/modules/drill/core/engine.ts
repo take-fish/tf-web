@@ -123,7 +123,7 @@ function rollShop(state: GameState, free: boolean): GameState {
 
 export function createGame(
   seed = Date.now(),
-  options: { tournament?: boolean; rounds?: number } = {},
+  options: { tournament?: boolean; rounds?: number; carry?: GameState } = {},
 ): GameState {
   const pool: Record<string, number> = {}
   for (const def of UNIT_DEFS) pool[def.id] = POOL_COUNTS[def.cost] ?? 0
@@ -156,6 +156,18 @@ export function createGame(
   carousel: null,
     usedSecondLife: false,
     mergedCount: 0,
+  }
+
+  // 淘汰赛局间带入：等级 / 经验 / 配额 / 阵容 / 装备 / 强化保留，商店重刷
+  if (options.carry) {
+    const carry = options.carry
+    base.level = carry.level
+    base.xp = carry.xp
+    base.quotas = carry.quotas
+    base.units = carry.units.map((unit) => ({ ...unit, annotations: [...unit.annotations] }))
+    base.annotations = carry.annotations.map((item) => ({ ...item }))
+    base.picks = [...carry.picks]
+    base.pool = { ...carry.pool }
   }
 
   if (options.tournament) {

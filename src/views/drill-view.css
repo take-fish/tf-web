@@ -3453,3 +3453,10 @@
   color: #f0b877;
   font-style: normal;
 }
+
+.drill__knockout-carry {
+  margin: 0;
+  padding: 0 14px 8px;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
