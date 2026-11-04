@@ -39,6 +39,9 @@ describe('DrillView', () => {
     // 未登录 / 非管理员：命名入口不渲染
     expect(wrapper.find('.drill__ghost--admin').exists()).toBe(false)
 
+    // 同局聊天放在左侧栏 TraitPanel 下方，不再 fixed 到商店上
+    expect(wrapper.find('.drill__rail--left > .drill__chat').exists()).toBe(true)
+
     wrapper.unmount()
   })
 })
