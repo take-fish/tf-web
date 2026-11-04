@@ -262,9 +262,7 @@ async function finishKnockoutGame() {
   const context = knockoutContext.value
   if (!context) return
   const snapshot = drill.snapshot
-  // 下一局沿用本局终态的等级/经验/配额/阵容/装备/强化
-  knockoutCarry.value = drill.captureKnockoutCarry()
-  saveKnockoutCarry(knockoutCarry.value)
+  const carryState = drill.captureKnockoutCarry()
   let match = knockout.matches.find((entry) => entry.id === context.matchId)
   if (!match) {
     await knockout.refresh()
@@ -279,7 +277,13 @@ async function finishKnockoutGame() {
       sli: snapshot.sli,
       survivors: snapshot.units.length,
     })
-    if (!ok) ui.notify(knockout.error ?? '上报对局失败')
+    if (ok) {
+      // 上报成功才落盘，避免上报失败后重开同一局却带入更超前的状态
+      knockoutCarry.value = carryState
+      saveKnockoutCarry(carryState)
+    } else {
+      ui.notify(knockout.error ?? '上报对局失败')
+    }
   }
   knockoutContext.value = null
   knockoutOpen.value = true
