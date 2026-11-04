@@ -58,6 +58,8 @@ export interface FighterInput {
   col: number
   row: number
   annotations: readonly AnnotationKind[]
+  /** 只作用于该实例的羁绊修正；与全队 Mods 相加/相乘后使用 */
+  mods?: Partial<Mods>
 }
 
 interface Fighter {
@@ -80,9 +82,13 @@ interface Fighter {
   /** 连续多少帧没有移动也没有攻击：用来兜底卡位（被围死时直接开打） */
   stuckTicks: number
   revived: boolean
+  /** @Retry：该实例是否已用掉装备复活 */
+  retryUsed: boolean
   buffs: { atk: number; ap: number; as: number; armor: number; mr: number; until: number }[]
   role: UnitRole
   annotations: readonly AnnotationKind[]
+  /** 全队修正 + 本实例羁绊修正 */
+  mods: Mods
 }
 
 export interface BattleOutcome {
@@ -198,9 +204,38 @@ function neighbors(col: number, row: number): { col: number; row: number }[] {
   return result
 }
 
-function buildFighter(input: FighterInput, side: 'ally' | 'enemy', mods: Mods): Fighter {
+/** 把“只作用于该实例”的羁绊修正合并到全队修正上。 */
+export function mergeMods(base: Mods, extra?: Partial<Mods>): Mods {
+  if (!extra) return base
+  return {
+    atk: base.atk + (extra.atk ?? 0),
+    as: base.as + (extra.as ?? 0),
+    ap: base.ap + (extra.ap ?? 0),
+    armor: base.armor + (extra.armor ?? 0),
+    mr: base.mr + (extra.mr ?? 0),
+    hp: base.hp + (extra.hp ?? 0),
+    onHitFlat: base.onHitFlat + (extra.onHitFlat ?? 0),
+    executeBonus: base.executeBonus + (extra.executeBonus ?? 0),
+    reviveRatio: Math.max(base.reviveRatio, extra.reviveRatio ?? 0),
+    deathAoe: Math.max(base.deathAoe, extra.deathAoe ?? 0),
+    damageMul: base.damageMul * (extra.damageMul ?? 1),
+    takenMul: base.takenMul * (extra.takenMul ?? 1),
+    aoeTakenMul: base.aoeTakenMul * (extra.aoeTakenMul ?? 1),
+    earlyAs: base.earlyAs + (extra.earlyAs ?? 0),
+    earlyAsSeconds: Math.max(base.earlyAsSeconds, extra.earlyAsSeconds ?? 0),
+    earlyDamage: base.earlyDamage + (extra.earlyDamage ?? 0),
+    earlyDamageSeconds: Math.max(base.earlyDamageSeconds, extra.earlyDamageSeconds ?? 0),
+    lateRegen: base.lateRegen + (extra.lateRegen ?? 0),
+    enemyAsDebuff: base.enemyAsDebuff + (extra.enemyAsDebuff ?? 0),
+    enemyAsDebuffSeconds: Math.max(base.enemyAsDebuffSeconds, extra.enemyAsDebuffSeconds ?? 0),
+    reviveOne: base.reviveOne || extra.reviveOne === true,
+  }
+}
+
+function buildFighter(input: FighterInput, side: 'ally' | 'enemy', teamMods: Mods): Fighter {
   const def = UNIT_BY_ID[input.defId]
   if (!def) throw new Error(`unknown unit ${input.defId}`)
+  const mods = mergeMods(teamMods, input.mods)
   const scale = starMult(input.star, def.cost)
   const annotationAs = input.annotations.filter((kind) => kind === 'async').length * 0.15
   const annotationArmor = input.annotations.filter((kind) => kind === 'tx').length * 10
@@ -225,19 +260,29 @@ function buildFighter(input: FighterInput, side: 'ally' | 'enemy', mods: Mods): 
     attackCd: 0,
     stuckTicks: 0,
     revived: false,
+    retryUsed: false,
     buffs: [],
     role: roleOf(def),
     annotations: input.annotations,
+    mods,
   }
 }
 
 function effective(fighter: Fighter, key: 'atk' | 'ap' | 'as' | 'armor' | 'mr', elapsed: number): number {
   let value = fighter[key]
+  if (key === 'as') {
+    if (fighter.mods.earlyAs > 0 && elapsed <= fighter.mods.earlyAsSeconds) {
+      value += fighter.mods.earlyAs
+    }
+    if (fighter.mods.enemyAsDebuff > 0 && elapsed <= fighter.mods.enemyAsDebuffSeconds) {
+      value -= fighter.mods.enemyAsDebuff
+    }
+  }
   for (const buff of fighter.buffs) {
     if (buff.until < elapsed) continue
     value += buff[key]
   }
-  return value
+  return Math.max(0.1, value)
 }
 
 function applySurge(fighters: Fighter[]): void {
@@ -256,6 +301,7 @@ function living(fighters: Fighter[], side: 'ally' | 'enemy'): Fighter[] {
 
 /** 法系远程（射线/范围）站位输出，近战需要贴身。 */
 function attackRange(fighter: Fighter): number {
+  if (fighter.role === 'tank') return 1
   return fighter.def.skill.stat === 'ap' ? 3 : 1
 }
 
@@ -272,13 +318,51 @@ function nearest(from: Fighter, pool: Fighter[]): Fighter | null {
   return best
 }
 
-function takeDamage(fighter: Fighter, raw: number, kind: 'phys' | 'magic' | 'true', mods: Mods): number {
+/** 以“施法者 → 最近目标”为射线，命中同一方向上的前 3 个敌人（真直线，而不是最近 3 个）。 */
+function lineTargets(caster: Fighter, pool: Fighter[]): Fighter[] {
+  const primary = nearest(caster, pool)
+  if (!primary) return []
+  const origin = axial(caster.col, caster.row)
+  const target = axial(primary.col, primary.row)
+  const ox = Math.sqrt(3) * (origin.q + origin.r / 2)
+  const oy = 1.5 * origin.r
+  const tx = Math.sqrt(3) * (target.q + target.r / 2)
+  const ty = 1.5 * target.r
+  const dx = tx - ox
+  const dy = ty - oy
+  const length = Math.hypot(dx, dy)
+  if (length < 0.001) return [primary]
+  const ux = dx / length
+  const uy = dy / length
+  return pool
+    .map((enemy) => {
+      const point = axial(enemy.col, enemy.row)
+      const ex = Math.sqrt(3) * (point.q + point.r / 2) - ox
+      const ey = 1.5 * point.r - oy
+      const forward = ex * ux + ey * uy
+      const lateral = Math.abs(ex * uy - ey * ux)
+      return { enemy, forward, lateral }
+    })
+    .filter((item) => item.forward > 0 && item.lateral <= 1.5)
+    .sort((a, b) => a.forward - b.forward || (a.enemy === primary ? -1 : b.enemy === primary ? 1 : 0))
+    .slice(0, 3)
+    .map((item) => item.enemy)
+}
+
+function takeDamage(
+  fighter: Fighter,
+  raw: number,
+  kind: 'phys' | 'magic' | 'true',
+  options: { aoe?: boolean } = {},
+): number {
   let amount = raw
-  if (kind === 'phys') amount *= 100 / (100 + fighter.armor)
-  if (kind === 'magic') amount *= 100 / (100 + fighter.mr)
-  amount *= mods.takenMul
+  if (kind === 'phys') amount *= 100 / (100 + effective(fighter, 'armor', clock))
+  if (kind === 'magic') amount *= 100 / (100 + effective(fighter, 'mr', clock))
+  // 受伤/范围减伤属于“受击方”，不能挂在攻击方身上
+  amount *= fighter.mods.takenMul
+  if (options.aoe) amount *= fighter.mods.aoeTakenMul
   fighter.hp -= amount
-  fighter.mana = Math.min(100, fighter.mana + Math.min(15, amount / 12))
+  fighter.mana = Math.min(100, fighter.mana + Math.min(15, amount / 120))
   if (fighter.hp <= 0) fighter.hp = 0
   recorder?.({
     t: clock,
@@ -325,9 +409,12 @@ export function simulateBattle(
   }
   const allyMaxHp = allies.reduce((sum, input) => {
     const def = UNIT_BY_ID[input.defId]
-    return sum + (def ? def.hp * starMult(input.star, def.cost) * (1 + allyMods.hp) : 0)
+    if (!def) return sum
+    const mods = mergeMods(allyMods, input.mods)
+    return sum + def.hp * starMult(input.star, def.cost) * (1 + mods.hp)
   }, 0)
 
+  const reviveUsed = { ally: false, enemy: false }
   let ticks = 0
   let surgeIndex = 0
   for (let tick = 0; tick < MAX_TICKS; tick += 1) {
@@ -404,15 +491,16 @@ export function simulateBattle(
       fighter.attackCd = 0
       attacker = fighter.uid
 
-      const ownMods = fighter.side === 'ally' ? allyMods : enemyMods
+      const ownMods = fighter.mods
       const earlyMul = elapsed <= ownMods.earlyDamageSeconds ? 1 + ownMods.earlyDamage : 1
       const execute = target.hp / target.maxHp < 0.4 ? 1 + ownMods.executeBonus : 1
-      const damage = effective(fighter, 'atk', elapsed) * 100 / (100 + target.armor) * earlyMul * execute * ownMods.damageMul
-      takeDamage(target, damage, 'phys', ownMods)
+      // 护甲在 takeDamage 内统一计算，避免普攻/技能各乘一次
+      const damage = effective(fighter, 'atk', elapsed) * earlyMul * execute * ownMods.damageMul
+      takeDamage(target, damage, 'phys')
       fighter.mana = Math.min(100, fighter.mana + 10)
 
       if (ownMods.onHitFlat > 0 && target.alive) {
-        takeDamage(target, ownMods.onHitFlat, 'magic', ownMods)
+        takeDamage(target, ownMods.onHitFlat, 'magic')
       }
 
       if (fighter.mana >= 100) {
@@ -422,10 +510,16 @@ export function simulateBattle(
 
     }
 
+    // X7：12 秒后全队每秒回复 2.5% 最大生命
+    for (const fighter of fighters) {
+      if (!fighter.alive || elapsed < 12 || fighter.mods.lateRegen <= 0) continue
+      fighter.hp = Math.min(fighter.maxHp, fighter.hp + fighter.maxHp * fighter.mods.lateRegen * DT)
+    }
+
     // 伤害来源可能是普攻 / 技能 / 死亡溅射，统一在回合末尾结算阵亡
     for (const fighter of fighters) {
       if (!fighter.alive || fighter.hp > 0) continue
-      handleDeath(fighter, fighters, elapsed, fighter.side === 'ally' ? allyMods : enemyMods)
+      handleDeath(fighter, fighters, elapsed, fighter.mods, reviveUsed)
     }
     // 尸体不再占格子，否则存活单位会被卡住、打着打着就不动了；复活则重新占位
     for (const fighter of fighters) {
@@ -467,9 +561,11 @@ export function simulateBattle(
         ? 'enemy'
         : allyAlive === 0 && enemyAlive === 0
           ? 'draw'
-          : allyAlive >= enemyAlive
+          : allyAlive > enemyAlive
             ? 'ally'
-            : 'enemy'
+            : enemyAlive > allyAlive
+              ? 'enemy'
+              : 'draw'
 
   recorder = null
   return {
@@ -482,12 +578,40 @@ export function simulateBattle(
   }
 }
 
-function handleDeath(fighter: Fighter, fighters: Fighter[], elapsed: number, mods: Mods): void {
-  const reviveRatio = mods.reviveOne ? 0.4 : mods.reviveRatio
-  if (reviveRatio > 0 && !fighter.revived) {
+function handleDeath(
+  fighter: Fighter,
+  fighters: Fighter[],
+  elapsed: number,
+  mods: Mods,
+  reviveUsed: { ally: boolean; enemy: boolean },
+): void {
+  // G4：每方每场只复活第一个阵亡单位，而不是全队
+  if (mods.reviveOne && !reviveUsed[fighter.side]) {
+    reviveUsed[fighter.side] = true
     fighter.revived = true
     fighter.alive = true
-    fighter.hp = Math.round(fighter.maxHp * reviveRatio)
+    fighter.hp = Math.round(fighter.maxHp * 0.4)
+    fighter.mana = 0
+    recorder?.({ t: clock, kind: 'revive', uid: fighter.uid, hp: fighter.hp })
+    return
+  }
+
+  // 测试 2 件套只作用于测试成员（该实例的 mods 才带 reviveRatio）
+  if (mods.reviveRatio > 0 && !fighter.revived) {
+    fighter.revived = true
+    fighter.alive = true
+    fighter.hp = Math.round(fighter.maxHp * mods.reviveRatio)
+    fighter.mana = 0
+    recorder?.({ t: clock, kind: 'revive', uid: fighter.uid, hp: fighter.hp })
+    return
+  }
+
+  // @Retry：装备复活，每件实例每场一次（25% 生命）
+  if (!fighter.revived && fighter.annotations.includes('retry') && !fighter.retryUsed) {
+    fighter.retryUsed = true
+    fighter.revived = true
+    fighter.alive = true
+    fighter.hp = Math.round(fighter.maxHp * 0.25)
     fighter.mana = 0
     recorder?.({ t: clock, kind: 'revive', uid: fighter.uid, hp: fighter.hp })
     return
@@ -524,15 +648,22 @@ function castSkill(
   })
   const scale = starMult(caster.star, caster.def.cost)
   const statValue = skill.stat === 'atk' ? effective(caster, 'atk', elapsed) : effective(caster, 'ap', elapsed)
-  const base = skill.base * scale + skill.coef * statValue
+  const rawBase = skill.base * scale + skill.coef * statValue
+  const earlyMul = elapsed <= mods.earlyDamageSeconds ? 1 + mods.earlyDamage : 1
+  const base = rawBase * mods.damageMul
   const enemyPool = living(fighters, caster.side === 'ally' ? 'enemy' : 'ally')
   const allyPool = living(fighters, caster.side === 'ally' ? 'ally' : 'enemy')
   if (enemyPool.length === 0) return
 
+  const hit = (target: Fighter, amount: number, aoe = false): number => {
+    const execute = target.hp / target.maxHp < 0.4 ? 1 + mods.executeBonus : 1
+    return takeDamage(target, amount * earlyMul * execute, 'magic', { aoe })
+  }
+
   const form = skill.form
   if (form === 'single') {
     const target = pickTarget(skill.target, caster, enemyPool) ?? primary
-    takeDamage(target, base, 'magic', mods)
+    hit(target, base)
     return
   }
 
@@ -541,32 +672,39 @@ function castSkill(
     const radius = Math.max(1, skill.radius)
     for (const enemy of enemyPool) {
       if (hexDistance(center, enemy) > radius) continue
-      takeDamage(enemy, base * mods.aoeTakenMul, 'magic', mods)
+      // G8 是“受到 AOE 伤害降低”，由受击方在 takeDamage 中处理
+      hit(enemy, base, true)
     }
     return
   }
 
   if (form === 'line') {
-    const sorted = enemyPool
-      .slice()
-      .sort((a, b) => hexDistance(caster, a) - hexDistance(caster, b))
-      .slice(0, 3)
-    for (const enemy of sorted) takeDamage(enemy, base, 'magic', mods)
+    for (const enemy of lineTargets(caster, enemyPool)) hit(enemy, base)
     return
   }
 
   if (form === 'buff') {
     const ratio = skill.base / 100
+    const stats = skill.buffStats ?? ['atk', 'ap']
     const targets = skill.target === 'self' ? [caster] : allyPool
     for (const ally of targets) {
-      ally.buffs.push({
-        atk: caster.atk * ratio * 0.5,
-        ap: caster.ap * ratio * 0.5,
+      const buff = {
+        atk: 0,
+        ap: 0,
         as: 0,
         armor: 0,
         mr: 0,
         until: elapsed + Math.max(3, skill.duration),
-      })
+      }
+      for (const stat of stats) {
+        if (stat === 'atk') buff.atk = effective(caster, 'atk', elapsed) * ratio
+        else if (stat === 'ap') buff.ap = effective(caster, 'ap', elapsed) * ratio
+        else if (stat === 'as') buff.as = ratio
+        // 护甲/魔抗按技能基础值给固定值，符合“地基加固/扩容”的文案
+        else if (stat === 'armor') buff.armor = skill.base
+        else if (stat === 'mr') buff.mr = skill.base
+      }
+      ally.buffs.push(buff)
     }
     return
   }
