@@ -241,6 +241,7 @@ function project(
     tournament: state.tournament === true,
     record: state.record ?? { wins: 0, losses: 0, draws: 0 },
     standings: state.standings ?? [],
+    reward: state.reward ?? null,
     scale: boardUnits(state).length,
     elapsed,
     phase: state.phase === 'END' ? 'TERMINATED' : state.phase === 'DRAFT' ? 'PREP' : state.phase,

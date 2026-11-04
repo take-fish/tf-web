@@ -156,6 +156,8 @@ export interface DrillSnapshot {
   record: { wins: number; losses: number; draws: number }
   /** 锦标赛战绩榜（含自己与机器人教练） */
   standings: readonly { name: string; wins: number; losses: number; draws: number; self: boolean }[]
+  /** 锦标赛排位奖励（装备件数 + 配额），未结束为 null */
+  reward: { items: number; quota: number } | null
   scale: number
   elapsed: number
   phase: DrillPhase
