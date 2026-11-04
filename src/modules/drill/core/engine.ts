@@ -121,14 +121,17 @@ function rollShop(state: GameState, free: boolean): GameState {
   }
 }
 
-export function createGame(seed = Date.now(), options: { tournament?: boolean } = {}): GameState {
+export function createGame(
+  seed = Date.now(),
+  options: { tournament?: boolean; rounds?: number } = {},
+): GameState {
   const pool: Record<string, number> = {}
   for (const def of UNIT_DEFS) pool[def.id] = POOL_COUNTS[def.cost] ?? 0
 
   const base: GameState = {
     seed,
     round: 1,
-    totalRounds: options.tournament ? 15 : 30,
+    totalRounds: options.rounds ?? (options.tournament ? 15 : 30),
     phase: 'PREP',
     quotas: 10,
     level: 3,
