@@ -5,6 +5,7 @@ import AnnotationTray from '@/modules/drill/components/AnnotationTray.vue'
 import BattleArena from '@/modules/drill/components/BattleArena.vue'
 import CommandBar from '@/modules/drill/components/CommandBar.vue'
 import ConfirmDialog from '@/modules/drill/components/ConfirmDialog.vue'
+import DrillChat from '@/modules/drill/components/DrillChat.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
 import DrillStage from '@/modules/drill/components/DrillStage.vue'
 import LineupPanel from '@/modules/drill/components/LineupPanel.vue'
@@ -204,6 +205,7 @@ onBeforeUnmount(() => {
     <UnitDrawer @remove="requestRemove" />
     <LineupPanel />
     <DraftCarousel />
+    <DrillChat />
     <NamingBoard />
     <BattleArena />
 
