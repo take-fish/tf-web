@@ -51,7 +51,7 @@
 
 .drill-entry__tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -251,7 +251,93 @@
   line-height: 1.7;
 }
 
+/* ---------- 联机房间入口 ---------- */
+
+.drill-entry__lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drill-entry__lobby-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drill-entry__label {
+  color: var(--fm-text-muted);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.drill-entry__seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+}
+
+.drill-entry__seg button {
+  padding: 3px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--fm-text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.drill-entry__seg button.is-on {
+  background: var(--fm-accent-soft);
+  color: var(--fm-link);
+}
+
+.drill-entry__lobby-join {
+  display: flex;
+  gap: 6px;
+}
+
+.drill-entry__lobby-join input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-bg);
+  color: var(--fm-text);
+  font-family: var(--fm-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.drill-entry__lobby-join button {
+  padding: 5px 14px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  background: var(--fm-panel);
+  color: var(--fm-text);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.drill-entry__lobby-join button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.drill-entry__error {
+  margin: 0;
+  color: var(--fm-err, #ff7b7b);
+  font-size: 10px;
+}
+
 @media (width <= 860px) {
+  .drill-entry__tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .drill-entry__party {
     grid-template-columns: 1fr;
   }

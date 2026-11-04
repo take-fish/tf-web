@@ -308,8 +308,14 @@ export const useDrillStore = defineStore('drill', () => {
     }
   }
 
-  function resetState(tournament: boolean) {
-    state.value = createGame(Date.now(), { tournament })
+  function resetState(
+    tournament: boolean,
+    seed?: number,
+    rounds?: number,
+    carry?: GameState,
+    rewardOnEnd = true,
+  ) {
+    state.value = createGame(seed ?? Date.now(), { tournament, rounds, carry, rewardOnEnd })
     elapsed.value = 0
     error.value = null
     lastTrace.value = null
@@ -339,11 +345,41 @@ export const useDrillStore = defineStore('drill', () => {
     resetState(true)
   }
 
+  /**
+   * 联机房间开局：按服务端 seed 重开本地引擎。
+   * 返回 false 表示本地已走到别的轮次，无法追赶服务端。
+   */
+  function adoptRoom(seed: number, tournament: boolean, round = 1): boolean {
+    const same =
+      state.value.seed === seed &&
+      (state.value.tournament === true) === tournament &&
+      state.value.round === round
+    mode.value = tournament ? 'tournament' : 'party'
+    party.value = []
+    persistParty()
+    if (same) return true
+    if (round > 1) return false
+    resetState(tournament, seed)
+    return true
+  }
+
+  /** 淘汰赛一局：一轮战斗、无血量，按本轮战绩上报；可带入上一局的成长。 */
+  function startKnockoutMatch(seed: number, rounds = 1, carry?: GameState) {
+    mode.value = 'tournament'
+    party.value = []
+    persistParty()
+    resetState(true, seed, rounds, carry, false)
+  }
+
+  /** 给淘汰赛局间带入用的原始状态（等级/经验/配额/阵容/装备/强化）。 */
+  function captureKnockoutCarry(): GameState {
+    return state.value
+  }
+
   function resetMode() {
     mode.value = null
     party.value = []
-    persistParty()
-  }
+    persistParty()  }
   const elapsedLabel = computed(() => formatElapsed(elapsed.value))
   const rerollCost = computed(() => (state.value.freeRerolls > 0 ? 0 : 2))
   const levelUpCost = 4
@@ -581,6 +617,9 @@ watch(
     startSolo,
     startParty,
     startTournament,
+    startKnockoutMatch,
+    captureKnockoutCarry,
+    adoptRoom,
     resetMode,
     matchups,
     preview,

@@ -121,14 +121,17 @@ function rollShop(state: GameState, free: boolean): GameState {
   }
 }
 
-export function createGame(seed = Date.now(), options: { tournament?: boolean } = {}): GameState {
+export function createGame(
+  seed = Date.now(),
+  options: { tournament?: boolean; rounds?: number; carry?: GameState; rewardOnEnd?: boolean } = {},
+): GameState {
   const pool: Record<string, number> = {}
   for (const def of UNIT_DEFS) pool[def.id] = POOL_COUNTS[def.cost] ?? 0
 
   const base: GameState = {
     seed,
     round: 1,
-    totalRounds: options.tournament ? 15 : 30,
+    totalRounds: options.rounds ?? (options.tournament ? 15 : 30),
     phase: 'PREP',
     quotas: 10,
     level: 3,
@@ -153,6 +156,19 @@ export function createGame(seed = Date.now(), options: { tournament?: boolean } 
   carousel: null,
     usedSecondLife: false,
     mergedCount: 0,
+    rewardOnEnd: options.rewardOnEnd ?? true,
+  }
+
+  // 淘汰赛局间带入：等级 / 经验 / 配额 / 阵容 / 装备 / 强化保留，商店重刷
+  if (options.carry) {
+    const carry = options.carry
+    base.level = carry.level
+    base.xp = carry.xp
+    base.quotas = carry.quotas
+    base.units = carry.units.map((unit) => ({ ...unit, annotations: [...unit.annotations] }))
+    base.annotations = carry.annotations.map((item) => ({ ...item }))
+    base.picks = [...carry.picks]
+    base.pool = { ...carry.pool }
   }
 
   if (options.tournament) {
@@ -441,6 +457,14 @@ function settle(state: GameState): GameState {
     // 锦标赛：15 轮排位结束，按战绩（胜 > 负少 > 平多）排名
     const placement = next.tournament ? tournamentPlacement(next.standings ?? []) : placementOf(next)
     if (next.tournament) {
+      // 淘汰赛单局不发排位奖励，避免每局重复发装备/配额
+      if (next.rewardOnEnd === false) {
+        return {
+          ...next,
+          phase: 'END',
+          placement,
+        }
+      }
       const reward = tournamentReward(placement)
       return {
         ...grantTournamentReward(next, reward),

@@ -111,6 +111,8 @@ export interface GameState {
   standings?: readonly { name: string; wins: number; losses: number; draws: number; self: boolean }[]
   /** 锦标赛排位奖励（装备件数 + 配额） */
   reward?: { items: number; quota: number }
+  /** 终局是否发排位奖励；淘汰赛单局不发，只有排位赛发 */
+  rewardOnEnd?: boolean
 }
 
 export const STAR_MULT: Readonly<Record<1 | 2 | 3, number>> = { 1: 1, 2: 1.8, 3: 3 }

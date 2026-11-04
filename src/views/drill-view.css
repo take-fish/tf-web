@@ -3228,3 +3228,240 @@
   font-size: 11px;
   cursor: pointer;
 }
+
+/* ---------- 联机房间：状态条与候场 ---------- */
+
+.drill__room-chip {
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 1px solid var(--fm-border);
+  border-radius: 999px;
+  background: rgb(10 14 20 / 82%);
+  color: var(--fm-text-dim);
+  font-size: 10px;
+  z-index: 5;
+}
+
+.drill__room-chip em {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgb(103 226 160 / 14%);
+  color: #67e2a0;
+  font-style: normal;
+}
+
+.drill__room-chip-btn {
+  padding: 0 6px;
+  border: 1px solid rgb(240 184 119 / 45%);
+  border-radius: 999px;
+  background: transparent;
+  color: #f0b877;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.drill__prep-skip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.drill__modal--lobby {
+  width: min(420px, 92vw);
+}
+
+.drill__lobby-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0 14px 12px;
+  list-style: none;
+}
+
+.drill__lobby-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 3%);
+  font-size: 11px;
+  color: var(--fm-text-dim);
+}
+
+.drill__lobby-list li.is-self {
+  border-color: rgb(103 226 160 / 35%);
+}
+
+.drill__lobby-list li.is-ready {
+  color: var(--fm-text);
+}
+
+.drill__lobby-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__lobby-list li em {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgb(240 184 119 / 14%);
+  color: #f0b877;
+  font-style: normal;
+  font-size: 9px;
+}
+
+.drill__lobby-list li b {
+  font-weight: 500;
+  color: var(--fm-text-muted);
+}
+
+.drill__lobby-list li.is-ready b {
+  color: #67e2a0;
+}
+
+/* ---------- 淘汰赛对阵 ---------- */
+
+.drill__modal--knockout {
+  width: min(780px, 96vw);
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.drill__knockout-error {
+  margin: 0 14px 10px;
+  color: #ff7b7b;
+  font-size: 10px;
+}
+
+.drill__knockout-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 14px 16px;
+}
+
+.drill__knockout-empty p {
+  margin: 0;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.drill__knockout-champion {
+  margin: 0 14px 10px;
+  padding: 8px 10px;
+  border: 1px solid rgb(240 184 119 / 40%);
+  border-radius: 6px;
+  background: rgb(240 184 119 / 10%);
+  color: #f0b877;
+  font-size: 12px;
+}
+
+.drill__bracket {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 14px 12px;
+}
+
+.drill__bracket-round h4 {
+  margin: 0 0 6px;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.drill__bracket-match {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 3%);
+}
+
+.drill__bracket-match.is-live {
+  border-color: rgb(103 226 160 / 40%);
+}
+
+.drill__bracket-match.is-mine {
+  box-shadow: 0 0 0 1px rgb(103 226 160 / 45%);
+}
+
+.drill__bracket-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--fm-text-dim);
+  font-size: 11px;
+}
+
+.drill__bracket-player.is-winner {
+  color: #67e2a0;
+  font-weight: 600;
+}
+
+.drill__bracket-player span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill__bracket-match footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+
+.drill__bracket-live {
+  color: #67e2a0;
+}
+
+.drill__knockout-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--fm-border);
+}
+
+.drill__knockout-meta {
+  color: var(--fm-text-dim);
+  font-size: 10px;
+}
+
+.drill__knockout-meta em {
+  color: #f0b877;
+  font-style: normal;
+}
+
+.drill__knockout-carry {
+  margin: 0;
+  padding: 0 14px 8px;
+  color: var(--fm-text-muted);
+  font-size: 9px;
+}
+
+.drill__prep-chip--knockout {
+  border-color: rgba(240, 184, 119, 0.45);
+  color: #f0b877;
+}
