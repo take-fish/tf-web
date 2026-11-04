@@ -23,6 +23,7 @@ import StageTrack from '@/modules/drill/components/StageTrack.vue'
 import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
 import { BLOOD_TIDE_ROUND } from '@/modules/drill/core/engine'
+import type { GameState } from '@/modules/drill/core/state'
 import { useDrillStore } from '@/modules/drill/stores/drill'
 import { useDrillKnockoutStore } from '@/modules/drill/stores/knockout'
 import { useDrillRoomStore } from '@/modules/drill/stores/room'
@@ -46,6 +47,9 @@ const confirmOpen = ref(false)
 const restartOpen = ref(false)
 const knockoutOpen = ref(false)
 const knockoutContext = ref<{ matchId: string; game: number } | null>(null)
+/** 淘汰赛局间带入的上一局终态：等级/经验/配额/阵容/装备/强化 */
+const knockoutCarry = ref<GameState | null>(null)
+const knockoutEntered = ref(false)
 
 /** 锦标赛备战倒计时：进局前 35 秒、局间 25 秒，归零后弹「演练开始/是否观战」 */
 const PRELUDE_SECONDS = 35
@@ -179,18 +183,24 @@ function confirmRestart() {
 function leaveRoom() {
   room.leave()
   knockout.leave()
+  knockoutCarry.value = null
+  knockoutEntered.value = false
   void router.push('/games/autochess')
 }
 
-/** 从对阵图进入自己的一局：按服务端 seed 跑 10 轮。 */
+/** 从对阵图进入自己的一局：按服务端 seed 跑 10 轮，带入上一局成长。 */
 function startKnockoutGame(payload: { matchId: string; game: number; seed: number }) {
+  const carry =
+    knockoutCarry.value ?? (knockoutEntered.value ? undefined : drill.captureKnockoutCarry())
   knockoutContext.value = { matchId: payload.matchId, game: payload.game }
   knockoutOpen.value = false
+  knockoutEntered.value = true
+  knockoutCarry.value = null
   ui.closeArena()
   ui.closeReport()
   ui.closePrompt()
   battleActive.value = false
-  drill.startKnockoutMatch(payload.seed, 10)
+  drill.startKnockoutMatch(payload.seed, 10, carry)
   room.setLocalRound(drill.snapshot.round)
 }
 
@@ -198,13 +208,15 @@ function startKnockoutGame(payload: { matchId: string; game: number; seed: numbe
 async function finishKnockoutGame() {
   const context = knockoutContext.value
   if (!context) return
+  const snapshot = drill.snapshot
+  // 下一局沿用本局终态的等级/经验/配额/阵容/装备/强化
+  knockoutCarry.value = drill.captureKnockoutCarry()
   let match = knockout.matches.find((entry) => entry.id === context.matchId)
   if (!match) {
     await knockout.refresh()
     match = knockout.matches.find((entry) => entry.id === context.matchId)
   }
   if (match) {
-    const snapshot = drill.snapshot
     const ok = await knockout.report(match, {
       game: context.game,
       wins: snapshot.record.wins,

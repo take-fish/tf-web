@@ -145,4 +145,33 @@ describe('淘汰赛 store 与 10 轮对局', () => {
     expect(state.totalRounds).toBe(10)
     expect(state.tournament).toBe(true)
   })
+
+  it('淘汰赛下一局带入等级/经验/配额/阵容/装备/强化，商店重刷', () => {
+    const previous = createGame(1, { tournament: true, rounds: 10 })
+    previous.level = 7
+    previous.xp = 12
+    previous.quotas = 33
+    previous.picks = ['G3']
+    previous.annotations = previous.annotations.map((item, index) =>
+      index === 0 ? { ...item, kind: 'tx' } : item,
+    )
+    previous.units = [
+      { uid: 'u1', defId: 'api', star: 2, zone: 'board', slot: 0, annotations: ['cache'] },
+    ]
+
+    const next = createGame(2, { tournament: true, rounds: 10, carry: previous })
+
+    expect(next.level).toBe(7)
+    expect(next.xp).toBe(12)
+    expect(next.quotas).toBe(33)
+    expect(next.picks).toEqual(['G3'])
+    expect(next.annotations[0]?.kind).toBe('tx')
+    expect(next.units).toEqual(previous.units)
+    expect(next.units).not.toBe(previous.units)
+    expect(next.round).toBe(1)
+    expect(next.totalRounds).toBe(10)
+    // 商店与战绩每局重刷
+    expect(next.shop.length).toBeGreaterThan(0)
+    expect(next.record).toEqual({ wins: 0, losses: 0, draws: 0 })
+  })
 })

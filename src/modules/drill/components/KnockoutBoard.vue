@@ -126,6 +126,10 @@ onBeforeUnmount(() => {
           </section>
         </div>
 
+        <p v-if="knockout.selfMatch" class="drill__hint drill__knockout-carry">
+          等级、经验、配额、阵容与装备会带入下一局；商店与对手每局重刷。
+        </p>
+
         <footer class="drill__knockout-actions">
           <template v-if="knockout.selfMatch">
             <span class="drill__knockout-meta">

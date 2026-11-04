@@ -308,8 +308,8 @@ export const useDrillStore = defineStore('drill', () => {
     }
   }
 
-  function resetState(tournament: boolean, seed?: number, rounds?: number) {
-    state.value = createGame(seed ?? Date.now(), { tournament, rounds })
+  function resetState(tournament: boolean, seed?: number, rounds?: number, carry?: GameState) {
+    state.value = createGame(seed ?? Date.now(), { tournament, rounds, carry })
     elapsed.value = 0
     error.value = null
     lastTrace.value = null
@@ -357,12 +357,17 @@ export const useDrillStore = defineStore('drill', () => {
     return true
   }
 
-  /** 淘汰赛一局：10 轮、无血量，按终局战绩上报。 */
-  function startKnockoutMatch(seed: number, rounds = 10) {
+  /** 淘汰赛一局：10 轮、无血量，按终局战绩上报；可带入上一局的成长。 */
+  function startKnockoutMatch(seed: number, rounds = 10, carry?: GameState) {
     mode.value = 'tournament'
     party.value = []
     persistParty()
-    resetState(true, seed, rounds)
+    resetState(true, seed, rounds, carry)
+  }
+
+  /** 给淘汰赛局间带入用的原始状态（等级/经验/配额/阵容/装备/强化）。 */
+  function captureKnockoutCarry(): GameState {
+    return state.value
   }
 
   function resetMode() {
@@ -607,6 +612,7 @@ watch(
     startParty,
     startTournament,
     startKnockoutMatch,
+    captureKnockoutCarry,
     adoptRoom,
     resetMode,
     matchups,
