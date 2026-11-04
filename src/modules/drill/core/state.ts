@@ -96,8 +96,10 @@ export interface GameState {
   log: readonly { round: number; won: boolean; mode: 'PVE' | 'PVP'; text: string }[]
   /** 选秀轮盘，仅在 DRAFT 阶段非空 */
   carousel: CarouselState | null
-  /** 本局是否已用掉 X1 的复活 */
+  /** 本局是否已用掉 X1 的复活/免负场 */
   usedSecondLife: boolean
+  /** 本局是否已用掉 S7 的第一次免费拆卸 */
+  usedFreeDismantle?: boolean
   /** 终局名次（1 为第一），未结束时为空 */
   placement?: number
   /** 终局积分，按名次与人数换算 */
@@ -118,7 +120,8 @@ export interface GameState {
 export const STAR_MULT: Readonly<Record<1 | 2 | 3, number>> = { 1: 1, 2: 1.8, 3: 3 }
 
 export function starMult(star: 1 | 2 | 3, cost: number): number {
-  if (star === 3 && cost === 5) return 2.2
+  // 5 费 3 星必须明显强于 4 费 3 星，能单挂打全场（小概率翻车）
+  if (star === 3 && cost === 5) return 3.8
   return STAR_MULT[star]
 }
 

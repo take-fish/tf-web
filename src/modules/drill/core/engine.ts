@@ -81,6 +81,22 @@ function makeCarousel(state: GameState): CarouselState {
   return { items, round: state.round }
 }
 
+const ANNOTATION_KINDS: readonly AnnotationKind[] = ['async', 'tx', 'cache', 'retry']
+
+/** 往空槽里补注解；S3 / 排位奖励共用。 */
+function grantRandomAnnotations(state: GameState, count: number, label: string): GameState {
+  if (count <= 0) return state
+  const rng = mulberry32(hashString(`${label}:${state.seed}:${state.round}`))
+  let remaining = count
+  const annotations = state.annotations.map((item) => {
+    if (item.kind !== null || remaining <= 0) return item
+    remaining -= 1
+    const kind = ANNOTATION_KINDS[Math.floor(rng() * ANNOTATION_KINDS.length)] ?? 'async'
+    return { ...item, kind }
+  })
+  return { ...state, annotations }
+}
+
 function makeOpponents(): OpponentState[] {
   return Array.from({ length: 7 }, (_, index) => ({
     id: `r${index + 1}`,
@@ -90,8 +106,16 @@ function makeOpponents(): OpponentState[] {
   }))
 }
 
+function shopOdds(state: GameState): number[] {
+  const odds = [...(SHOP_ODDS[state.level] ?? SHOP_ODDS[3] ?? [75, 25, 0, 0, 0])]
+  if (state.picks.includes('S4')) odds[2] = (odds[2] ?? 0) + 5
+  if (state.picks.includes('G5')) odds[3] = (odds[3] ?? 0) + 4
+  const total = odds.reduce((sum, value) => sum + value, 0)
+  return total > 0 ? odds.map((value) => value / total) : odds
+}
+
 function rollShop(state: GameState, free: boolean): GameState {
-  const odds = SHOP_ODDS[state.level] ?? SHOP_ODDS[3] ?? [75, 25, 0, 0, 0]
+  const odds = shopOdds(state)
   const rng = mulberry32(hashString(`${state.seed}:${state.round}:${state.rerollsThisRound}:${state.units.length}`))
   const shop: ShopSlot[] = []
 
@@ -361,26 +385,9 @@ function levelUpIfReady(state: GameState): GameState {
   return next
 }
 
-/** 战斗与专项共用的团队修正。 */
+/** 全队共享修正：专项、佳妹/野露洁等“点名全队”的机制。 */
 export function computeMods(state: GameState): Mods {
   const mods: Mods = { ...EMPTY_MODS }
-  const tiers = activeTiers(state)
-  for (const [trait, level] of Object.entries(tiers)) {
-    const def = TRAIT_BY_ID[trait]
-    const effect = def?.effects[level - 1]
-    if (!effect) continue
-    mods.atk += effect.atk ?? 0
-    mods.as += effect.as ?? 0
-    mods.ap += effect.ap ?? 0
-    mods.armor += effect.armor ?? 0
-    mods.mr += effect.mr ?? 0
-    mods.hp += effect.hp ?? 0
-    mods.onHitFlat += effect.onHitFlat ?? 0
-    mods.executeBonus += effect.executeBonus ?? 0
-    mods.reviveRatio = Math.max(mods.reviveRatio, effect.reviveRatio ?? 0)
-    mods.deathAoe = Math.max(mods.deathAoe, effect.deathAoe ?? 0)
-  }
-
   // 佳妹：注解越多越强（每件注解 +8% 攻速、+5% 法强，封顶 20 件）
   const board = state.units.filter((item) => item.zone === 'board')
   if (board.some((item) => item.defId === 'jiamei')) {
@@ -421,22 +428,54 @@ export function computeMods(state: GameState): Mods {
   return mods
 }
 
+/**
+ * 战斗类羁绊只作用于该羁绊成员；经济类不在这里处理，仍由 income() 全局结算。
+ * 这样 2 件套不能外挂全队，6/8/9 档的竖向投入才有意义。
+ */
+export function computeUnitMods(state: GameState, unit: UnitInstance): Partial<Mods> {
+  const mods: Mods = { ...EMPTY_MODS }
+  const tiers = activeTiers(state)
+  const def = UNIT_BY_ID[unit.defId]
+  if (!def) return mods
+  const member = new Set<string>(def.traits)
+  for (const [trait, level] of Object.entries(tiers)) {
+    if (!member.has(trait)) continue
+    const traitDef = TRAIT_BY_ID[trait]
+    const effect = traitDef?.effects[level - 1]
+    if (!effect) continue
+    mods.atk += effect.atk ?? 0
+    mods.as += effect.as ?? 0
+    mods.ap += effect.ap ?? 0
+    mods.armor += effect.armor ?? 0
+    mods.mr += effect.mr ?? 0
+    mods.hp += effect.hp ?? 0
+    mods.onHitFlat += effect.onHitFlat ?? 0
+    mods.executeBonus += effect.executeBonus ?? 0
+    mods.reviveRatio = Math.max(mods.reviveRatio, effect.reviveRatio ?? 0)
+    mods.deathAoe = Math.max(mods.deathAoe, effect.deathAoe ?? 0)
+  }
+  return mods
+}
+
 function income(state: GameState): number {
   let base = 5
-  const caps = 5 + (state.picks.includes('S2') ? 1 : 0) - (state.picks.includes('G3') ? 2 : 0)
+  let caps = 5 + (state.picks.includes('S2') ? 1 : 0) - (state.picks.includes('G3') ? 2 : 0)
+  const tiers = activeTiers(state)
+  for (const [trait, level] of Object.entries(tiers)) {
+    const def = TRAIT_BY_ID[trait]
+    const effect = def?.effects[level - 1]
+    if (!effect) continue
+    base += effect.goldPerRound ?? 0
+    // 订单中心：利息上限按档位叠加（+2 / +4），不再只加钱
+    caps += effect.interestCap ?? 0
+  }
   const interestCap = state.picks.includes('X2') ? Infinity : Math.max(0, caps)
   const interest = Math.min(Math.floor(state.quotas / 10), interestCap)
   const streak = Math.abs(state.streak)
   const streakGold = streak >= 5 ? 3 : streak >= 3 ? 2 : streak >= 2 ? 1 : 0
-  for (const [trait] of Object.entries(activeTiers(state))) {
-    const def = TRAIT_BY_ID[trait]
-    if (!def) continue
-    const level = activeTiers(state)[trait] ?? 0
-    const effect = def.effects[level - 1]
-    base += effect?.goldPerRound ?? 0
-  }
   if (state.picks.includes('G3')) base += 3
-  if (state.picks.includes('S6') && [3, 6, 9, 12, 15, 18].includes(state.round)) base += 2
+  const s6Rounds = [3, 6, 9, 12, 15].concat(state.totalRounds >= 18 ? [18] : [])
+  if (state.picks.includes('S6') && s6Rounds.includes(state.round)) base += 2
   return base + interest + streakGold
 }
 
@@ -449,6 +488,10 @@ function settle(state: GameState): GameState {
     rerollsThisRound: 0,
     round: state.round + 1,
     phase: 'PREP',
+  }
+  // S3：每个 PVE 轮额外掉落 1 个元注解
+  if (state.picks.includes('S3') && state.round <= 3) {
+    next = grantRandomAnnotations(next, 1, 's3')
   }
   next = levelUpIfReady(next)
   next = rollShop(next, true)
@@ -485,7 +528,7 @@ function settle(state: GameState): GameState {
     next = { ...next, pendingAugment: offerAugments(next) }
   }
 
-  if (CAROUSEL_ROUNDS.includes(next.round)) {
+  if (CAROUSEL_ROUNDS.filter((round) => round <= next.totalRounds).includes(next.round)) {
     next = { ...next, phase: 'DRAFT', carousel: makeCarousel(next) }
   }
 
@@ -631,6 +674,7 @@ function fight(state: GameState): CommandResult {
       col: coord.col,
       row: coord.row,
       annotations: unit.annotations,
+      mods: computeUnitMods(next, unit),
     }
   })
 
@@ -643,7 +687,12 @@ function fight(state: GameState): CommandResult {
   const allyMods = computeMods(next)
   const enemyMods: Mods = { ...EMPTY_MODS }
   if (allyMods.enemyAsDebuff > 0) {
-    enemyMods.as -= allyMods.enemyAsDebuff
+    // 由敌方单位的 effective('as') 在前 6 秒内扣除，不再整场静态减攻速
+    enemyMods.enemyAsDebuff = allyMods.enemyAsDebuff
+    enemyMods.enemyAsDebuffSeconds = allyMods.enemyAsDebuffSeconds
+    // 这是给对手的 debuff，不能留在己方 fighter.mods 里
+    allyMods.enemyAsDebuff = 0
+    allyMods.enemyAsDebuffSeconds = 0
   }
 
   const outcome = simulateBattle(allyInputs, enemy.units, allyMods, enemyMods)
@@ -651,12 +700,22 @@ function fight(state: GameState): CommandResult {
   const sliBefore = next.sli
   const won = outcome.winner === 'ally'
   const tourney = next.tournament === true
+  let usedSecondLife = next.usedSecondLife
+  let protectedLoss = false
+  if (tourney && outcome.winner === 'enemy') {
+    // 锦标赛没有 SLI：S8 保护 PVE 失败，X1 保护每局第一次失败，均不计负场
+    if (pve && next.picks.includes('S8')) protectedLoss = true
+    else if (next.picks.includes('X1') && !usedSecondLife) {
+      protectedLoss = true
+      usedSecondLife = true
+    }
+  }
   const damage = tourney ? 0 : seatDamage(next, outcome.enemyAlive, won)
   let sli = Math.max(0, next.sli - damage)
 
   if (sli === 0 && !next.usedSecondLife && next.picks.includes('X1')) {
     sli = 20
-    next.usedSecondLife = true
+    usedSecondLife = true
   }
 
   const report = {
@@ -674,6 +733,7 @@ function fight(state: GameState): CommandResult {
   const settled: GameState = {
     ...next,
     sli,
+    usedSecondLife,
     streak: won ? Math.max(1, next.streak + 1) : Math.min(-1, next.streak - 1),
     lastBattle: report,
     log: [
@@ -692,7 +752,9 @@ function fight(state: GameState): CommandResult {
   if (tourney) {
     const record = {
       wins: (next.record?.wins ?? 0) + (won ? 1 : 0),
-      losses: (next.record?.losses ?? 0) + (won ? 0 : outcome.winner === 'draw' ? 0 : 1),
+      losses:
+        (next.record?.losses ?? 0) +
+        (won || outcome.winner === 'draw' || protectedLoss ? 0 : 1),
       draws: (next.record?.draws ?? 0) + (outcome.winner === 'draw' ? 1 : 0),
     }
     const opponents = (next.standings ?? []).map((row) => {
@@ -784,8 +846,12 @@ export function dispatch(state: GameState, command: Command): CommandResult {
     case 'UNEQUIP': {
       const unit = state.units.find((candidate) => candidate.uid === command.uid)
       if (!unit || !unit.annotations[command.index]) return { state, error: '实例不存在' }
+      const freeDismantle = state.picks.includes('S7') && !state.usedFreeDismantle
+      if (!freeDismantle && state.quotas < 2) return { state, error: '配额不足，拆卸需要 2 配额' }
       const removed = unit.annotations[command.index] as AnnotationKind
       const next = cloneState(state)
+      if (freeDismantle) next.usedFreeDismantle = true
+      else next.quotas -= 2
       next.units = next.units.map((candidate) =>
         candidate.uid === command.uid
           ? { ...candidate, annotations: candidate.annotations.filter((_, index) => index !== command.index) }
