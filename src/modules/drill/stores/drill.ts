@@ -363,8 +363,8 @@ export const useDrillStore = defineStore('drill', () => {
     return true
   }
 
-  /** 淘汰赛一局：10 轮、无血量，按终局战绩上报；可带入上一局的成长。 */
-  function startKnockoutMatch(seed: number, rounds = 10, carry?: GameState) {
+  /** 淘汰赛一局：一轮战斗、无血量，按本轮战绩上报；可带入上一局的成长。 */
+  function startKnockoutMatch(seed: number, rounds = 1, carry?: GameState) {
     mode.value = 'tournament'
     party.value = []
     persistParty()
