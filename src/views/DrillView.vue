@@ -218,15 +218,18 @@ onBeforeUnmount(() => {
         <header class="drill__modal-head">
           <div>
             <span class="drill__eyebrow">ALIGNMENT</span>
-            <b>发起一致性校验</b>
+            <b>{{ drill.snapshot.tournament ? '演练开始' : '发起一致性校验' }}</b>
           </div>
         </header>
-        <p class="drill__prompt-text">
+        <p v-if="drill.snapshot.tournament" class="drill__prompt-text">
+          是否观战？观战会打开观察窗逐帧看本局演练；跳过则直接出本局结果，进入结算与备战。
+        </p>
+        <p v-else class="drill__prompt-text">
           是否进入演练观察窗查看本次对齐过程？观察窗里可以调速、缩放、拖进度；不看也能稍后用底部的「回放」再看一遍。
         </p>
         <footer class="drill__prompt-actions">
-          <button type="button" class="drill__ghost" @click="resolveBattle(false)">直接结算</button>
-          <button type="button" class="drill__primary" @click="resolveBattle(true)">进入观察窗</button>
+          <button type="button" class="drill__ghost" @click="resolveBattle(false)">{{ drill.snapshot.tournament ? '跳过' : '直接结算' }}</button>
+          <button type="button" class="drill__primary" @click="resolveBattle(true)">{{ drill.snapshot.tournament ? '观战' : '进入观察窗' }}</button>
         </footer>
       </div>
     </div>
