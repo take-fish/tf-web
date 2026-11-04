@@ -440,6 +440,15 @@ function settle(state: GameState): GameState {
   if (next.round > next.totalRounds) {
     // 锦标赛：15 轮排位结束，按战绩（胜 > 负少 > 平多）排名
     const placement = next.tournament ? tournamentPlacement(next.standings ?? []) : placementOf(next)
+    if (next.tournament) {
+      const reward = tournamentReward(placement)
+      return {
+        ...grantTournamentReward(next, reward),
+        phase: 'END',
+        placement,
+        reward,
+      }
+    }
     return {
       ...next,
       phase: 'END',
@@ -514,6 +523,29 @@ function pointsFor(placement: number, total: number): number {
 }
 
 /** 终局名次：血量高者靠前，已淘汰的排在存活者之后。 */
+/** 排位奖励：1 名 4 件/30 配额，2 名 3/25，3–4 名 2/20，其余 1/15。 */
+export function tournamentReward(placement: number): { items: number; quota: number } {
+  if (placement === 1) return { items: 4, quota: 30 }
+  if (placement === 2) return { items: 3, quota: 25 }
+  if (placement <= 4) return { items: 2, quota: 20 }
+  return { items: 1, quota: 15 }
+}
+
+/** 奖励直接进装备栏：空注解槽按顺序补已合成装备，配额加进本局。 */
+function grantTournamentReward(state: GameState, reward: { items: number; quota: number }): GameState {
+  const free = state.annotations.filter((item) => item.kind === null)
+  const kinds = ['async', 'tx', 'cache', 'retry'] as const
+  let index = 0
+  const annotations = state.annotations.map((item) => {
+    if (item.kind !== null || index >= reward.items) return item
+    const kind = kinds[index % kinds.length] as NonNullable<(typeof kinds)[number]>
+    index += 1
+    return { ...item, kind }
+  })
+  void free
+  return { ...state, annotations, quotas: state.quotas + reward.quota }
+}
+
 function tournamentPlacement(standings: readonly { wins: number; losses: number; draws: number; self: boolean }[]): number {
   const ranked = [...standings].sort(
     (a, b) => b.wins - a.wins || a.losses - b.losses || b.draws - a.draws,
