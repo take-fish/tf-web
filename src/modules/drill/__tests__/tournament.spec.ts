@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 
 import { UNIT_BY_ID } from '../core/content'
 import { createGame, dispatch } from '../core/engine'
-import type { Command, GameState } from '../core/engine'
+import type { Command } from '../core/engine'
+import type { GameState } from '../core/state'
 
 function play(state: GameState, command: Command): GameState {
   return dispatch(state, command).state
@@ -11,6 +12,7 @@ function play(state: GameState, command: Command): GameState {
 /** 锦标赛排位赛：自动买人/上阵/开战，打满 15 轮。 */
 function autoPlayTournament(seed = 1): GameState {
   let state = createGame(seed, { tournament: true })
+  const picked = new Set<string>()
   let guard = 0
   while (state.phase !== 'END' && guard < 200) {
     guard += 1
@@ -33,8 +35,11 @@ function autoPlayTournament(seed = 1): GameState {
     if (pending && pending.length > 0) state = play(state, { type: 'PICK_AUGMENT', id: pending[0] ?? '' })
 
     if (state.phase === 'DRAFT' && state.carousel) {
-      const item = state.carousel.items.find((entry) => !entry.taken)
-      if (item) state = play(state, { type: 'PICK_CAROUSEL', itemId: item.id })
+      const item = state.carousel.items.find((entry) => !picked.has(`${state.round}:${entry.id}`))
+      if (item) {
+        picked.add(`${state.round}:${item.id}`)
+        state = play(state, { type: 'PICK_CAROUSEL', itemId: item.id })
+      }
     }
 
     if (state.phase === 'PREP' && state.units.some((unit) => unit.zone === 'board')) {
@@ -52,7 +57,8 @@ describe('锦标赛排位赛（无血量 / 15 轮 / 战绩排名）', () => {
     expect(state.sli).toBe(100)
     expect(state.record).toEqual({ wins: 0, losses: 0, draws: 0 })
     expect(state.standings?.length).toBe(8)
-    expect(state.opponents.every((seat) => seat.alive && seat.sli === 100)).toBe(true)
+    const alive = state.opponents.every((seat: { alive: boolean; sli: number }) => seat.alive && seat.sli === 100)
+    expect(alive).toBe(true)
   })
 
   it('打满 15 轮后按战绩收口，中途不掉血也不淘汰', () => {
@@ -60,7 +66,7 @@ describe('锦标赛排位赛（无血量 / 15 轮 / 战绩排名）', () => {
     expect(state.phase).toBe('END')
     expect(state.log.length).toBe(15)
     expect(state.sli).toBe(100)
-    expect(state.opponents.every((seat) => seat.alive)).toBe(true)
+    expect(state.opponents.every((seat: { alive: boolean }) => seat.alive)).toBe(true)
 
     const record = state.record ?? { wins: 0, losses: 0, draws: 0 }
     expect(record.wins + record.losses + record.draws).toBe(15)
