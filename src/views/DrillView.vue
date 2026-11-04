@@ -216,7 +216,8 @@ onBeforeUnmount(() => {
     <UnitDrawer @remove="requestRemove" />
     <LineupPanel />
     <DraftCarousel />
-    <DrillChat />`n    <NamingBoard />
+    <DrillChat />
+    <NamingBoard />
     <BattleArena />
 
     <div
