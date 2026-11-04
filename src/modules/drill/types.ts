@@ -150,6 +150,12 @@ export interface DrillSnapshot {
   matchPoints: number | null
   /** 仍在场的席位数（含自己） */
   aliveSeats: number
+  /** 锦标赛模式（无血量、按战绩排名） */
+  tournament: boolean
+  /** 锦标赛战绩 */
+  record: { wins: number; losses: number; draws: number }
+  /** 锦标赛战绩榜（含自己与机器人教练） */
+  standings: readonly { name: string; wins: number; losses: number; draws: number; self: boolean }[]
   scale: number
   elapsed: number
   phase: DrillPhase
