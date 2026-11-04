@@ -195,5 +195,9 @@ describe('淘汰赛 store 与 10 轮对局', () => {
     expect(third.quotas).toBe(second.quotas)
     expect(third.units.some((unit) => unit.uid === 'prep-1')).toBe(true)
     expect(third.round).toBe(1)
+    expect(third.rewardOnEnd).toBe(true)
+    expect(createGame(14, { tournament: true, rounds: 10, rewardOnEnd: false }).rewardOnEnd).toBe(
+      false,
+    )
   })
 })
