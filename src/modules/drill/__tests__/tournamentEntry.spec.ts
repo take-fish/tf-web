@@ -39,4 +39,15 @@ describe('锦标赛入口', () => {
     expect(drill.snapshot.tournament).toBe(false)
     expect(drill.snapshot.totalRounds).toBe(30)
   })
+
+  it('按服务端 seed 重开本地局，起手轮次对不上时拒绝', () => {
+    const drill = useDrillStore()
+    drill.startSolo()
+
+    expect(drill.adoptRoom(777, true)).toBe(true)
+    expect(drill.snapshot.seed).toBe(777)
+    expect(drill.snapshot.tournament).toBe(true)
+    expect(drill.adoptRoom(777, true)).toBe(true)
+    expect(drill.adoptRoom(888, true, 2)).toBe(false)
+  })
 })
