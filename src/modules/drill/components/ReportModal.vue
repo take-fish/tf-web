@@ -45,7 +45,7 @@ function replay() {
       <dl class="drill__report-rows">
         <div><dt>亲和组达成</dt><dd>{{ snapshot.achievement }}</dd></div>
         <div><dt>最终 SLI</dt><dd>{{ snapshot.sli }}</dd></div>
-        <div v-if="snapshot.placement"><dt>名次</dt><dd>第 {{ snapshot.placement }} 名 / 共 {{ snapshot.aliveSeats + snapshot.placement - 1 }} 席</dd></div>
+        <div v-if="snapshot.placement"><dt>名次</dt><dd>第 {{ snapshot.placement }} 名</dd></div>
         <div v-if="snapshot.matchPoints !== null"><dt>积分</dt><dd>{{ snapshot.matchPoints.toFixed(1) }}</dd></div>
         <div><dt>轮次</dt><dd>{{ snapshot.round }} / {{ snapshot.totalRounds }}</dd></div>
         <div><dt>配额结余</dt><dd>{{ snapshot.quotas }}</dd></div>
