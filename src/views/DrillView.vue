@@ -33,6 +33,43 @@ const progress = ref(0)
 const confirmOpen = ref(false)
 const restartOpen = ref(false)
 
+/** 锦标赛备战倒计时：进局前 35 秒、局间 25 秒，归零后弹「演练开始/是否观战」 */
+const PRELUDE_SECONDS = 35
+const INTERMISSION_SECONDS = 25
+const prepLeft = ref<number | null>(null)
+let prepTimer: number | undefined
+
+function stopPrep() {
+  if (prepTimer) window.clearInterval(prepTimer)
+  prepTimer = undefined
+  prepLeft.value = null
+}
+
+function startPrep() {
+  stopPrep()
+  if (!drill.snapshot.tournament || drill.snapshot.over) return
+  prepLeft.value = drill.snapshot.round <= 1 ? PRELUDE_SECONDS : INTERMISSION_SECONDS
+  prepTimer = window.setInterval(() => {
+    if (prepLeft.value === null) return
+    prepLeft.value -= 1
+    if (prepLeft.value > 0) return
+    stopPrep()
+    if (!battleActive.value && !drill.snapshot.over) requestBattle()
+  }, 1000)
+}
+
+watch(
+  () => [drill.snapshot.tournament, drill.snapshot.round, drill.snapshot.phase, drill.snapshot.over],
+  () => {
+    if (drill.snapshot.tournament && drill.snapshot.phase === 'PREP' && !drill.snapshot.over) {
+      if (prepLeft.value === null) startPrep()
+    } else {
+      stopPrep()
+    }
+  },
+  { immediate: true },
+)
+
 let clockTimer: number | undefined
 let battleTimer: number | undefined
 
@@ -145,6 +182,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="drill" :class="{ 'is-meeting': ui.meetingMode }">
     <DrillHeader @restart="restartOpen = true" />
+    <span v-if="prepLeft !== null" class="drill__prep-chip">备战 {{ prepLeft }}s</span>
 
     <div class="drill__body">
       <TraitPanel v-if="!ui.meetingMode" />
