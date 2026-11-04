@@ -103,6 +103,12 @@ export interface GameState {
   /** 终局积分，按名次与人数换算 */
   matchPoints?: number
   mergedCount: number
+  /** 锦标赛模式：无血量、不淘汰、15 轮后按战绩排名 */
+  tournament?: boolean
+  /** 锦标赛战绩（胜/负/平） */
+  record?: { wins: number; losses: number; draws: number }
+  /** 锦标赛战绩榜（含自己与机器人教练） */
+  standings?: readonly { name: string; wins: number; losses: number; draws: number; self: boolean }[]
 }
 
 export const STAR_MULT: Readonly<Record<1 | 2 | 3, number>> = { 1: 1, 2: 1.8, 3: 3 }
