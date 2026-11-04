@@ -10,6 +10,7 @@ import DraftCarousel from '@/modules/drill/components/DraftCarousel.vue'
 import DrillChat from '@/modules/drill/components/DrillChat.vue'
 import DrillHeader from '@/modules/drill/components/DrillHeader.vue'
 import DrillStage from '@/modules/drill/components/DrillStage.vue'
+import KnockoutBoard from '@/modules/drill/components/KnockoutBoard.vue'
 import LineupPanel from '@/modules/drill/components/LineupPanel.vue'
 import NamingBoard from '@/modules/drill/components/NamingBoard.vue'
 import ProposalModal from '@/modules/drill/components/ProposalModal.vue'
@@ -23,6 +24,7 @@ import TraitPanel from '@/modules/drill/components/TraitPanel.vue'
 import UnitDrawer from '@/modules/drill/components/UnitDrawer.vue'
 import { BLOOD_TIDE_ROUND } from '@/modules/drill/core/engine'
 import { useDrillStore } from '@/modules/drill/stores/drill'
+import { useDrillKnockoutStore } from '@/modules/drill/stores/knockout'
 import { useDrillRoomStore } from '@/modules/drill/stores/room'
 import { useLineupStore } from '@/modules/drill/stores/lineup'
 import { useDrillUiStore } from '@/modules/drill/stores/ui'
@@ -31,6 +33,7 @@ const route = useRoute()
 const router = useRouter()
 const drill = useDrillStore()
 const room = useDrillRoomStore()
+const knockout = useDrillKnockoutStore()
 const ui = useDrillUiStore()
 const lineup = useLineupStore()
 
@@ -41,6 +44,8 @@ const battleActive = ref(false)
 const progress = ref(0)
 const confirmOpen = ref(false)
 const restartOpen = ref(false)
+const knockoutOpen = ref(false)
+const knockoutContext = ref<{ matchId: string; game: number } | null>(null)
 
 /** 锦标赛备战倒计时：进局前 35 秒、局间 25 秒，归零后弹「演练开始/是否观战」 */
 const PRELUDE_SECONDS = 35
@@ -56,7 +61,7 @@ function stopPrep() {
 
 function startPrep() {
   stopPrep()
-  if (room.active) return
+  if (room.active || knockoutContext.value) return
   if (!drill.snapshot.tournament || drill.snapshot.over) return
   prepLeft.value = drill.snapshot.round <= 1 ? PRELUDE_SECONDS : INTERMISSION_SECONDS
   prepTimer = window.setInterval(() => {
@@ -103,7 +108,7 @@ function requestBattle() {
   if (battleActive.value) return
   if (drill.snapshot.proposals.length > 0) return
   if (drill.snapshot.over) return
-  if (room.active && !room.canFight) {
+  if (room.active && !knockoutContext.value && !room.canFight) {
     ui.notify(room.gateMessage)
     return
   }
@@ -115,7 +120,7 @@ function completeBattle(): boolean {
   const finishedRound = drill.snapshot.round
   const before = drill.snapshot.record
   if (!drill.startBattle()) return false
-  if (!room.active) return true
+  if (!room.active || knockoutContext.value) return true
   const after = drill.snapshot.record
   const result =
     after.wins > before.wins ? 'WIN' : after.draws > before.draws ? 'DRAW' : 'LOSS'
@@ -173,7 +178,45 @@ function confirmRestart() {
 
 function leaveRoom() {
   room.leave()
+  knockout.leave()
   void router.push('/games/autochess')
+}
+
+/** 从对阵图进入自己的一局：按服务端 seed 跑 10 轮。 */
+function startKnockoutGame(payload: { matchId: string; game: number; seed: number }) {
+  knockoutContext.value = { matchId: payload.matchId, game: payload.game }
+  knockoutOpen.value = false
+  ui.closeArena()
+  ui.closeReport()
+  ui.closePrompt()
+  battleActive.value = false
+  drill.startKnockoutMatch(payload.seed, 10)
+  room.setLocalRound(drill.snapshot.round)
+}
+
+/** 10 轮打完，把终局战绩报给淘汰赛服务端，回到对阵图等待对手。 */
+async function finishKnockoutGame() {
+  const context = knockoutContext.value
+  if (!context) return
+  let match = knockout.matches.find((entry) => entry.id === context.matchId)
+  if (!match) {
+    await knockout.refresh()
+    match = knockout.matches.find((entry) => entry.id === context.matchId)
+  }
+  if (match) {
+    const snapshot = drill.snapshot
+    const ok = await knockout.report(match, {
+      game: context.game,
+      wins: snapshot.record.wins,
+      losses: snapshot.record.losses,
+      draws: snapshot.record.draws,
+      sli: snapshot.sli,
+      survivors: snapshot.units.length,
+    })
+    if (!ok) ui.notify(knockout.error ?? '上报对局失败')
+  }
+  knockoutContext.value = null
+  knockoutOpen.value = true
 }
 
 function confirmRemove() {
@@ -191,15 +234,37 @@ watch(
 watch(
   () => drill.snapshot.over,
   (value) => {
+    if (!value) return
+    if (knockoutContext.value) {
+      void finishKnockoutGame()
+      return
+    }
     // 观察窗开着时先不压报告，等关窗再看
-    if (value && !ui.arenaOpen) ui.openReport()
+    if (ui.arenaOpen) return
+    if (roomMode.value && room.isTournament) {
+      knockoutOpen.value = true
+      return
+    }
+    ui.openReport()
   },
 )
 
 watch(
   () => ui.arenaOpen,
   (open) => {
-    if (!open && drill.snapshot.over) ui.openReport()
+    if (open || !drill.snapshot.over || knockoutContext.value) return
+    if (roomMode.value && room.isTournament) knockoutOpen.value = true
+    else ui.openReport()
+  },
+)
+
+// 排位赛结束：自动打开淘汰赛对阵
+watch(
+  () => [room.status, room.isTournament],
+  () => {
+    if (room.active && room.isTournament && room.status === 'FINISHED' && !knockoutContext.value) {
+      knockoutOpen.value = true
+    }
   },
 )
 
@@ -273,6 +338,7 @@ onBeforeUnmount(() => {
   if (clockTimer) window.clearInterval(clockTimer)
   if (battleTimer) window.clearInterval(battleTimer)
   room.leave()
+  knockout.leave()
 })
 </script>
 
@@ -282,6 +348,14 @@ onBeforeUnmount(() => {
     <span v-if="roomMode" class="drill__room-chip">
       联机 {{ room.room?.id }} · 第 {{ room.room?.round }} 轮
       <em v-if="room.selfReported">已上报</em>
+      <button
+        v-if="room.isTournament && room.status === 'FINISHED'"
+        type="button"
+        class="drill__room-chip-btn"
+        @click="knockoutOpen = true"
+      >
+        对阵
+      </button>
     </span>
     <span v-if="roomMode ? room.prepRemaining !== null : prepLeft !== null" class="drill__prep-chip">
       备战 {{ roomMode ? room.prepRemaining : prepLeft }}s
@@ -318,6 +392,12 @@ onBeforeUnmount(() => {
     <DrillChat />
     <NamingBoard />
     <BattleArena />
+    <KnockoutBoard
+      v-if="knockoutOpen && room.roomId"
+      :room-id="room.roomId"
+      @play="startKnockoutGame"
+      @close="knockoutOpen = false"
+    />
 
     <div
       v-if="ui.promptOpen"
