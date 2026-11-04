@@ -41,7 +41,7 @@ const PARTY_KEY = 'fm.drill.party.v1'
 function loadMode(): DrillMode | null {
   try {
     const raw = localStorage.getItem(MODE_KEY)
-    return raw === 'solo' || raw === 'party' ? raw : null
+    return raw === 'solo' || raw === 'party' || raw === 'tournament' ? raw : null
   } catch {
     return null
   }
@@ -73,19 +73,24 @@ const FORM_LABEL: Readonly<Record<string, string>> = {
   sustain: '续航',
 }
 
-function loadState(): GameState {
+function loadState(tournament = false): GameState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as GameState
-      if (parsed && typeof parsed.seed === 'number' && Array.isArray(parsed.units)) {
+      if (
+        parsed &&
+        typeof parsed.seed === 'number' &&
+        Array.isArray(parsed.units) &&
+        (parsed.tournament === true) === tournament
+      ) {
         return parsed
       }
     }
   } catch {
     // 存档损坏就用新局
   }
-  return createGame(Date.now())
+  return createGame(Date.now(), { tournament })
 }
 
 /** 引擎状态 → 视图快照。玩法词汇在这里统一翻译成平台词汇。 */
@@ -279,13 +284,13 @@ function project(
 }
 
 export const useDrillStore = defineStore('drill', () => {
-  const state = ref<GameState>(loadState())
+  const mode = ref<DrillMode | null>(loadMode())
+  const state = ref<GameState>(loadState(mode.value === 'tournament'))
   const elapsed = ref(0)
   const error = ref<string | null>(null)
   const paused = ref(false)
 
   const naming = useDrillNamingStore()
-  const mode = ref<DrillMode | null>(loadMode())
   const party = ref<PartySeat[]>(loadParty())
 
   const snapshot = computed(() =>
@@ -303,16 +308,35 @@ export const useDrillStore = defineStore('drill', () => {
     }
   }
 
+  function resetState(tournament: boolean) {
+    state.value = createGame(Date.now(), { tournament })
+    elapsed.value = 0
+    error.value = null
+    lastTrace.value = null
+    paused.value = false
+    preview.value = null
+  }
+
   function startSolo() {
     mode.value = 'solo'
     party.value = []
     persistParty()
+    if (state.value.tournament) resetState(false)
   }
 
   function startParty(seats: PartySeat[]) {
     mode.value = 'party'
     party.value = seats
     persistParty()
+    if (state.value.tournament) resetState(false)
+  }
+
+  /** 锦标赛专项：无血量、15 轮、按战绩排名，机器人教练补满 8 席。 */
+  function startTournament() {
+    mode.value = 'tournament'
+    party.value = []
+    persistParty()
+    resetState(true)
   }
 
   function resetMode() {
@@ -535,7 +559,7 @@ watch(
   }
 
   function restart() {
-    state.value = createGame(Date.now())
+    state.value = createGame(Date.now(), { tournament: mode.value === 'tournament' })
     elapsed.value = 0
     error.value = null
     lastTrace.value = null
@@ -556,6 +580,7 @@ watch(
     party,
     startSolo,
     startParty,
+    startTournament,
     resetMode,
     matchups,
     preview,

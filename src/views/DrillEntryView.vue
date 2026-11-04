@@ -81,6 +81,11 @@ function enterParty() {
   void router.push('/games/autochess/run')
 }
 
+function enterTournament() {
+  drill.startTournament()
+  void router.push('/games/autochess/run')
+}
+
 onMounted(() => {
   if (!tournament.started) tournament.start()
   void tournament.refreshOnline()
@@ -123,6 +128,17 @@ onMounted(() => {
         <b>组队</b>
         <span>邀请在线用户，不足 8 人由 AI 补齐</span>
       </button>
+      <button
+        type="button"
+        role="tab"
+        class="drill-entry__tab"
+        :class="{ 'is-on': tab === 'tournament' }"
+        :aria-selected="tab === 'tournament'"
+        @click="tab = 'tournament'"
+      >
+        <b>锦标赛</b>
+        <span>8 人同局 · 15 轮 · 按战绩排名发奖</span>
+      </button>
     </div>
 
     <section v-if="tab === 'solo'" class="drill-entry__panel">
@@ -146,6 +162,33 @@ onMounted(() => {
       </dl>
       <button type="button" class="drill-entry__go" @click="enterSolo">
         进入单练 →
+      </button>
+    </section>
+
+    <section v-else-if="tab === 'tournament'" class="drill-entry__panel">
+      <dl class="drill-entry__facts">
+        <div>
+          <dt>席位</dt>
+          <dd>8 人同局 · 教练补位</dd>
+        </div>
+        <div>
+          <dt>赛程</dt>
+          <dd>15 轮 · 不淘汰</dd>
+        </div>
+        <div>
+          <dt>排名</dt>
+          <dd>胜 3 / 平 1 / 负 0</dd>
+        </div>
+        <div>
+          <dt>奖励</dt>
+          <dd>装备入装备栏 + 配额</dd>
+        </div>
+      </dl>
+      <p class="drill-entry__hint">
+        锦标赛专项：与机器人教练同榜排名，局末按名次发奖励；正式赛事接入后可邀请真人同局。
+      </p>
+      <button type="button" class="drill-entry__go" @click="enterTournament">
+        进入锦标赛 →
       </button>
     </section>
 
