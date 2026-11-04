@@ -3003,3 +3003,95 @@
   color: #f85149;
   background: #251212;
 }
+
+/* ---------- 锦标赛报告：种子榜 / 奖励 / 对阵图 ---------- */
+
+.drill__seeds {
+  margin: 4px 0 6px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.drill__seeds li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  color: var(--fm-text-muted);
+}
+
+.drill__seeds li.is-self {
+  background: color-mix(in srgb, var(--fm-accent) 12%, transparent);
+  color: var(--fm-text);
+}
+
+.drill__seeds b {
+  width: 16px;
+  color: var(--fm-accent);
+  text-align: right;
+}
+
+.drill__seeds span {
+  flex: 1;
+}
+
+.drill__seeds em {
+  color: var(--fm-text-muted);
+  font-style: normal;
+}
+
+.drill__seeds i {
+  width: 22px;
+  color: var(--fm-text);
+  font-style: normal;
+  font-weight: 600;
+  text-align: right;
+}
+
+.drill__reward-line {
+  margin: 0 0 6px;
+  color: var(--fm-accent);
+  font-size: 11px;
+}
+
+.drill__bracket {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.drill__bracket-match {
+  padding: 6px 8px;
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 3%);
+}
+
+.drill__bracket-tag {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}
+
+.drill__bracket-side {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.drill__bracket-side b {
+  color: var(--fm-accent);
+}
+
+.drill__bracket-note {
+  margin: 2px 0 0;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+}

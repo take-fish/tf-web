@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { UNIT_BY_ID } from '../core/content'
 import { createGame, dispatch } from '../core/engine'
@@ -71,6 +71,8 @@ describe('锦标赛排位赛（无血量 / 15 轮 / 战绩排名）', () => {
     const record = state.record ?? { wins: 0, losses: 0, draws: 0 }
     expect(record.wins + record.losses + record.draws).toBe(15)
 
+    expect(state.reward).toBeTruthy()
+    expect(state.reward?.items).toBeGreaterThanOrEqual(1)
     expect(state.placement).toBeGreaterThanOrEqual(1)
     expect(state.placement).toBeLessThanOrEqual(8)
 
