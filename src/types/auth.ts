@@ -22,6 +22,10 @@ export interface Credentials {
 
 export interface LoginResponse {
   token: string
+  /** 刷新令牌：访问令牌只有 60 分钟有效期，过期时用它静默续期。 */
+  refreshToken?: string
+  /** 访问令牌剩余秒数。 */
+  expiresIn?: number
   user: AuthUser
 }
 

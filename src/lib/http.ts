@@ -1,4 +1,4 @@
-import { clearAuth, getAuthToken } from './authToken'
+import { clearAuth, getAuthToken, getRefreshToken, updateAuthToken } from './authToken'
 
 export const AUTH_EXPIRED_EVENT = 'fm:auth-expired'
 
@@ -35,7 +35,13 @@ export class ApiError extends Error {
   }
 }
 
-const NETWORK_HINTS = ['failed to fetch', 'load failed', 'networkerror', 'network request failed', 'fetch failed']
+const NETWORK_HINTS = [
+  'failed to fetch',
+  'load failed',
+  'networkerror',
+  'network request failed',
+  'fetch failed',
+]
 
 function isNetworkError(error: unknown): boolean {
   if (error instanceof ApiError) return false
@@ -60,8 +66,7 @@ function detailToMessage(detail: unknown): string {
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {
     const first = detail.find((item) => item && typeof item === 'object' && 'msg' in item) as
-      | { msg?: unknown }
-      | undefined
+      { msg?: unknown } | undefined
     if (first && typeof first.msg === 'string') return first.msg
   }
   return ''
@@ -134,9 +139,46 @@ export function appendErrorReference(message: string, error: unknown): string {
   return reference ? `${message}（编号 ${reference}）` : message
 }
 
+const REFRESH_PATH = '/api/v1/user/auth/refresh'
+
 /** 身份接口自身返回 401 才算登录态失效。 */
 function isAuthEntry(path: string): boolean {
   return path.startsWith('/api/v1/user/auth/')
+}
+
+/** 并发 401 共用同一次刷新，避免同时打爆用户中台。 */
+let refreshInFlight: Promise<boolean> | null = null
+
+async function requestRefresh(refreshToken: string): Promise<boolean> {
+  try {
+    const response = await fetch(REFRESH_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!response.ok) return false
+    const body = (await response.json()) as { token?: string }
+    if (!body.token) return false
+    updateAuthToken(body.token)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 访问令牌只有 60 分钟有效期，过期后先用刷新令牌静默换新。
+ * 返回 false 表示这次刷新不可用（没有刷新令牌 / 被拒 / 网络异常），交给调用方再判定。
+ */
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return false
+  if (!refreshInFlight) {
+    refreshInFlight = requestRefresh(refreshToken).finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
 }
 
 function buildHeaders(init: RequestInit): Headers {
@@ -171,16 +213,27 @@ async function sessionExpired(token: string | null): Promise<boolean> {
   }
 }
 
+/**
+ * 带身份的请求：401 时先用刷新令牌静默换新并重放一次；
+ * 刷新不可用时再回用户中台确认，确认失效才清登录态。
+ */
 export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const sentToken = getAuthToken()
-  const headers = buildHeaders(init)
+  let expectedToken = getAuthToken()
+  let response = await fetch(path, { ...init, headers: buildHeaders(init) })
 
-  const response = await fetch(path, { ...init, headers })
+  // 访问令牌过期：刷新成功后用新 token 重放原请求
+  if (response.status === 401 && !isAuthEntry(path) && getRefreshToken()) {
+    if (await refreshAccessToken()) {
+      expectedToken = getAuthToken()
+      response = await fetch(path, { ...init, headers: buildHeaders(init) })
+    }
+  }
+
   if (!response.ok) {
     if (response.status === 401) {
-      // 旧请求晚到（期间已经重新登录）时忽略，避免清掉新会话
-      const stillSameToken = getAuthToken() === sentToken
-      if (stillSameToken && (isAuthEntry(path) || (await sessionExpired(sentToken)))) {
+      // 旧请求晚到（期间已经重新登录或刷新过）时忽略，避免清掉新会话
+      const stillSameToken = getAuthToken() === expectedToken
+      if (stillSameToken && (isAuthEntry(path) || (await sessionExpired(expectedToken)))) {
         clearAuth()
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
