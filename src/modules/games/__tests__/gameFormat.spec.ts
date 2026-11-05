@@ -13,6 +13,7 @@ import {
   leagueStandings,
   matchRoundLabel,
   matchStatusLabel,
+  tournamentFormatLabel,
   tournamentModeSummary,
   tournamentStatusLabel,
   tournamentTypeLabel,
@@ -133,6 +134,12 @@ describe('gameFormat 标签', () => {
       .toBe('锦标赛 · 容量编排')
   })
 
+  it('容量编排列表不展示创建时的占位 BO', () => {
+    expect(tournamentFormatLabel(tournament({ format: 'BO1' }))).toBe('BO1 · 单次执行')
+    expect(tournamentFormatLabel(tournament({ gameId: 'capacity-drill', format: 'BO5' })))
+      .toBe('赛段固定 · 八强 BO3 / 四强决赛 BO5')
+  })
+
   it('淘汰赛轮次按总轮数换算', () => {
     const t = tournament({ totalRounds: 4 })
     expect(matchRoundLabel(t, match('m1', 1, 'KNOCKOUT'))).toBe('第 1 轮')
@@ -203,6 +210,25 @@ describe('groupMatches', () => {
     ])
     expect(groups[0]?.matches.map((entry) => entry.id)).toEqual(['m1', 'm2'])
     expect(groups[0]?.subtitle).toBe('BO1')
+  })
+
+  it('容量编排按赛段标注 BO3/BO5，而不是赛事级 format', () => {
+    const t = tournament({
+      gameId: 'capacity-drill',
+      format: 'BO5',
+      totalRounds: 3,
+      matches: [
+        match('quarter', 1, 'KNOCKOUT', { gameId: 'capacity-drill' }),
+        match('semi', 2, 'KNOCKOUT', { gameId: 'capacity-drill' }),
+        match('final', 3, 'KNOCKOUT', { gameId: 'capacity-drill' }),
+      ],
+    })
+    const groups = groupMatches(t)
+    expect(groups.map((group) => group.subtitle)).toEqual([
+      'BO3 · 赛段固定',
+      'BO5 · 赛段固定',
+      'BO5 · 赛段固定',
+    ])
   })
 })
 
