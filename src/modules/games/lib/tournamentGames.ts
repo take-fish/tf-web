@@ -1,11 +1,12 @@
 import type {
+  ChampionshipGameId,
   SelectableGameId,
   TournamentPoolGameId,
   TournamentType,
 } from '@/types/games'
 
 export interface TournamentGameOption {
-  id: TournamentPoolGameId
+  id: ChampionshipGameId
   name: string
   shortName: string
   description: string
@@ -13,7 +14,9 @@ export interface TournamentGameOption {
 }
 
 /** 1v1 剧本池：S赛在此范围内逐场抽签，锦标赛从中选定一个专精。 */
-export const TOURNAMENT_GAMES: readonly TournamentGameOption[] = [
+export const TOURNAMENT_GAMES: readonly (TournamentGameOption & {
+  id: TournamentPoolGameId
+})[] = [
   {
     id: 'heatmap-gomoku',
     name: '热点区域对弈',
@@ -51,17 +54,36 @@ export const TOURNAMENT_GAMES: readonly TournamentGameOption[] = [
   },
 ]
 
+/** 锦标赛单选目录：S赛池之外再加入良跑跑；良跑跑不进入 S赛随机池。 */
+export const CHAMPIONSHIP_GAMES: readonly TournamentGameOption[] = [
+  ...TOURNAMENT_GAMES,
+  {
+    id: 'capacity-drill',
+    name: '容量编排专项',
+    shortName: '容量编排',
+    description: '8 人同局 · 15 轮排位 · 按战绩排名',
+    defaultName: '容量编排演练',
+  },
+]
+
 export function isTournamentPoolGame(
   gameId: string | null | undefined,
 ): gameId is TournamentPoolGameId {
   return TOURNAMENT_GAMES.some((option) => option.id === gameId)
 }
 
+export function isChampionshipGame(
+  gameId: string | null | undefined,
+): gameId is ChampionshipGameId {
+  return CHAMPIONSHIP_GAMES.some((option) => option.id === gameId)
+}
+
 export function tournamentGameOption(
   gameId: string | null | undefined,
 ): TournamentGameOption {
   return (
-    TOURNAMENT_GAMES.find((option) => option.id === gameId) ?? TOURNAMENT_GAMES[0]!
+    CHAMPIONSHIP_GAMES.find((option) => option.id === gameId) ??
+    CHAMPIONSHIP_GAMES[0]!
   )
 }
 

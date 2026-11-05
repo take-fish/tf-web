@@ -59,8 +59,10 @@ export type ArenaGameId =
   | 'cluster-patrol-arena'
 /** 赛事开赛前只能选“系统随机”；具体小局由服务端抽签。 */
 export type TournamentGameId = ArenaGameId | 'random'
-/** S赛启用池与锦标赛可选剧本：五个 1v1 游戏，与后端 ArenaGames.TOURNAMENT_POOL 对齐。 */
+/** S赛启用池：五个 1v1 游戏，与后端 ArenaGames.TOURNAMENT_POOL 对齐。 */
 export type TournamentPoolGameId = ArenaGameId | 'blind-xiangqi'
+/** 锦标赛单选游戏：在 S赛池基础上加入良跑跑（容量编排）专项。 */
+export type ChampionshipGameId = TournamentPoolGameId | 'capacity-drill'
 /** S赛：综合随机抽选；锦标赛：单一剧本专精。 */
 export type TournamentType = 'SERIES' | 'CHAMPIONSHIP'
 /** TOURNAMENT：多人演练；DUEL：一对一约战，不进入大厅、不计分、无聊天与观战。 */
@@ -82,8 +84,8 @@ export interface GamePlayer {
 
 export type GameId = 'heatmap-gomoku' | 'blind-xiangqi'
 export type LeaderboardGameId = 'overall' | 'heatmap-gomoku' | 'blind-xiangqi'
-/** 赛事默认 random，可显式固定盲棋；约战可选任意剧本。 */
-export type SelectableGameId = GameId | TournamentGameId
+/** 赛事默认 random，可显式固定盲棋；锦标赛可单选良跑跑；约战可选任意剧本。 */
+export type SelectableGameId = GameId | TournamentGameId | 'capacity-drill'
 
 export type BlindLayout = 'STANDARD_SHUFFLE' | 'FULL_RANDOM' | 'HALF_RANDOM'
 export type BlindPieceColor = 'RED' | 'BLACK'
@@ -360,6 +362,14 @@ export interface GameArenaAction {
   cell?: number
 }
 
+/** 容量编排小局：服务端下发的 seed、截止时间与已提交名单（不含对手战绩）。 */
+export interface DrillMatchState {
+  seed: number
+  gameNo: number
+  deadlineAt: number
+  reportedUserIds: string[]
+}
+
 export interface GameRound {
   id: string
   gameId: string
@@ -385,6 +395,8 @@ export interface GameRound {
   /** 盲棋 firstUserId 为红方，secondUserId 为黑方。 */
   firstUserId?: string
   secondUserId?: string
+  /** 容量编排小局才有的服务端状态。 */
+  drill?: DrillMatchState | null
 }
 
 export interface GameMatch {
