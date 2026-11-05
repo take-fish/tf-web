@@ -105,9 +105,11 @@ describe('gameFormat 标签', () => {
     expect(matchStatusLabel('BYE')).toBe('轮空')
   })
 
-  it('识别五子棋、盲棋与盲棋摆法', () => {
+  it('识别五子棋、盲棋、容量编排与盲棋摆法', () => {
     expect(gameName('heatmap-gomoku')).toBe('五子棋')
     expect(gameName('blind-xiangqi')).toBe('盲棋')
+    expect(gameName('capacity-drill')).toBe('容量编排')
+    expect(gameLabel('capacity-drill')).toBe('容量编排')
     expect(blindLayoutLabel('STANDARD_SHUFFLE')).toBe('标准点位洗牌')
     expect(blindLayoutLabel('FULL_RANDOM')).toBe('全盘随机')
     expect(blindLayoutLabel('HALF_RANDOM')).toBe('各自半场随机')
@@ -127,6 +129,8 @@ describe('gameFormat 标签', () => {
       gameId: 'blind-xiangqi',
       blindLayout: 'FULL_RANDOM',
     }))).toBe('锦标赛 · 盲棋 · 全盘随机')
+    expect(tournamentModeSummary(tournament({ gameId: 'capacity-drill' })))
+      .toBe('锦标赛 · 容量编排')
   })
 
   it('淘汰赛轮次按总轮数换算', () => {

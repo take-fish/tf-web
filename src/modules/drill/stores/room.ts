@@ -143,9 +143,13 @@ export const useDrillRoomStore = defineStore('drillRoom', () => {
       return true
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 404) {
-        error.value = '演练房间不存在或已过期'
+        // 房间已被服务端清理：停表并清掉视图，否则倒计时会冻结在最后一个数值上。
         stopTimers()
+        room.value = null
+        roomId.value = ''
         connected.value = false
+        localRound.value = 0
+        error.value = '演练房间不存在或已过期'
       } else {
         error.value = formatApiError(caught, '同步房间失败')
       }

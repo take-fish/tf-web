@@ -1,8 +1,15 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { useTournamentStore } from '@/stores/tournament'
 import { ARENA_SCRIPTS, isArenaScript, scriptLabel, scriptShortLabel } from '../lib/arenaScripts'
 import { colorOfPlayer, lostPiecesByColor, pieceLabel } from '../lib/blindXiangqi'
+import {
+  drillOpponentSubmitted,
+  drillRemaining,
+  drillSubmitted,
+  isDrillRound,
+} from '../lib/drillMatch'
 import {
   formatClock,
   formatDuration,
@@ -22,6 +29,7 @@ import type {
 
 export function useMatchWindow() {
   const store = useTournamentStore()
+  const router = useRouter()
 
   const MOVE_TIMEOUT_SECONDS = 60
 
@@ -99,6 +107,21 @@ export function useMatchWindow() {
   )
   /** 两个实时竞技场共用一套窗口，但棋盘、HUD 与操作面板完全不同。 */
   const arenaMode = computed(() => isArenaScript(gameId.value))
+  /** 容量编排小局：服务端 seed + 双方各自演练上报，交回 BO 结算。 */
+  const capacityDrill = computed(() => gameId.value === 'capacity-drill')
+  const drillState = computed(() => (isDrillRound(round.value) ? round.value?.drill ?? null : null))
+  const drillSeed = computed(() => drillState.value?.seed ?? 0)
+  const drillSelfSubmitted = computed(() => drillSubmitted(round.value, selfId.value))
+  const drillOpponentDone = computed(() => drillOpponentSubmitted(round.value, selfId.value))
+  const drillLeft = computed(() => drillRemaining(round.value, now.value))
+  const drillCanEnter = computed(
+    () =>
+      participant.value &&
+      match.value?.status === 'RUNNING' &&
+      round.value?.status === 'RUNNING' &&
+      isDrillRound(round.value) &&
+      !drillSelfSubmitted.value,
+  )
   const arenaState = computed(() => (arenaMode.value ? (round.value?.state ?? null) : null))
   const heatmapState = computed<HeatmapState | null>(() =>
     gameId.value === 'log-hotspot-arena'
@@ -139,6 +162,7 @@ export function useMatchWindow() {
       if (secondSideUserId.value === selfId.value) return '黑方'
       return ''
     }
+    if (capacityDrill.value) return '演练选手'
     if (!arenaMode.value) return isBlack.value ? '先手' : '后手'
     if (gameId.value === 'topology-arena') {
       return round.value.attackerUserId === selfId.value ? '故障注入方' : '稳态保障方'
@@ -399,6 +423,20 @@ export function useMatchWindow() {
     if (!store.sendExerciseInput(input)) actionError.value = store.lastError
   }
 
+  /** 在独立标签页打开演练工作区：调度台保持连接，演练页完成后回报本局战绩。 */
+  function enterDrill() {
+    const value = match.value
+    if (!value) return
+    actionError.value = ''
+    const href = router.resolve({
+      name: 'capacity-drill-run',
+      query: { match: value.id },
+    }).href
+    if (!window.open(href, '_blank')) {
+      actionError.value = '浏览器拦截了新窗口，请允许弹窗后重试'
+    }
+  }
+
   function openBoardWindow() {
     boardExpanded.value = true
   }
@@ -488,6 +526,13 @@ export function useMatchWindow() {
     player2BlindColor,
     gameId,
     arenaMode,
+    capacityDrill,
+    drillState,
+    drillSeed,
+    drillSelfSubmitted,
+    drillOpponentDone,
+    drillLeft,
+    drillCanEnter,
     arenaState,
     heatmapState,
     topologyState,
@@ -529,6 +574,7 @@ export function useMatchWindow() {
     place,
     arenaAction,
     exerciseInput,
+    enterDrill,
     openBoardWindow,
     closeBoardWindow,
     reveal,

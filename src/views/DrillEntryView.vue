@@ -2,21 +2,21 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import type { DrillMode, PartySeat } from '@/modules/drill/types'
-import type { DrillRoomMode } from '@/modules/drill/api/rooms'
+import type { PartySeat } from '@/modules/drill/types'
 import { useDrillStore } from '@/modules/drill/stores/drill'
 import { useDrillRoomStore } from '@/modules/drill/stores/room'
 import { useAuthStore } from '@/stores/auth'
 import { useTournamentStore } from '@/stores/tournament'
 
 /**
- * 容量编排入口：先分流「单练 / 组队 / 锦标赛 / 联机」，再进演练工作区。
+ * 容量编排入口：先分流「单练 / 组队 / 联机」，再进演练工作区。
  *
  * 组队是 8 个席位：席位 0 固定自己，其余可以拉在线用户，拉不满由 AI 补齐。
  * 联机走服务端房间：创建或输入房间号，进局后由服务端下发 seed 与轮次。
+ * 赛事入口统一走调度台锦标赛：容量编排只作为单选游戏出现，不再单独办赛。
  */
 
-type EntryTab = DrillMode | 'online'
+type EntryTab = 'solo' | 'party' | 'online'
 
 const router = useRouter()
 const drill = useDrillStore()
@@ -25,7 +25,6 @@ const auth = useAuthStore()
 const tournament = useTournamentStore()
 
 const tab = ref<EntryTab>('solo')
-const onlineMode = ref<DrillRoomMode>('TOURNAMENT')
 const joinCode = ref('')
 const seats = ref<PartySeat[]>(buildSeats())
 
@@ -89,13 +88,8 @@ function enterParty() {
   void router.push('/games/autochess/run')
 }
 
-function enterTournament() {
-  drill.startTournament()
-  void router.push('/games/autochess/run')
-}
-
 async function createOnline() {
-  const view = await room.create(onlineMode.value)
+  const view = await room.create('CASUAL')
   if (view) void router.push({ path: '/games/autochess/run', query: { room: view.id } })
 }
 
@@ -152,17 +146,6 @@ onMounted(() => {
         type="button"
         role="tab"
         class="drill-entry__tab"
-        :class="{ 'is-on': tab === 'tournament' }"
-        :aria-selected="tab === 'tournament'"
-        @click="tab = 'tournament'"
-      >
-        <b>锦标赛</b>
-        <span>8 人同局 · 15 轮 · 按战绩排名发奖</span>
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="drill-entry__tab"
         :class="{ 'is-on': tab === 'online' }"
         :aria-selected="tab === 'online'"
         @click="tab = 'online'"
@@ -196,54 +179,8 @@ onMounted(() => {
       </button>
     </section>
 
-    <section v-else-if="tab === 'tournament'" class="drill-entry__panel">
-      <dl class="drill-entry__facts">
-        <div>
-          <dt>席位</dt>
-          <dd>8 人同局 · 教练补位</dd>
-        </div>
-        <div>
-          <dt>赛程</dt>
-          <dd>15 轮 · 不淘汰</dd>
-        </div>
-        <div>
-          <dt>排名</dt>
-          <dd>胜 3 / 平 1 / 负 0</dd>
-        </div>
-        <div>
-          <dt>奖励</dt>
-          <dd>装备入装备栏 + 配额</dd>
-        </div>
-      </dl>
-      <p class="drill-entry__hint">
-        锦标赛专项：与机器人教练同榜排名，局末按名次发奖励；正式赛事接入后可邀请真人同局。
-      </p>
-      <button type="button" class="drill-entry__go" @click="enterTournament">
-        进入锦标赛 →
-      </button>
-    </section>
-
     <section v-else-if="tab === 'online'" class="drill-entry__panel">
       <div class="drill-entry__lobby">
-        <div class="drill-entry__lobby-mode">
-          <span class="drill-entry__label">房间模式</span>
-          <div class="drill-entry__seg">
-            <button
-              type="button"
-              :class="{ 'is-on': onlineMode === 'TOURNAMENT' }"
-              @click="onlineMode = 'TOURNAMENT'"
-            >
-              锦标赛
-            </button>
-            <button
-              type="button"
-              :class="{ 'is-on': onlineMode === 'CASUAL' }"
-              @click="onlineMode = 'CASUAL'"
-            >
-              休闲
-            </button>
-          </div>
-        </div>
         <button type="button" class="drill-entry__go" :disabled="room.loading" @click="createOnline">
           创建房间 →
         </button>

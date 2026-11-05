@@ -15,14 +15,16 @@ import {
   tournamentTypeLabel,
 } from '../lib/gameFormat'
 import {
+  CHAMPIONSHIP_GAMES,
   TOURNAMENT_GAMES,
   defaultSeriesPool,
   defaultTournamentName,
-  isTournamentPoolGame,
+  isChampionshipGame,
   toggleSeriesPool,
 } from '../lib/tournamentGames'
 import type {
   BlindLayout,
+  ChampionshipGameId,
   GameFormat,
   GameMatch,
   GameOnlineUser,
@@ -51,8 +53,8 @@ const route = useRoute()
 const tournamentType = ref<TournamentType>('SERIES')
 /** S赛启用池：默认全部 1v1 剧本，创建时可取消勾选，至少保留一个。 */
 const seriesPool = ref<TournamentPoolGameId[]>(defaultSeriesPool())
-/** 锦标赛固定剧本。 */
-const championshipGame = ref<TournamentPoolGameId>('heatmap-gomoku')
+/** 锦标赛固定剧本：单选，可含良跑跑专项。 */
+const championshipGame = ref<ChampionshipGameId>('heatmap-gomoku')
 const blindLayout = ref<BlindLayout>('STANDARD_SHUFFLE')
 const format = ref<GameFormat>('BO1')
 const name = ref('')
@@ -117,7 +119,7 @@ function toggleSeriesGame(gameId: TournamentPoolGameId) {
 
 /** 游戏卡片/剧本卡片进入时预选锦标赛剧本；顶部调度台按钮保持 S赛。 */
 function applyEntryMode() {
-  if (store.lobbyMode === 'CHAMPIONSHIP' && isTournamentPoolGame(store.lobbyPreferredGameId)) {
+  if (store.lobbyMode === 'CHAMPIONSHIP' && isChampionshipGame(store.lobbyPreferredGameId)) {
     tournamentType.value = 'CHAMPIONSHIP'
     championshipGame.value = store.lobbyPreferredGameId
     return
@@ -441,7 +443,7 @@ onBeforeUnmount(() => {
               <span>比赛剧本</span>
               <div class="lobby__games">
                 <button
-                  v-for="option in TOURNAMENT_GAMES"
+                  v-for="option in CHAMPIONSHIP_GAMES"
                   :key="option.id"
                   type="button"
                   class="lobby__format"
@@ -452,6 +454,9 @@ onBeforeUnmount(() => {
                   <em>{{ option.description }}</em>
                 </button>
               </div>
+              <p v-if="championshipGame === 'capacity-drill'" class="lobby__hint">
+                容量编排专项：每小局为一次演练，双方进入演练工作区完成并自动结算。
+              </p>
             </div>
 
             <div v-if="blindInPlay" class="lobby__field">
