@@ -1,4 +1,4 @@
-import type { GameRound } from '@/types/games'
+import type { GameMatch, GameRound, GameTournament } from '@/types/games'
 
 /** 容量编排小局：服务端 seed + 双方各自上报，按战绩分判定胜负。 */
 export function isDrillRound(round: GameRound | null | undefined): boolean {
@@ -30,4 +30,23 @@ export function drillRemaining(
   const deadline = round?.drill?.deadlineAt || round?.endsAt || 0
   if (!deadline) return 0
   return Math.max(0, Math.ceil((deadline - now) / 1000))
+}
+
+/**
+ * 容量编排的赛制写死在赛段上：半决赛与决赛 BO5，八强及更早 BO3；
+ * 积分赛仍为 BO1。与服务端 TournamentRules.capacityDrillMaxGames 保持一致。
+ */
+export function drillMaxGames(
+  match: Pick<GameMatch, 'stage' | 'roundNo'> | null | undefined,
+  tournament: Pick<GameTournament, 'totalRounds'> | null | undefined,
+): number {
+  if (!match) return 5
+  if (match.stage === 'LEAGUE') return 1
+  if (!tournament?.totalRounds) return 3
+  return match.roundNo >= tournament.totalRounds - 1 ? 5 : 3
+}
+
+/** 演练窗口里的赛制说明，避免把创建时的占位 BO 当成用户选择。 */
+export function drillStageLabel(maxGames: number): string {
+  return maxGames === 1 ? 'BO1' : `BO${maxGames} · 赛段固定`
 }

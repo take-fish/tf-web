@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useTournamentStore } from '@/stores/tournament'
 import {
   formatClock,
-  formatLabel,
+  tournamentFormatLabel,
   tournamentModeSummary,
   tournamentStatusLabel,
   tournamentTypeLabel,
@@ -112,6 +112,10 @@ const blindInPlay = computed(() =>
 const defaultName = computed(() =>
   defaultTournamentName(tournamentType.value, selectedGameId.value),
 )
+/** 容量编排赛制写死在赛段上，不提供 BO 选择。 */
+const drillChampionship = computed(
+  () => tournamentType.value === 'CHAMPIONSHIP' && championshipGame.value === 'capacity-drill',
+)
 
 function toggleSeriesGame(gameId: TournamentPoolGameId) {
   seriesPool.value = toggleSeriesPool(seriesPool.value, gameId)
@@ -204,7 +208,8 @@ async function create() {
   try {
     const created = await store.create({
       name: name.value.trim() || defaultName.value,
-      format: format.value,
+      // 容量编排的 BO 由赛段决定；这里提交上限值，服务端结算时按赛段取 BO3/BO5。
+      format: drillChampionship.value ? 'BO5' : format.value,
       players: roster.value,
       gameId: selectedGameId.value,
       ...(tournamentType.value === 'SERIES' ? { gamePool: [...seriesPool.value] } : {}),
@@ -476,7 +481,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="lobby__field">
+            <div v-if="!drillChampionship" class="lobby__field">
               <span>轮次策略</span>
               <div class="lobby__formats">
                 <button
@@ -499,6 +504,19 @@ onBeforeUnmount(() => {
                   </em>
                 </button>
               </div>
+            </div>
+
+            <div v-else class="lobby__field">
+              <span>轮次策略</span>
+              <div class="lobby__formats is-single">
+                <div class="lobby__format is-active is-static">
+                  <b>按赛段固定</b>
+                  <em>八强 BO3 · 四强/决赛 BO5</em>
+                </div>
+              </div>
+              <p class="lobby__hint">
+                容量编排机制已写死，不提供 BO 选择；赛制随晋级赛段自动切换。
+              </p>
             </div>
 
             <div class="lobby__field">
@@ -660,7 +678,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="lobby__tournament-meta">
                   <span>{{ tournamentModeSummary(tournament) }}</span>
-                  <span>{{ formatLabel(tournament.format) }}</span>
+                  <span>{{ tournamentFormatLabel(tournament) }}</span>
                   <span>{{ playerCount(tournament) }}/{{ tournament.targetPlayers }} 人</span>
                   <span>{{ formatClock(tournament.createdAt) }}</span>
                 </div>

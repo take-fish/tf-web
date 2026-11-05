@@ -132,7 +132,7 @@ function submitChat(text: string) {
             <h2>
               {{ match ? `${gameLabel} · ${stateLabel}` : '正在连接执行通道…' }}
               <span v-if="tournament" class="match-window__format">
-                {{ tournament.format }}
+                {{ capacityDrill ? `BO${maxGames} · 赛段固定` : tournament.format }}
               </span>
             </h2>
           </div>
@@ -477,7 +477,7 @@ function submitChat(text: string) {
             </template>
             <template v-else-if="capacityDrill">
               <span>容量编排</span>
-              <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
+              <span>赛段固定 · BO{{ maxGames }}</span>
               <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
               <span>服务端种子 · 每小局一轮</span>
             </template>
