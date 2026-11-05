@@ -29,6 +29,9 @@ import { useDrillKnockoutStore } from '@/modules/drill/stores/knockout'
 import { useDrillRoomStore } from '@/modules/drill/stores/room'
 import { useLineupStore } from '@/modules/drill/stores/lineup'
 import { useDrillUiStore } from '@/modules/drill/stores/ui'
+import { fetchMatch, reportMatchDrill } from '@/modules/games/gameApi'
+import { formatDuration } from '@/modules/games/lib/gameFormat'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,9 +40,12 @@ const room = useDrillRoomStore()
 const knockout = useDrillKnockoutStore()
 const ui = useDrillUiStore()
 const lineup = useLineupStore()
+const auth = useAuthStore()
 
 const roomMode = computed(() => room.active)
 const queryRoom = typeof route.query.room === 'string' ? route.query.room : ''
+const queryMatch = typeof route.query.match === 'string' ? route.query.match : ''
+const selfUserId = computed(() => (auth.user ? `u${auth.user.id}` : ''))
 
 const battleActive = ref(false)
 const progress = ref(0)
@@ -89,6 +95,211 @@ function clearKnockoutCarry() {
   }
 }
 
+/** 调度台锦标赛小局：同一 seed 的 8 人同局，双方各自演练并上报一轮战绩。 */
+const matchDrillContext = ref<{
+  matchId: string
+  gameNo: number
+  seed: number
+  deadlineAt: number
+} | null>(null)
+const matchDrillSubmitted = ref(false)
+const matchDrillBusy = ref(false)
+const matchDrillError = ref('')
+const matchDrillSettled = ref(false)
+const matchDrillFinished = ref(false)
+const matchDrillOpponentDone = ref(false)
+const matchDrillReport = ref<{
+  wins: number
+  losses: number
+  draws: number
+  sli: number
+  survivors: number
+} | null>(null)
+const matchNow = ref(Date.now())
+const matchDrillLeft = computed(() => {
+  const deadline = matchDrillContext.value?.deadlineAt ?? 0
+  if (!deadline) return 0
+  return Math.max(0, Math.ceil((deadline - matchNow.value) / 1000))
+})
+
+const MATCH_CARRY_PREFIX = 'fm.drill.match.carry.'
+let matchPollTimer: number | undefined
+
+function matchCarryKey(matchId: string): string {
+  return `${MATCH_CARRY_PREFIX}${matchId}`
+}
+
+/** 局间成长要跨标签页保留，所以放 localStorage 而不是 sessionStorage。 */
+function loadMatchCarry(matchId: string): GameState | null {
+  try {
+    const raw = localStorage.getItem(matchCarryKey(matchId))
+    return raw ? (JSON.parse(raw) as GameState) : null
+  } catch {
+    return null
+  }
+}
+
+function saveMatchCarry(matchId: string, state: GameState) {
+  try {
+    localStorage.setItem(matchCarryKey(matchId), JSON.stringify(state))
+  } catch {
+    // 存储满或被禁用时本局不带入成长
+  }
+}
+
+function clearMatchCarry(matchId: string) {
+  try {
+    localStorage.removeItem(matchCarryKey(matchId))
+  } catch {
+    // ignore
+  }
+}
+
+function stopMatchPolling() {
+  if (matchPollTimer) window.clearInterval(matchPollTimer)
+  matchPollTimer = undefined
+}
+
+function startMatchPolling() {
+  stopMatchPolling()
+  matchPollTimer = window.setInterval(() => void syncMatchDrill(), 3000)
+}
+
+/** 轮询小局状态：刷新对手是否提交，结算或比赛结束后收口。 */
+async function syncMatchDrill() {
+  const context = matchDrillContext.value
+  if (!context || matchDrillSettled.value) return
+  try {
+    const value = await fetchMatch(context.matchId)
+    const round = value.currentRound
+    if (round?.drill && selfUserId.value) {
+      matchDrillOpponentDone.value = round.drill.reportedUserIds.some(
+        (userId) => userId !== selfUserId.value,
+      )
+    }
+    if (value.status === 'FINISHED') {
+      matchDrillFinished.value = true
+      matchDrillSettled.value = true
+      stopMatchPolling()
+      clearMatchCarry(context.matchId)
+      return
+    }
+    if (!round || round.gameNo !== context.gameNo || round.status !== 'RUNNING') {
+      matchDrillSettled.value = true
+      stopMatchPolling()
+      ui.notify('本局已结算，回调度台查看比分与下一局')
+    }
+  } catch {
+    // 网络抖动时保留本地状态，下一次轮询再试
+  }
+}
+
+/** 从对局窗口带 ?match= 进入：校验参赛者与小局，再按服务端 seed 开一局。 */
+async function enterMatchDrill(matchId: string) {
+  matchDrillError.value = ''
+  try {
+    const value = await fetchMatch(matchId)
+    const round = value.currentRound
+    const self = selfUserId.value
+    const isPlayer =
+      Boolean(self) && (value.player1UserId === self || value.player2UserId === self)
+    if (!round || round.gameId !== 'capacity-drill' || !round.drill) {
+      ui.notify('当前小局不是容量编排演练')
+      void router.replace('/games')
+      return
+    }
+    if (!isPlayer) {
+      ui.notify('只有参赛者可以进入本局演练工作区')
+      void router.replace('/games')
+      return
+    }
+    matchDrillContext.value = {
+      matchId,
+      gameNo: round.gameNo,
+      seed: round.drill.seed,
+      deadlineAt: round.drill.deadlineAt,
+    }
+    if (value.status !== 'RUNNING' || round.status !== 'RUNNING') {
+      matchDrillSubmitted.value = round.drill.reportedUserIds.includes(self)
+      matchDrillFinished.value = value.status === 'FINISHED'
+      matchDrillSettled.value = true
+      if (matchDrillFinished.value) clearMatchCarry(matchId)
+      return
+    }
+    if (round.drill.reportedUserIds.includes(self)) {
+      // 已上报过：只展示等待结算，不再重开一局
+      matchDrillSubmitted.value = true
+      startMatchPolling()
+      return
+    }
+    drill.startKnockoutMatch(round.drill.seed, 1, loadMatchCarry(matchId) ?? undefined)
+    // 快照可能本来就是锦标赛模式，watch 不一定触发；显式开一次 35 秒备战。
+    startPrep()
+    room.setLocalRound(drill.snapshot.round)
+    startMatchPolling()
+  } catch (error) {
+    ui.notify(error instanceof Error ? error.message : '加载对局失败')
+    void router.replace('/games')
+  }
+}
+
+/** 本轮打完：先把战绩报给调度台，成功后落盘成长，等待对手提交。 */
+async function finishMatchDrill() {
+  const context = matchDrillContext.value
+  if (!context || matchDrillSubmitted.value || matchDrillBusy.value) return
+  const snapshot = drill.snapshot
+  const report = {
+    gameNo: context.gameNo,
+    wins: snapshot.record.wins,
+    losses: snapshot.record.losses,
+    draws: snapshot.record.draws,
+    sli: snapshot.sli,
+    survivors: snapshot.units.length,
+  }
+  matchDrillReport.value = report
+  matchDrillBusy.value = true
+  matchDrillError.value = ''
+  try {
+    const updated = await reportMatchDrill(context.matchId, report)
+    const current = updated.currentRound
+    const stillRunning =
+      updated.status === 'RUNNING' &&
+      current?.status === 'RUNNING' &&
+      current.gameNo === context.gameNo
+    if (!stillRunning) {
+      // 截止后才上报：服务端已按超时收口，不再显示「等待对手」
+      matchDrillSubmitted.value = Boolean(current?.drill?.reportedUserIds.includes(selfUserId.value))
+      matchDrillFinished.value = updated.status === 'FINISHED'
+      matchDrillSettled.value = true
+      stopMatchPolling()
+      if (matchDrillFinished.value) clearMatchCarry(context.matchId)
+      return
+    }
+    matchDrillSubmitted.value = true
+    saveMatchCarry(context.matchId, drill.captureKnockoutCarry())
+    startMatchPolling()
+  } catch (error) {
+    matchDrillError.value = error instanceof Error ? error.message : '上报本局失败，请重试'
+    // 可能已因超时被服务端结算，刷新一次让提示回到「已结算」
+    void syncMatchDrill()
+  } finally {
+    matchDrillBusy.value = false
+  }
+}
+
+function openRestart() {
+  if (matchDrillContext.value) {
+    ui.notify('锦标赛小局不能重开，请完成本局')
+    return
+  }
+  restartOpen.value = true
+}
+
+function closeMatchDrillPage() {
+  window.close()
+  void router.push('/games')
+}
+
 const knockoutPrepLeft = computed(() => {
   if (!knockoutContext.value || !knockoutPrepEndsAt.value) return null
   return Math.max(0, Math.ceil((knockoutPrepEndsAt.value - room.nowMs) / 1000))
@@ -98,26 +309,36 @@ const knockoutPrepLeft = computed(() => {
 const PRELUDE_SECONDS = 35
 const INTERMISSION_SECONDS = 25
 const prepLeft = ref<number | null>(null)
+/** 备战截止时间（epoch millis）；按截止时间算剩余秒，避免后台节流把倒计时拖停 */
+let prepEndsAt = 0
 let prepTimer: number | undefined
 
 function stopPrep() {
   if (prepTimer) window.clearInterval(prepTimer)
   prepTimer = undefined
+  prepEndsAt = 0
   prepLeft.value = null
+}
+
+function tickPrep() {
+  if (!prepEndsAt) return
+  prepLeft.value = Math.max(0, Math.ceil((prepEndsAt - Date.now()) / 1000))
+  if ((prepLeft.value ?? 0) > 0) return
+  // 归零后不立刻收掉计时器：强化提案未选完或战斗动画还没结束时先保持 0s，
+  // 等状态解除后的下一次 tick 再弹「演练开始」，避免倒计时停在中间不再继续。
+  if (battleActive.value || drill.snapshot.over || drill.snapshot.proposals.length > 0) return
+  stopPrep()
+  requestBattle()
 }
 
 function startPrep() {
   stopPrep()
   if (room.active || knockoutContext.value) return
   if (!drill.snapshot.tournament || drill.snapshot.over) return
-  prepLeft.value = drill.snapshot.round <= 1 ? PRELUDE_SECONDS : INTERMISSION_SECONDS
-  prepTimer = window.setInterval(() => {
-    if (prepLeft.value === null) return
-    prepLeft.value -= 1
-    if (prepLeft.value > 0) return
-    stopPrep()
-    if (!battleActive.value && !drill.snapshot.over) requestBattle()
-  }, 1000)
+  const seconds = drill.snapshot.round <= 1 ? PRELUDE_SECONDS : INTERMISSION_SECONDS
+  prepEndsAt = Date.now() + seconds * 1000
+  prepLeft.value = seconds
+  prepTimer = window.setInterval(tickPrep, 250)
 }
 
 /** 备战窗口「直接开始」：本地演练跳过剩余等待；联机房间交给服务端投票。 */
@@ -155,6 +376,7 @@ function requestBattle() {
   if (battleActive.value) return
   if (drill.snapshot.proposals.length > 0) return
   if (drill.snapshot.over) return
+  if (matchDrillSettled.value || matchDrillSubmitted.value) return
   if (room.active && !knockoutContext.value && !room.canFight) {
     ui.notify(room.gateMessage)
     return
@@ -305,6 +527,10 @@ watch(
   () => drill.snapshot.over,
   (value) => {
     if (!value) return
+    if (matchDrillContext.value) {
+      void finishMatchDrill()
+      return
+    }
     if (knockoutContext.value) {
       void finishKnockoutGame()
       return
@@ -322,7 +548,7 @@ watch(
 watch(
   () => ui.arenaOpen,
   (open) => {
-    if (open || !drill.snapshot.over || knockoutContext.value) return
+    if (open || !drill.snapshot.over || knockoutContext.value || matchDrillContext.value) return
     if (roomMode.value && room.isTournament) {
       // 排位终态先落盘，刷新/关页后进入八强仍能沿用
       if (room.status === 'FINISHED') saveKnockoutCarry(drill.captureKnockoutCarry())
@@ -363,7 +589,9 @@ watch(
 )
 
 onMounted(async () => {
-  if (queryRoom) {
+  if (queryMatch) {
+    await enterMatchDrill(queryMatch)
+  } else if (queryRoom) {
     const ok = await room.connect(queryRoom)
     if (!ok) {
       ui.notify(room.error ?? '进入房间失败')
@@ -377,11 +605,12 @@ onMounted(async () => {
     }
   } else if (drill.mode === null) {
     drill.startSolo()
-  } else if (drill.mode === 'tournament' && !drill.snapshot.tournament) {
-    drill.startTournament()
   }
   room.setLocalRound(drill.snapshot.round)
-  clockTimer = window.setInterval(() => drill.tick(), 1000)
+  clockTimer = window.setInterval(() => {
+    drill.tick()
+    matchNow.value = Date.now()
+  }, 1000)
 })
 
 watch(
@@ -392,7 +621,10 @@ watch(
 watch(
   () => room.error,
   (value) => {
-    if (value) ui.notify(value)
+    if (!value) return
+    ui.notify(value)
+    // 房间过期（404）后视图已清空，留在工作区只会卡在无倒计时的半局里，退回入口重开。
+    if (!room.active && queryRoom) void router.replace('/games/autochess')
   },
 )
 
@@ -411,6 +643,7 @@ watch(
 onBeforeUnmount(() => {
   if (clockTimer) window.clearInterval(clockTimer)
   if (battleTimer) window.clearInterval(battleTimer)
+  stopMatchPolling()
   clearKnockoutCarry()
   room.leave()
   knockout.leave()
@@ -419,7 +652,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="drill" :class="{ 'is-meeting': ui.meetingMode }">
-    <DrillHeader @restart="restartOpen = true" />
+    <DrillHeader @restart="openRestart" />
     <span v-if="roomMode" class="drill__room-chip">
       联机 {{ room.room?.id }} · 第 {{ room.room?.round }} 轮
       <em v-if="room.selfReported">已上报</em>
@@ -431,6 +664,11 @@ onBeforeUnmount(() => {
       >
         对阵
       </button>
+    </span>
+    <span v-if="matchDrillContext" class="drill__room-chip">
+      锦标赛第 {{ matchDrillContext.gameNo }} 局 · 剩余 {{ formatDuration(matchDrillLeft) }}
+      <em v-if="matchDrillSubmitted">已上报</em>
+      <em v-else-if="matchDrillOpponentDone">对手已提交</em>
     </span>
     <span
       v-if="
@@ -571,6 +809,75 @@ onBeforeUnmount(() => {
             @click="room.ready()"
           >
             {{ room.self?.ready ? '已准备，等待其他人' : '准备' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <div
+      v-if="
+        matchDrillContext &&
+        (matchDrillSubmitted || matchDrillBusy || matchDrillError || matchDrillSettled)
+      "
+      class="drill__overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="锦标赛小局上报"
+    >
+      <div class="drill__modal drill__modal--prompt">
+        <header class="drill__modal-head">
+          <div>
+            <span class="drill__eyebrow">TOURNAMENT MATCH</span>
+            <b>
+              {{
+                matchDrillSettled
+                  ? '本局已结算'
+                  : matchDrillSubmitted
+                    ? '本局已提交'
+                    : matchDrillError
+                      ? '上报失败'
+                      : '正在上报本局战绩'
+              }}
+            </b>
+          </div>
+        </header>
+        <p v-if="matchDrillReport" class="drill__prompt-text">
+          第 {{ matchDrillContext.gameNo }} 局 · {{ matchDrillReport.wins }} 胜
+          {{ matchDrillReport.draws }} 平 {{ matchDrillReport.losses }} 负 · SLI
+          {{ matchDrillReport.sli }} · 存活 {{ matchDrillReport.survivors }}
+        </p>
+        <p v-if="matchDrillSettled" class="drill__prompt-text">
+          {{
+            matchDrillFinished
+              ? '比赛已结束，回调度台查看最终比分与晋级结果。'
+              : '回调度台查看小局比分；下一局开始后重新从对局窗口进入。'
+          }}
+        </p>
+        <p v-else-if="matchDrillSubmitted" class="drill__prompt-text">
+          等待对手提交，双方完成后自动结算；可以关闭本页，调度台会持续同步比分。
+        </p>
+        <p v-else-if="matchDrillError" class="drill__prompt-text">{{ matchDrillError }}</p>
+        <p v-else class="drill__prompt-text">正在把本局战绩同步到调度台…</p>
+        <footer class="drill__prompt-actions">
+          <button type="button" class="drill__ghost" @click="router.push('/games')">
+            回调度台
+          </button>
+          <button
+            v-if="matchDrillError && !matchDrillSettled"
+            type="button"
+            class="drill__primary"
+            :disabled="matchDrillBusy"
+            @click="finishMatchDrill"
+          >
+            重试上报
+          </button>
+          <button
+            v-else-if="matchDrillSettled"
+            type="button"
+            class="drill__primary"
+            @click="closeMatchDrillPage"
+          >
+            关闭本页
           </button>
         </footer>
       </div>

@@ -34,6 +34,12 @@ const {
   player2BlindColor,
   gameId,
   arenaMode,
+  capacityDrill,
+  drillSeed,
+  drillSelfSubmitted,
+  drillOpponentDone,
+  drillLeft,
+  drillCanEnter,
   arenaState,
   heatmapState,
   topologyState,
@@ -75,6 +81,7 @@ const {
   place,
   arenaAction,
   exerciseInput,
+  enterDrill,
   openBoardWindow,
   closeBoardWindow,
   reveal,
@@ -244,6 +251,33 @@ function submitChat(text: string) {
             </button>
           </div>
 
+          <div v-if="capacityDrill && round?.status === 'RUNNING'" class="match-window__drill">
+            <div class="match-window__drill-info">
+              <span>容量编排 · 第 {{ round.gameNo }} 局</span>
+              <em>服务端种子 {{ drillSeed }} · 截止 {{ formatDuration(drillLeft) }}</em>
+            </div>
+            <div class="match-window__drill-state">
+              <span :class="{ 'is-done': drillSelfSubmitted }">
+                你{{ drillSelfSubmitted ? '已提交' : '未提交' }}
+              </span>
+              <span :class="{ 'is-done': drillOpponentDone }">
+                对手{{ drillOpponentDone ? '已提交' : '未提交' }}
+              </span>
+            </div>
+            <button
+              v-if="drillCanEnter"
+              type="button"
+              class="match-window__primary"
+              @click="enterDrill"
+            >
+              进入演练工作区
+            </button>
+            <span v-else-if="participant" class="match-window__drill-wait">
+              {{ drillSelfSubmitted ? '已提交，等待对手' : '本轮已截止' }}
+            </span>
+            <span v-else class="match-window__drill-wait">只读查看</span>
+          </div>
+
           <div class="match-window__statusbar">
             <template v-if="match.status === 'READY'">
               <span class="match-window__hint">
@@ -284,6 +318,24 @@ function submitChat(text: string) {
                   :class="{ 'is-danger': arenaRemaining <= 15 }"
                 >
                   {{ formatDuration(arenaRemaining) }}
+                </span>
+                <button v-if="participant" class="match-window__ghost" :disabled="resigning" @click="resign">
+                  终止本轮
+                </button>
+              </template>
+              <template v-else-if="capacityDrill">
+                <span class="match-window__hint">
+                  容量编排 · 每小局一轮
+                  <template v-if="participant">
+                    · {{ drillSelfSubmitted ? '你已提交，等待对手' : '在演练工作区完成本局' }}
+                  </template>
+                  <template v-else> · 只读查看</template>
+                </span>
+                <span
+                  class="match-window__clock"
+                  :class="{ 'is-danger': drillLeft <= 60 }"
+                >
+                  {{ formatDuration(drillLeft) }}
                 </span>
                 <button v-if="participant" class="match-window__ghost" :disabled="resigning" @click="resign">
                   终止本轮
@@ -388,6 +440,9 @@ function submitChat(text: string) {
           <div v-else-if="arenaMode" class="match-window__arena-loading">
             正在同步演练状态…
           </div>
+          <div v-else-if="capacityDrill" class="match-window__arena-loading">
+            本局在独立演练工作区进行；完成后回到这里查看比分与下一局。
+          </div>
           <GomokuBoard
             v-else
             :moves="round?.moves ?? []"
@@ -419,6 +474,12 @@ function submitChat(text: string) {
               <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
               <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
               <span v-if="arenaState">剩余 {{ formatDuration(arenaRemaining) }}</span>
+            </template>
+            <template v-else-if="capacityDrill">
+              <span>容量编排</span>
+              <span v-if="tournament">{{ formatLabel(tournament.format) }}</span>
+              <span v-if="round">第 {{ round.gameNo }} / {{ maxGames }} 阶段</span>
+              <span>服务端种子 · 每小局一轮</span>
             </template>
             <template v-else>
               <span>{{ blackName }} 先手 · {{ whiteName }} 后手</span>
@@ -459,7 +520,7 @@ function submitChat(text: string) {
     </div>
 
     <div
-      v-if="boardExpanded && !arenaMode && !isBlind"
+      v-if="boardExpanded && !arenaMode && !isBlind && !capacityDrill"
       class="board-window"
       role="dialog"
       aria-modal="true"

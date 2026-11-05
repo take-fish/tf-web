@@ -343,6 +343,13 @@
   gap: 5px;
 }
 
+.lobby__hint {
+  margin: 0;
+  color: var(--fm-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .lobby__field > span,
 .lobby__field-head > span {
   color: var(--fm-text-dim);

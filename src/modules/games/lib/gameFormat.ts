@@ -16,6 +16,7 @@ export function formatLabel(format: GameFormat): string {
 export function gameName(gameId: string | null | undefined): string {
   if (gameId === 'blind-xiangqi') return '盲棋'
   if (gameId === 'heatmap-gomoku') return '五子棋'
+  if (gameId === 'capacity-drill') return '容量编排'
   return gameId || '五子棋'
 }
 
@@ -47,6 +48,7 @@ export function modeLabel(
   gameId: string | null | undefined,
   blindLayout?: string | null,
 ): string {
+  if (gameId === 'capacity-drill') return '容量编排'
   if (gameId === 'blind-xiangqi' || gameId === 'heatmap-gomoku') {
     return gameLabel(gameId, blindLayout)
   }
@@ -57,6 +59,7 @@ export function modeShortLabel(
   gameId: string | null | undefined,
   blindLayout?: string | null,
 ): string {
+  if (gameId === 'capacity-drill') return '容量编排'
   if (gameId === 'blind-xiangqi' || gameId === 'heatmap-gomoku') {
     return gameLabel(gameId, blindLayout)
   }

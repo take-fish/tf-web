@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  CHAMPIONSHIP_GAMES,
   TOURNAMENT_GAMES,
   defaultSeriesPool,
   defaultTournamentName,
+  isChampionshipGame,
   isTournamentPoolGame,
   toggleSeriesPool,
   tournamentGameOption,
@@ -51,5 +53,16 @@ describe('赛事剧本池', () => {
     expect(defaultTournamentName('CHAMPIONSHIP', 'blind-xiangqi')).toBe('盲棋演练')
     expect(defaultTournamentName('CHAMPIONSHIP', 'topology-arena')).toBe('混沌工程演练')
     expect(tournamentGameOption('unknown').id).toBe('heatmap-gomoku')
+  })
+
+  it('锦标赛单选目录包含良跑跑，但 S赛随机池不包含', () => {
+    expect(CHAMPIONSHIP_GAMES.map((option) => option.id)).toEqual([
+      ...TOURNAMENT_GAMES.map((option) => option.id),
+      'capacity-drill',
+    ])
+    expect(isChampionshipGame('capacity-drill')).toBe(true)
+    expect(isChampionshipGame('random')).toBe(false)
+    expect(isTournamentPoolGame('capacity-drill')).toBe(false)
+    expect(defaultTournamentName('CHAMPIONSHIP', 'capacity-drill')).toBe('容量编排演练')
   })
 })

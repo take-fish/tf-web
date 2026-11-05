@@ -239,6 +239,26 @@ export function fetchMatch(id: string): Promise<GameMatch> {
   return getJson<GameMatch>(`/api/v1/game/matches/${encodeURIComponent(id)}`)
 }
 
+/** 容量编排小局：上报本局终局战绩，返回最新比赛视图。 */
+export interface DrillMatchReport {
+  gameNo: number
+  wins: number
+  losses: number
+  draws: number
+  sli: number
+  survivors: number
+}
+
+export function reportMatchDrill(
+  matchId: string,
+  report: DrillMatchReport,
+): Promise<GameMatch> {
+  return postJson<GameMatch>(
+    `/api/v1/game/matches/${encodeURIComponent(matchId)}/drill/report`,
+    report,
+  )
+}
+
 /** 页面淘汰高顺位选手指定首局剧本；传入 random 表示让系统重新抽签。 */
 export function chooseMatchGame(matchId: string, gameId: string): Promise<GameMatch> {
   return postJson<GameMatch>(

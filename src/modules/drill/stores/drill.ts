@@ -41,7 +41,8 @@ const PARTY_KEY = 'fm.drill.party.v1'
 function loadMode(): DrillMode | null {
   try {
     const raw = localStorage.getItem(MODE_KEY)
-    return raw === 'solo' || raw === 'party' || raw === 'tournament' ? raw : null
+    // 独立的容量编排锦标赛入口已下线：旧存档里的 tournament 不再恢复，回落到默认单练。
+    return raw === 'solo' || raw === 'party' ? raw : null
   } catch {
     return null
   }
