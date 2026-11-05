@@ -4,13 +4,13 @@ import { computed } from 'vue'
 import { scriptShortLabel } from '../lib/arenaScripts'
 import {
   canWatchMatch,
-  formatLabel,
   gameLabel,
   groupMatches,
   leagueStandings,
   matchRoundLabel,
   matchStatusLabel,
   playerName,
+  tournamentFormatLabel,
   tournamentStatusLabel,
 } from '../lib/gameFormat'
 import type { GameMatch, GameTournament } from '@/types/games'
@@ -101,7 +101,7 @@ function open(match: GameMatch) {
         </div>
         <p class="bracket__meta">
           {{ gameLabel(tournament.gameId, tournament.blindLayout) }} ·
-          {{ formatLabel(tournament.format) }} · {{ modeLabel }} ·
+          {{ tournamentFormatLabel(tournament) }} · {{ modeLabel }} ·
           {{ acceptedPlayers.length }}/{{ tournament.targetPlayers }} 人
           <template v-if="tournament.currentRound > 0">
             · 第 {{ tournament.currentRound }}/{{ tournament.totalRounds }} 轮

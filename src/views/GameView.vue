@@ -22,8 +22,8 @@ import {
 import { GAMES } from '@/modules/games/gameRegistry'
 import { ARENA_SCRIPTS } from '@/modules/games/lib/arenaScripts'
 import {
-  formatLabel,
   modeShortLabel,
+  tournamentFormatShortLabel,
   tournamentStatusLabel,
   tournamentTypeLabel,
 } from '@/modules/games/lib/gameFormat'
@@ -489,7 +489,7 @@ onBeforeUnmount(() => {
               {{ tournamentTypeLabel(tournament.gameId) }}
             </span>
             <em>{{ tournamentStatusLabel(tournament.status) }}</em>
-            <span>{{ formatLabel(tournament.format).split(' · ')[0] }}</span>
+            <span>{{ tournamentFormatShortLabel(tournament) }}</span>
             <span>{{ tournament.players.filter((player) => player.status === 'ACCEPTED').length }}/{{ tournament.targetPlayers }}</span>
           </button>
         </div>

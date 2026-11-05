@@ -6,11 +6,29 @@ import type {
   TournamentStatus,
 } from '@/types/games'
 import { scriptLabel, scriptShortLabel } from './arenaScripts'
+import { drillMaxGames } from './drillMatch'
 
 export function formatLabel(format: GameFormat): string {
   if (format === 'BO5') return 'BO5 · 五轮三胜'
   if (format === 'BO3') return 'BO3 · 三轮两胜'
   return 'BO1 · 单次执行'
+}
+
+/**
+ * 赛事列表里的赛制摘要。容量编排机制写死，创建时的 format 只是占位，
+ * 不能把它当成用户选择的 BO 展示。
+ */
+export function tournamentFormatLabel(tournament: GameTournament): string {
+  if (tournament.gameId === 'capacity-drill') {
+    return '赛段固定 · 八强 BO3 / 四强决赛 BO5'
+  }
+  return formatLabel(tournament.format)
+}
+
+/** 紧凑徽标用：容量编排按赛段切换，不能只显示一个 BO。 */
+export function tournamentFormatShortLabel(tournament: GameTournament): string {
+  if (tournament.gameId === 'capacity-drill') return '赛段固定'
+  return tournament.format
 }
 
 export function gameName(gameId: string | null | undefined): string {
@@ -194,7 +212,9 @@ export function groupMatches(tournament: GameTournament): MatchGroup[] {
         subtitle:
           match.stage === 'LEAGUE'
             ? 'BO1'
-            : formatLabel(tournament.format).split(' · ')[0] ?? tournament.format,
+            : tournament.gameId === 'capacity-drill'
+              ? `BO${drillMaxGames(match, tournament)} · 赛段固定`
+              : (formatLabel(tournament.format).split(' · ')[0] ?? tournament.format),
         stage: match.stage,
         roundNo: match.roundNo,
         matches: [],

@@ -5,6 +5,7 @@ import { useTournamentStore } from '@/stores/tournament'
 import { ARENA_SCRIPTS, isArenaScript, scriptLabel, scriptShortLabel } from '../lib/arenaScripts'
 import { colorOfPlayer, lostPiecesByColor, pieceLabel } from '../lib/blindXiangqi'
 import {
+  drillMaxGames,
   drillOpponentSubmitted,
   drillRemaining,
   drillSubmitted,
@@ -232,6 +233,8 @@ export function useMatchWindow() {
   })
   const maxGames = computed(() => {
     if (match.value?.stage === 'LEAGUE') return 1
+    // 容量编排的 BO 由赛段决定，创建时选择的 format 只是占位。
+    if (capacityDrill.value) return drillMaxGames(match.value, tournament.value)
     const format = tournament.value?.format ?? 'BO1'
     return format === 'BO5' ? 5 : format === 'BO3' ? 3 : 1
   })
