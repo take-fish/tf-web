@@ -9,6 +9,15 @@ export interface NotificationModuleDeps {
   hasToken: () => boolean
 }
 
+export interface ConsumeNotificationOptions {
+  /**
+   * 启动补拉的历史通知只记入列表，不触发全屏弹窗。
+   * 否则任何人刷新页面/重新进入应用，只要 2 分钟内有过决赛通知，
+   * 一进来就会被全屏“决赛开始”拦住。
+   */
+  silent?: boolean
+}
+
 /** 全站赛程通知：增量拉取、去重与决赛/冠军弹窗。 */
 export function createNotificationModule(deps: NotificationModuleDeps) {
   const notifications = ref<GameNotification[]>([])
@@ -17,7 +26,10 @@ export function createNotificationModule(deps: NotificationModuleDeps) {
   const notificationCursor = ref(0)
   const seenNotifications = new Set<string>()
 
-  function consumeNotification(notification: GameNotification) {
+  function consumeNotification(
+    notification: GameNotification,
+    options: ConsumeNotificationOptions = {},
+  ) {
     if (!notification || seenNotifications.has(notification.id)) return
     seenNotifications.add(notification.id)
     notificationCursor.value = Math.max(
@@ -27,6 +39,7 @@ export function createNotificationModule(deps: NotificationModuleDeps) {
     if (notification.expiresAt && notification.expiresAt < Date.now()) return
     notifications.value.unshift(notification)
     if (notifications.value.length > 50) notifications.value.length = 50
+    if (options.silent) return
     const fresh = Date.now() - notification.createdAt <= NOTIFICATION_FRESH_MS
     if (!fresh) return
     if (notification.type === 'FINAL_START') finalNotification.value = notification
@@ -39,7 +52,8 @@ export function createNotificationModule(deps: NotificationModuleDeps) {
       for (const notification of [...entries].sort(
         (left, right) => left.createdAt - right.createdAt,
       )) {
-        consumeNotification(notification)
+        // 历史补拉只入库；只有实时推送/轮询到的新通知才允许弹窗。
+        consumeNotification(notification, { silent: true })
       }
       const newest = entries.reduce(
         (latest, entry) => Math.max(latest, entry.createdAt),

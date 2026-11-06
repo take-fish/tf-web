@@ -71,6 +71,12 @@ watchEffect(() => {
   document.title = pageTitle.value
 })
 
+// Teleport 到 body 的浮层（Toast、赛事通知、羁绊面板）不在 .fm-app 子树内，
+// 皮肤令牌必须同步到 <html>，否则这些浮层的 --fm-* 变量全部失效（透明、无边框）。
+watchEffect(() => {
+  document.documentElement.dataset.skin = skinStore.effectiveSkin
+})
+
 watch(
   () => route.fullPath,
   (path) => {
@@ -146,6 +152,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearLeaveTimer()
+  delete document.documentElement.dataset.skin
   tournament.stop()
   closePresence()
   window.removeEventListener('keydown', onKeydown, true)
