@@ -35,10 +35,13 @@ import type {
 } from '@/types/games'
 import LobbyPendingCards from './LobbyPendingCards.vue'
 import TournamentBracket from './TournamentBracket.vue'
+import TournamentDrillPanel from './TournamentDrillPanel.vue'
 
 const emit = defineEmits<{ close: [] }>()
 
 const MAX_PLAYERS = 16
+/** 良跑跑方案赛是 8 人同局：真人最多 8 席，不足的名额由机器人教练补满。 */
+const MAX_DRILL_PLAYERS = 8
 const BLIND_LAYOUTS: Array<{ id: BlindLayout; label: string; hint: string }> = [
   { id: 'STANDARD_SHUFFLE', label: '标准点位', hint: '标准开局点位随机洗牌' },
   { id: 'FULL_RANDOM', label: '全盘随机', hint: '32 枚随机散布全盘' },
@@ -93,12 +96,14 @@ const connectionLabel = computed(() => {
   if (store.status === 'reconnecting') return '正在重连调度通道'
   return '调度通道离线 · 可查看与创建，操作需恢复连接'
 })
+/** 容量编排专项最多 8 名真人，其它演练沿用 16 人上限。 */
+const maxRoster = computed(() => (drillChampionship.value ? MAX_DRILL_PLAYERS : MAX_PLAYERS))
 const canCreate = computed(
   () =>
     !creating.value &&
     Boolean(selfId.value) &&
     roster.value.length >= 2 &&
-    roster.value.length <= MAX_PLAYERS,
+    roster.value.length <= maxRoster.value,
 )
 const selectedGameId = computed<SelectableGameId>(() =>
   tournamentType.value === 'SERIES' ? 'random' : championshipGame.value,
@@ -161,12 +166,19 @@ watch(
   () => applyEntryMode(),
 )
 
+// 切到良跑跑专项时，超出 8 席的选择自动收敛。
+watch(drillChampionship, (isDrill) => {
+  if (isDrill && roster.value.length > MAX_DRILL_PLAYERS) {
+    selectedIds.value = selectedIds.value.slice(0, MAX_DRILL_PLAYERS - 1)
+  }
+})
+
 function toggle(userId: string) {
   if (selectedIds.value.includes(userId)) {
     selectedIds.value = selectedIds.value.filter((entry) => entry !== userId)
     return
   }
-  if (roster.value.length >= MAX_PLAYERS) return
+  if (roster.value.length >= maxRoster.value) return
   selectedIds.value.push(userId)
 }
 
@@ -372,7 +384,7 @@ onBeforeUnmount(() => {
           <section class="lobby__card">
             <div class="lobby__card-head">
               <span>创建演练</span>
-              <em>{{ roster.length }}/{{ MAX_PLAYERS }} 人</em>
+              <em>{{ roster.length }}/{{ maxRoster }} 人</em>
             </div>
 
             <label class="lobby__field">
@@ -460,7 +472,8 @@ onBeforeUnmount(() => {
                 </button>
               </div>
               <p v-if="championshipGame === 'capacity-drill'" class="lobby__hint">
-                容量编排专项：每小局为一次演练，双方进入演练工作区完成并自动结算。
+                容量编排专项：8 人同局（真人最多 8 席，不足由机器人教练补满）。
+                先打 15 轮排位赛，排位前八进入八强 BO3 → 四强 BO5 → 决赛 BO5。
               </p>
             </div>
 
@@ -544,7 +557,7 @@ onBeforeUnmount(() => {
                   type="button"
                   class="lobby__member"
                   :class="{ 'is-selected': isSelected(member.userId) }"
-                  :disabled="!isSelected(member.userId) && roster.length >= MAX_PLAYERS"
+                  :disabled="!isSelected(member.userId) && roster.length >= maxRoster"
                   @click="toggle(member.userId)"
                 >
                   <UserAvatar
@@ -569,7 +582,11 @@ onBeforeUnmount(() => {
                 <b>S赛</b>：每场对局开赛前从启用池随机抽选剧本；
                 <b>锦标赛</b>：全程使用选定剧本。
               </p>
-              <p><b>2/4/8/16 人</b>：随机单败淘汰，自动生成执行链路。</p>
+              <p v-if="drillChampionship">
+                <b>良跑跑专项</b>：15 轮排位赛先排定 1–8 名，再打八强 BO3、四强/决赛 BO5；
+                决赛是全流程终点，开赛时不再直接播报决赛。
+              </p>
+              <p v-else><b>2/4/8/16 人</b>：随机单败淘汰，自动生成执行链路。</p>
               <p><b>3-5 人</b>：循环排位；<b>6 人以上非 2 的幂</b>：瑞士轮排位。</p>
               <p><b>前四</b>进入页面淘汰：三打四、胜者打二、决赛打一。</p>
               <p><b>首局选图</b>：三号、二号、一号各自拥有对应场次的首局选图权；其余小局系统随机。</p>
@@ -584,7 +601,11 @@ onBeforeUnmount(() => {
             </p>
 
             <div class="lobby__create-foot">
-              <span>至少选择 1 名在线成员，最多 {{ MAX_PLAYERS }} 人。</span>
+              <span>
+                至少选择 1 名在线成员，最多 {{ maxRoster }} 人{{
+                  drillChampionship ? '（AI 补满 8 席）' : ''
+                }}。
+              </span>
               <button
                 type="button"
                 class="lobby__button lobby__button--primary lobby__button--lg"
@@ -710,8 +731,13 @@ onBeforeUnmount(() => {
             </div>
           </section>
 
+          <TournamentDrillPanel
+            v-if="selectedTournament && selectedTournament.bracketType === 'DRILL'"
+            :tournament="selectedTournament"
+            :self-user-id="selfId"
+          />
           <TournamentBracket
-            v-if="selectedTournament"
+            v-else-if="selectedTournament"
             :tournament="selectedTournament"
             :self-user-id="selfId"
             @watch="watchMatch"

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { onBeforeUnmount, onMounted, watch, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
+import { fetchTournamentRoom } from '@/modules/drill/api/rooms'
 import { useTournamentStore } from '@/stores/tournament'
 
 const store = useTournamentStore()
+const route = useRoute()
 const router = useRouter()
 
 let championTimer: ReturnType<typeof setTimeout> | undefined
@@ -27,15 +29,51 @@ watch(
   },
 )
 
-function watchFinal() {
+/**
+ * 用户已经在执行页/观战窗口看这场决赛，或本人就是决赛选手时，
+ * 不再用全屏弹窗盖住他自己的对局——他们本来就在“查看执行”。
+ */
+watchEffect(() => {
+  const notification = store.finalNotification
+  if (!notification) return
+  if (!notification.matchId) {
+    // 良跑跑方案赛：决赛在演练房间里打，已经在房间页时不再叠一层全屏弹窗。
+    const inDrillRoom =
+      route.path === '/games/autochess' && typeof route.query.room === 'string'
+    if (inDrillRoom) store.dismissFinal()
+    return
+  }
+  const drillMatchId = typeof route.query.match === 'string' ? route.query.match : null
+  const watchMatchId = typeof route.query.watch === 'string' ? route.query.watch : null
+  const alreadyThere =
+    (route.path === '/games/autochess/run' && drillMatchId === notification.matchId) ||
+    (route.path === '/games' && watchMatchId === notification.matchId)
+  const selfUserId = store.selfUserId
+  const playing =
+    !!selfUserId &&
+    store.activeMatches.some(
+      (match) =>
+        match.id === notification.matchId &&
+        (match.player1UserId === selfUserId || match.player2UserId === selfUserId),
+    )
+  if (alreadyThere || playing) store.dismissFinal()
+})
+
+async function watchFinal() {
   const notification = store.finalNotification
   if (!notification) return
   store.dismissFinal()
   store.closeLobby()
   if (notification.matchId) {
     void router.push({ path: '/games', query: { watch: notification.matchId } })
-  } else {
-    void router.push({ path: '/games' })
+    return
+  }
+  // 没有 MatchRecord 的决赛来自良跑跑方案赛：按赛事查到排位赛房间再进入。
+  try {
+    const room = await fetchTournamentRoom(notification.tournamentId)
+    await router.push({ path: '/games/autochess', query: { room: room.id } })
+  } catch {
+    await router.push({ path: '/games' })
   }
 }
 
@@ -43,13 +81,25 @@ function dismissFinal() {
   store.dismissFinal()
 }
 
+/** 全屏通知必须留逃生口：Esc 或点击遮罩都能关闭，避免看起来像页面卡死。 */
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !store.finalNotification) return
+  event.preventDefault()
+  dismissFinal()
+}
+
 function dismissChampion() {
   clearChampionTimer()
   store.dismissChampion()
 }
 
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
 onBeforeUnmount(() => {
   clearChampionTimer()
+  window.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -87,6 +137,7 @@ onBeforeUnmount(() => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="game-final-title"
+          @click.self="dismissFinal"
         >
           <div class="game-notify__final-panel">
             <div class="game-notify__final-glow" aria-hidden="true" />
@@ -96,7 +147,7 @@ onBeforeUnmount(() => {
             <p>{{ store.finalNotification.message }}</p>
             <div class="game-notify__final-actions">
               <button type="button" class="game-notify__primary" @click="watchFinal">
-                查看执行
+                {{ store.finalNotification.matchId ? '查看执行' : '进入房间' }}
               </button>
               <button type="button" class="game-notify__ghost" @click="dismissFinal">
                 稍后
@@ -204,9 +255,13 @@ onBeforeUnmount(() => {
   inset: 0;
   display: grid;
   place-items: center;
+  /* 小屏/高缩放下内容高于视口时，safe 保证顶部仍可滚动到。 */
+  place-items: safe center;
   padding: 22px;
-  background: color-mix(in srgb, var(--fm-bg) 72%, transparent);
-  backdrop-filter: blur(3px);
+  overflow: auto;
+  /* 不要用 backdrop-filter：它会每帧对整屏做 backdrop 快照，
+     叠在容量编排持续 rAF 渲染的画布上会把界面拖到看起来卡死。 */
+  background: rgb(0 0 0 / 62%);
   pointer-events: auto;
 }
 

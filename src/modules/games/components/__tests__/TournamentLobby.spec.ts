@@ -5,7 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { writeAuth } from '@/lib/authToken'
 import type { AuthUser } from '@/types/auth'
-import type { GameMatch } from '@/types/games'
+import type { GameMatch, GameTournament } from '@/types/games'
 
 import TournamentLobby from '../TournamentLobby.vue'
 
@@ -29,8 +29,13 @@ const { api, MockGameSocketClient } = vi.hoisted(() => {
   }
 })
 
+const drillApi = vi.hoisted(() => ({
+  fetchTournamentRoom: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+}))
+
 vi.mock('@/modules/games/gameApi', () => api)
 vi.mock('@/modules/chat/chatApi', () => ({ fetchOnline: api.fetchOnline }))
+vi.mock('@/modules/drill/api/rooms', () => drillApi)
 vi.mock('@/modules/games/gameSocket', () => ({
   GameSocketClient: MockGameSocketClient,
 }))
@@ -69,6 +74,37 @@ function activeMatch(overrides: Partial<GameMatch> = {}): GameMatch {
     currentRound: null,
     ...overrides,
   }
+}
+
+function drillTournament(overrides: Partial<GameTournament> = {}): GameTournament {
+  return {
+    id: 't1',
+    name: '良跑跑 wuhan赛区 S1',
+    gameId: 'capacity-drill',
+    kind: 'TOURNAMENT',
+    format: 'BO5',
+    bracketType: 'DRILL',
+    status: 'RUNNING',
+    creatorUserId: 'u1',
+    creatorNickname: 'Alice',
+    targetPlayers: 2,
+    inviteDeadline: 0,
+    currentRound: 3,
+    totalRounds: 15,
+    championUserId: null,
+    championNickname: null,
+    runnerUpUserId: null,
+    runnerUpNickname: null,
+    createdAt: 0,
+    startedAt: 0,
+    finishedAt: null,
+    players: [
+      { userId: 'u1', nickname: 'Alice', status: 'ACCEPTED' },
+      { userId: 'u2', nickname: 'Bob', status: 'ACCEPTED' },
+    ],
+    matches: [],
+    ...overrides,
+  } as GameTournament
 }
 
 function mountLobby() {
@@ -115,6 +151,36 @@ describe('演练调度台', () => {
     expect(wrapper.emitted('close')).toBeUndefined()
     expect(router.currentRoute.value.path).toBe('/games')
     expect(router.currentRoute.value.query.watch).toBe('m1')
+
+    wrapper.unmount()
+  })
+
+  it('良跑跑赛事展示排位赛房间进度而不是常规对阵表', async () => {
+    writeAuth({ token: 'lobby-token', user: USER })
+    api.fetchTournaments.mockResolvedValue([drillTournament()])
+    drillApi.fetchTournamentRoom.mockResolvedValue({
+      id: 'room1',
+      status: 'RUNNING',
+      round: 3,
+      totalRounds: 15,
+      players: [
+        { userId: 'u1', nickname: 'Alice', wins: 3, draws: 0, losses: 0, score: 9, placement: null },
+        { userId: 'u2', nickname: 'Bob', wins: 0, draws: 0, losses: 3, score: 0, placement: null },
+      ],
+    })
+    const { router } = mountLobby()
+    await router.push('/games')
+    await router.isReady()
+
+    const wrapper = mount(TournamentLobby, {
+      global: { plugins: [router], stubs: { UserAvatar: true } },
+    })
+    await flushPromises()
+
+    expect(drillApi.fetchTournamentRoom).toHaveBeenCalledWith('t1')
+    expect(wrapper.text()).toContain('排位赛第 3/15 轮')
+    expect(wrapper.text()).toContain('进入房间')
+    expect(wrapper.find('.bracket').exists()).toBe(false)
 
     wrapper.unmount()
   })
