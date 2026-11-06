@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDmLines, formatMessageLines } from '../format'
+import { formatDmLines, formatMessageLines, helpLines } from '../format'
 import type { ChatMessage } from '@/types/chat'
 
 const base: ChatMessage = {
@@ -41,6 +41,13 @@ describe('format image messages', () => {
 
     expect(lines.join('\n')).toContain('[图片] #m-1')
     expect(lines.join('\n')).not.toContain('img-secret')
+  })
+
+  it('帮助里说明先发图再 @ 助手可识别图中文字', () => {
+    const help = helpLines().join('\n')
+
+    expect(help).toContain('先发图再 @<助手名>')
+    expect(help).toContain('2 分钟')
   })
 })
 
