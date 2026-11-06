@@ -1,6 +1,14 @@
 import type { Ref } from 'vue'
 
 import { ApiError, formatApiError } from '@/lib/http'
+import {
+  formatBytes,
+  IMAGE_TYPES,
+  MAX_IMAGE_INPUT_BYTES,
+  normalizeImageFile,
+  readAsDataUrl,
+  shrinkImage,
+} from '@/lib/imageFile'
 import { uploadImage } from '@/modules/chat/chatApi'
 import type { ChatSocketClient } from '@/modules/chat/chatSocket'
 import type { OnlineMember } from '@/types/chat'
@@ -16,10 +24,8 @@ interface ChatImagesOptions {
   focusTerminal: () => void
 }
 
-const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 const MAX_DIRECT_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_GROUP_IMAGE_BYTES = 1024 * 1024
-const MAX_IMAGE_INPUT_BYTES = 20 * 1024 * 1024
 
 export function useChatImages(options: ChatImagesOptions) {
   const { terminalRef, getDmPeer, getGroupId, getSocket, onAuthFailure, focusTerminal } = options
@@ -34,83 +40,6 @@ export function useChatImages(options: ChatImagesOptions) {
       return true
     }
     return false
-  }
-
-  function readAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result ?? ''))
-      reader.onerror = () => reject(new Error('图片读取失败'))
-      reader.readAsDataURL(file)
-    })
-  }
-
-  function imageExtension(type: string): string {
-    if (type === 'image/jpeg') return 'jpg'
-    const ext = type.split('/')[1] ?? 'png'
-    return ext.replace(/[^a-z0-9]/gi, '') || 'png'
-  }
-
-  function normalizeImageFile(file: File): File {
-    // 剪贴板图片有时没有文件名，补一个，保证 multipart 上传与后端扩展名判断稳定。
-    if (file.name) return file
-    return new File([file], `pasted-${Date.now()}.${imageExtension(file.type)}`, { type: file.type })
-  }
-
-  function sizeLabel(bytes: number): string {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`
-  }
-
-  function canvasToBlob(
-    canvas: HTMLCanvasElement,
-    type: string,
-    quality: number,
-  ): Promise<Blob | null> {
-    return new Promise((resolve) => {
-      try {
-        canvas.toBlob((blob) => resolve(blob), type, quality)
-      } catch {
-        resolve(null)
-      }
-    })
-  }
-
-  // 群聊图片走 WebSocket data URL（上限 1MB），粘贴的截图常常超过。
-  // 超限时用 canvas 转 WebP/JPEG 并逐步缩小；GIF 动图仅在超限时退化为静态帧。
-  async function shrinkImage(file: File, limit: number): Promise<File | null> {
-    if (typeof createImageBitmap !== 'function') return null
-    let bitmap: ImageBitmap
-    try {
-      bitmap = await createImageBitmap(file)
-    } catch {
-      return null
-    }
-    try {
-      const longSide = Math.max(bitmap.width, bitmap.height, 1)
-      const initialScale = Math.min(1, 1920 / longSide)
-      let width = Math.max(1, Math.round(bitmap.width * initialScale))
-      let height = Math.max(1, Math.round(bitmap.height * initialScale))
-      for (let attempt = 0; attempt < 7; attempt += 1) {
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        const context = canvas.getContext('2d')
-        if (!context) return null
-        context.drawImage(bitmap, 0, 0, width, height)
-        for (const type of ['image/webp', 'image/jpeg'] as const) {
-          const blob = await canvasToBlob(canvas, type, 0.82)
-          if (blob && blob.type === type && blob.size <= limit) {
-            const ext = type === 'image/webp' ? 'webp' : 'jpg'
-            return new File([blob], `image-${Date.now()}.${ext}`, { type })
-          }
-        }
-        width = Math.max(1, Math.round(width * 0.75))
-        height = Math.max(1, Math.round(height * 0.75))
-      }
-    } finally {
-      bitmap.close()
-    }
-    return null
   }
 
   async function sendImageFile(file: File) {
@@ -132,7 +61,7 @@ export function useChatImages(options: ChatImagesOptions) {
       let upload = normalizeImageFile(file)
       if (upload.size > limit) {
         term.writeLines(
-          [`[INFO] 图片 ${sizeLabel(upload.size)}，超过${inDm ? '私聊' : '群聊'}限制，正在压缩...`],
+          [`[INFO] 图片 ${formatBytes(upload.size)}，超过${inDm ? '私聊' : '群聊'}限制，正在压缩...`],
           'dim',
         )
         const shrunk = await shrinkImage(upload, limit)
@@ -144,7 +73,7 @@ export function useChatImages(options: ChatImagesOptions) {
           return
         }
         upload = normalizeImageFile(shrunk)
-        term.writeLines([`[INFO] 已压缩为 ${sizeLabel(upload.size)}`], 'dim')
+        term.writeLines([`[INFO] 已压缩为 ${formatBytes(upload.size)}`], 'dim')
       }
       if (peer) {
         const image = await uploadImage(upload)
