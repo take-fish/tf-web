@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { fetchTournamentRoom } from '@/modules/drill/api/rooms'
 import { useTournamentStore } from '@/stores/tournament'
 
 const store = useTournamentStore()
@@ -34,7 +35,14 @@ watch(
  */
 watchEffect(() => {
   const notification = store.finalNotification
-  if (!notification?.matchId) return
+  if (!notification) return
+  if (!notification.matchId) {
+    // 良跑跑方案赛：决赛在演练房间里打，已经在房间页时不再叠一层全屏弹窗。
+    const inDrillRoom =
+      route.path === '/games/autochess' && typeof route.query.room === 'string'
+    if (inDrillRoom) store.dismissFinal()
+    return
+  }
   const drillMatchId = typeof route.query.match === 'string' ? route.query.match : null
   const watchMatchId = typeof route.query.watch === 'string' ? route.query.watch : null
   const alreadyThere =
@@ -51,15 +59,21 @@ watchEffect(() => {
   if (alreadyThere || playing) store.dismissFinal()
 })
 
-function watchFinal() {
+async function watchFinal() {
   const notification = store.finalNotification
   if (!notification) return
   store.dismissFinal()
   store.closeLobby()
   if (notification.matchId) {
     void router.push({ path: '/games', query: { watch: notification.matchId } })
-  } else {
-    void router.push({ path: '/games' })
+    return
+  }
+  // 没有 MatchRecord 的决赛来自良跑跑方案赛：按赛事查到排位赛房间再进入。
+  try {
+    const room = await fetchTournamentRoom(notification.tournamentId)
+    await router.push({ path: '/games/autochess', query: { room: room.id } })
+  } catch {
+    await router.push({ path: '/games' })
   }
 }
 
@@ -133,7 +147,7 @@ onBeforeUnmount(() => {
             <p>{{ store.finalNotification.message }}</p>
             <div class="game-notify__final-actions">
               <button type="button" class="game-notify__primary" @click="watchFinal">
-                查看执行
+                {{ store.finalNotification.matchId ? '查看执行' : '进入房间' }}
               </button>
               <button type="button" class="game-notify__ghost" @click="dismissFinal">
                 稍后

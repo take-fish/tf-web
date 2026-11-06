@@ -40,6 +40,8 @@ export interface DrillRoomView {
   id: string
   source: string
   mode: DrillRoomMode
+  /** 由锦标赛创建时非空；普通演练房间为空。 */
+  tournamentId?: string | null
   status: DrillRoomStatus
   phase: DrillRoomPhase
   seed: number
@@ -75,6 +77,13 @@ export function createRoom(mode: DrillRoomMode): Promise<DrillRoomView> {
 
 export function fetchRoom(roomId: string): Promise<DrillRoomView> {
   return getJson<DrillRoomView>(`${BASE}/${encodeURIComponent(roomId)}`)
+}
+
+/** 锦标赛的排位赛房间：只有参赛选手可以查询。 */
+export function fetchTournamentRoom(tournamentId: string): Promise<DrillRoomView> {
+  return getJson<DrillRoomView>(
+    `/api/v1/game/drill/tournament/${encodeURIComponent(tournamentId)}`,
+  )
 }
 
 export function joinRoom(roomId: string): Promise<DrillRoomView> {

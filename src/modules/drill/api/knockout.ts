@@ -28,6 +28,8 @@ export interface KnockoutMatch {
 export interface KnockoutView {
   id: string
   roomId: string
+  /** 来自锦标赛房间时非空。 */
+  tournamentId?: string | null
   status: 'RUNNING' | 'FINISHED'
   champion: string | null
   serverTime: number

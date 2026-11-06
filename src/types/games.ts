@@ -68,7 +68,8 @@ export type TournamentType = 'SERIES' | 'CHAMPIONSHIP'
 /** TOURNAMENT：多人演练；DUEL：一对一约战，不进入大厅、不计分、无聊天与观战。 */
 export type GameKind = 'TOURNAMENT' | 'DUEL'
 export type TournamentStatus = 'INVITING' | 'RUNNING' | 'FINISHED' | 'CANCELLED'
-export type BracketType = 'TBD' | 'KNOCKOUT' | 'LEAGUE' | 'LADDER' | 'PAGE_PLAYOFF'
+/** DRILL：良跑跑方案赛（15 轮排位 + 八强/四强/决赛，全部在演练房间里进行）。 */
+export type BracketType = 'TBD' | 'KNOCKOUT' | 'LEAGUE' | 'LADDER' | 'PAGE_PLAYOFF' | 'DRILL'
 export type GameStage = 'KNOCKOUT' | 'LEAGUE' | 'LADDER' | 'PAGE_PLAYOFF'
 export type MatchStatus = 'PENDING' | 'READY' | 'RUNNING' | 'FINISHED' | 'BYE'
 export type RoundStatus = 'RUNNING' | 'REST' | 'FINISHED'
