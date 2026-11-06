@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { onBeforeUnmount, onMounted, watch, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useTournamentStore } from '@/stores/tournament'
 
 const store = useTournamentStore()
+const route = useRoute()
 const router = useRouter()
 
 let championTimer: ReturnType<typeof setTimeout> | undefined
@@ -27,6 +28,29 @@ watch(
   },
 )
 
+/**
+ * 用户已经在执行页/观战窗口看这场决赛，或本人就是决赛选手时，
+ * 不再用全屏弹窗盖住他自己的对局——他们本来就在“查看执行”。
+ */
+watchEffect(() => {
+  const notification = store.finalNotification
+  if (!notification?.matchId) return
+  const drillMatchId = typeof route.query.match === 'string' ? route.query.match : null
+  const watchMatchId = typeof route.query.watch === 'string' ? route.query.watch : null
+  const alreadyThere =
+    (route.path === '/games/autochess/run' && drillMatchId === notification.matchId) ||
+    (route.path === '/games' && watchMatchId === notification.matchId)
+  const selfUserId = store.selfUserId
+  const playing =
+    !!selfUserId &&
+    store.activeMatches.some(
+      (match) =>
+        match.id === notification.matchId &&
+        (match.player1UserId === selfUserId || match.player2UserId === selfUserId),
+    )
+  if (alreadyThere || playing) store.dismissFinal()
+})
+
 function watchFinal() {
   const notification = store.finalNotification
   if (!notification) return
@@ -43,13 +67,25 @@ function dismissFinal() {
   store.dismissFinal()
 }
 
+/** 全屏通知必须留逃生口：Esc 或点击遮罩都能关闭，避免看起来像页面卡死。 */
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !store.finalNotification) return
+  event.preventDefault()
+  dismissFinal()
+}
+
 function dismissChampion() {
   clearChampionTimer()
   store.dismissChampion()
 }
 
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
 onBeforeUnmount(() => {
   clearChampionTimer()
+  window.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -87,6 +123,7 @@ onBeforeUnmount(() => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="game-final-title"
+          @click.self="dismissFinal"
         >
           <div class="game-notify__final-panel">
             <div class="game-notify__final-glow" aria-hidden="true" />
@@ -204,9 +241,13 @@ onBeforeUnmount(() => {
   inset: 0;
   display: grid;
   place-items: center;
+  /* 小屏/高缩放下内容高于视口时，safe 保证顶部仍可滚动到。 */
+  place-items: safe center;
   padding: 22px;
-  background: color-mix(in srgb, var(--fm-bg) 72%, transparent);
-  backdrop-filter: blur(3px);
+  overflow: auto;
+  /* 不要用 backdrop-filter：它会每帧对整屏做 backdrop 快照，
+     叠在容量编排持续 rAF 渲染的画布上会把界面拖到看起来卡死。 */
+  background: rgb(0 0 0 / 62%);
   pointer-events: auto;
 }
 

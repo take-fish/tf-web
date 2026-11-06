@@ -1,5 +1,6 @@
 /* 每套皮肤的主题令牌：chrome 与业务面板统一消费这些变量 */
 
+:root[data-skin='ide'],
 .fm-app[data-skin='ide'] {
   color-scheme: dark;
   --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
@@ -29,6 +30,7 @@
   --fm-selection: rgba(0, 122, 204, 0.35);
 }
 
+:root[data-skin='terminal'],
 .fm-app[data-skin='terminal'] {
   color-scheme: dark;
   --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
@@ -58,6 +60,7 @@
   --fm-selection: rgba(0, 224, 138, 0.25);
 }
 
+:root[data-skin='grafana'],
 .fm-app[data-skin='grafana'] {
   color-scheme: dark;
   --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
@@ -87,6 +90,7 @@
   --fm-selection: rgba(255, 136, 51, 0.25);
 }
 
+:root[data-skin='swagger'],
 .fm-app[data-skin='swagger'] {
   color-scheme: light;
   --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
@@ -116,6 +120,7 @@
   --fm-selection: rgba(73, 144, 226, 0.2);
 }
 
+:root[data-skin='jenkins'],
 .fm-app[data-skin='jenkins'] {
   color-scheme: dark;
   --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
@@ -145,6 +150,7 @@
   --fm-selection: rgba(47, 126, 196, 0.25);
 }
 
+:root[data-skin='kibana'],
 .fm-app[data-skin='kibana'] {
   color-scheme: dark;
   --fm-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
