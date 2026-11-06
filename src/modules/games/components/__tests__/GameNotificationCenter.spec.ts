@@ -3,10 +3,13 @@ import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 
+import { fetchTournamentRoom } from '@/modules/drill/api/rooms'
 import { useTournamentStore } from '@/stores/tournament'
 import type { GameMatch, GameNotification } from '@/types/games'
 
 import GameNotificationCenter from '../GameNotificationCenter.vue'
+
+const fetchTournamentRoomMock = vi.mocked(fetchTournamentRoom)
 
 vi.mock('@/modules/chat/chatApi', () => ({
   fetchOnline: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
@@ -20,6 +23,9 @@ vi.mock('@/modules/games/gameApi', () => ({
   fetchMatch: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   fetchTournament: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   fetchTournaments: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+}))
+vi.mock('@/modules/drill/api/rooms', () => ({
+  fetchTournamentRoom: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
 }))
 vi.mock('@/modules/games/gameSocket', () => ({
   GameSocketClient: class {
@@ -63,12 +69,14 @@ describe('GameNotificationCenter', () => {
   let pinia: Pinia
 
   beforeEach(async () => {
+    fetchTournamentRoomMock.mockReset()
     pinia = createPinia()
     setActivePinia(pinia)
     router = createRouter({
       history: createMemoryHistory(),
       routes: [
         { path: '/games', component: { template: '<div />' } },
+        { path: '/games/autochess', component: { template: '<div />' } },
         { path: '/games/autochess/run', component: { template: '<div />' } },
       ],
     })
@@ -171,5 +179,29 @@ describe('GameNotificationCenter', () => {
     expect(store.finalNotification).toBeNull()
     expect(router.currentRoute.value.path).toBe('/games')
     expect(router.currentRoute.value.query.watch).toBe('m1')
+  })
+
+  it('良跑跑决赛通知点击「进入房间」按赛事查询排位赛房间', async () => {
+    fetchTournamentRoomMock.mockResolvedValue({ id: 'room1' } as never)
+    const store = await mountWith(finalNotification({ matchId: null }))
+
+    expect(document.body.querySelector('.game-notify__primary')?.textContent).toContain(
+      '进入房间',
+    )
+    click('.game-notify__primary')
+    await flushPromises()
+
+    expect(fetchTournamentRoomMock).toHaveBeenCalledWith('t1')
+    expect(store.finalNotification).toBeNull()
+    expect(router.currentRoute.value.path).toBe('/games/autochess')
+    expect(router.currentRoute.value.query.room).toBe('room1')
+  })
+
+  it('已经在排位赛房间页时不再弹出良跑跑决赛通知', async () => {
+    await router.push('/games/autochess?room=room1')
+    const store = await mountWith(finalNotification({ matchId: null }))
+
+    expect(store.finalNotification).toBeNull()
+    expect(document.body.querySelector('.game-notify__final')).toBeNull()
   })
 })
