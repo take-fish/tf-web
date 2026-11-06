@@ -157,7 +157,10 @@ export function useChatImages(options: ChatImagesOptions) {
           return
         }
         term.writeLines(
-          [`[INFO] 图片已发送（私聊持久化，${Math.max(1, Math.round(image.size / 1024))} KB）`],
+          [
+            `[INFO] 图片已发送（私聊持久化，${Math.max(1, Math.round(image.size / 1024))} KB）；` +
+              '2 分钟内 @<助手名> 可识别图中文字',
+          ],
           'dim',
         )
         return
@@ -171,7 +174,10 @@ export function useChatImages(options: ChatImagesOptions) {
         term.writeLines(['[ERROR] 消息通道未连接，图片未发送'], 'error')
         return
       }
-      term.writeLines(['[INFO] 图片已发送（群聊临时消息，不保存）'], 'dim')
+      term.writeLines(
+        ['[INFO] 图片已发送（群聊临时消息，不保存）；2 分钟内 @<助手名> 可识别图中文字'],
+        'dim',
+      )
     } catch (error) {
       if (!handleAuthError(error)) {
         term.writeLines([`[ERROR] ${errorText(error)}`], 'error')
