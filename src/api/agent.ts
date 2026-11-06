@@ -26,11 +26,19 @@ export interface AgentEvent {
   usage?: Record<string, number>
 }
 
+export interface AgentImagePayload {
+  mime: string
+  /** 标准 Base64，不含 data: 前缀 */
+  data: string
+}
+
 export interface ChatPayload {
   message: string
   session_id?: string
   scene?: string
   env?: 'prod' | 'test'
+  /** 助手页一次最多 6 张；聊天端仍只发单张 image。 */
+  images?: AgentImagePayload[]
 }
 
 function authHeaders(): Record<string, string> {

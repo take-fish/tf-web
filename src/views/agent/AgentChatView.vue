@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
@@ -21,6 +21,8 @@ import { formatApiError } from '@/lib/http'
 import { pushToast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/auth'
 
+import { useAgentImages, type DraftImage } from './useAgentImages'
+
 defineOptions({ name: 'AgentChatView' })
 
 interface ToolCard {
@@ -39,6 +41,7 @@ interface ChatMessage {
   id: number
   role: 'user' | 'assistant'
   content: string
+  images?: DraftImage[]
   traceId?: string
   tools: ToolCard[]
   error?: string
@@ -65,9 +68,25 @@ const sessions = ref<SessionSummary[]>([])
 const showHistory = ref(false)
 const historyLoading = ref(false)
 const scroller = ref<HTMLElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
 const router = useRouter()
 let controller: AbortController | null = null
 let msgSeq = 1
+
+const {
+  images: draftImages,
+  preview: imagePreview,
+  busy: imageBusy,
+  addFiles,
+  removeImage,
+  clearImages,
+  openPreview,
+  closePreview,
+  toChatImages,
+  formatBytes,
+} = useAgentImages()
+
+const DEFAULT_IMAGE_PROMPT = '请识别并说明这些图片的内容。'
 
 
 const statusText = computed(() => {
@@ -91,7 +110,12 @@ const emptySuggestions = computed(() => {
   return configured.length ? configured : FALLBACK_SUGGESTIONS
 })
 
-const canSend = computed(() => input.value.trim().length > 0 && !sending.value)
+const canSend = computed(
+  () =>
+    (input.value.trim().length > 0 || draftImages.value.length > 0) &&
+    !sending.value &&
+    !imageBusy.value,
+)
 
 function scrollToBottom() {
   void nextTick(() => {
@@ -178,18 +202,29 @@ function applyEvent(message: ChatMessage, event: AgentEvent) {
 }
 
 async function send(preset?: string) {
+  if (sending.value || imageBusy.value) return
   const text = (preset ?? input.value).trim()
-  if (!text || sending.value) return
+  const attachments = draftImages.value
+  if (!text && attachments.length === 0) return
+  const message = text || DEFAULT_IMAGE_PROMPT
+  const payloadImages = toChatImages()
+  const sentImages = attachments.length ? [...attachments] : undefined
+
   input.value = ''
+  clearImages()
   sending.value = true
-  messages.value.push({ id: msgSeq++, role: 'user', content: text, tools: [] })
+  messages.value.push({ id: msgSeq++, role: 'user', content: message, images: sentImages, tools: [] })
   const assistant = newAssistant()
   scrollToBottom()
 
   controller = new AbortController()
   try {
     await streamChat(
-      { message: text, session_id: sessionId.value },
+      {
+        message,
+        session_id: sessionId.value,
+        ...(payloadImages.length ? { images: payloadImages } : {}),
+      },
       (event) => applyEvent(assistant, event),
       controller.signal,
     )
@@ -235,9 +270,53 @@ function onEnter(event: KeyboardEvent) {
   void send()
 }
 
+function pickImages() {
+  fileInput.value?.click()
+}
+
+async function onFilesPicked(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files ?? [])
+  target.value = ''
+  if (files.length) await addFiles(files)
+}
+
+/** 从剪贴板取出图片文件；普通文本粘贴不受影响。 */
+function clipboardImageFiles(event: ClipboardEvent): File[] {
+  const data = event.clipboardData
+  if (!data) return []
+  const files: File[] = []
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) continue
+    const file = item.getAsFile()
+    if (file) files.push(file)
+  }
+  if (!files.length && data.files?.length) {
+    files.push(...Array.from(data.files).filter((file) => file.type.startsWith('image/')))
+  }
+  return files
+}
+
+async function onPasteImages(event: ClipboardEvent) {
+  const files = clipboardImageFiles(event)
+  if (!files.length) return
+  event.preventDefault()
+  await addFiles(files)
+}
+
+function onPreviewMessageImage(image: DraftImage, index: number) {
+  openPreview(image, `图片 ${index + 1} · ${image.name}`)
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && imagePreview.value) closePreview()
+}
+
 function resetSession() {
   sessionId.value = ''
   messages.value = []
+  clearImages()
+  closePreview()
 }
 
 /** 打开/关闭历史会话抽屉。 */
@@ -286,7 +365,11 @@ async function deleteSession(item: SessionSummary) {
   }
 }
 
-onBeforeUnmount(() => controller?.abort())
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  controller?.abort()
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <template>
@@ -352,6 +435,18 @@ onBeforeUnmount(() => controller?.abort())
       <article v-for="message in messages" :key="message.id" class="msg" :class="`msg--${message.role}`">
         <div class="msg__role">{{ message.role === 'user' ? '我' : 'Agent' }}</div>
         <div class="msg__body">
+          <div v-if="message.images?.length" class="msg__images">
+            <button
+              v-for="(image, index) in message.images"
+              :key="image.id"
+              type="button"
+              class="msg__image"
+              :title="`查看 ${image.name}`"
+              @click="onPreviewMessageImage(image, index)"
+            >
+              <img :src="image.dataUrl" :alt="image.name" />
+            </button>
+          </div>
           <p v-if="message.content" class="msg__text">{{ message.content }}</p>
           <p v-else-if="message.pending" class="msg__text msg__text--muted">思考中…</p>
 
@@ -390,18 +485,61 @@ onBeforeUnmount(() => controller?.abort())
     </div>
 
     <footer class="agent__composer">
-      <textarea
-        v-model="input"
-        class="agent__input"
-        rows="3"
-        placeholder="描述你的问题，Enter 发送，Shift+Enter 换行"
-        @keydown.enter="onEnter"
-      />
-      <div class="agent__send">
-        <button v-if="sending" class="btn btn--ghost" @click="stop">停止</button>
-        <button class="btn btn--primary" :disabled="!canSend" @click="send()">发送</button>
+      <div v-if="draftImages.length || imageBusy" class="agent__attachments" aria-label="待发送图片">
+        <div v-for="(image, index) in draftImages" :key="image.id" class="attach">
+          <button
+            type="button"
+            class="attach__open"
+            :title="`预览 ${image.name}`"
+            @click="openPreview(image, `图片 ${index + 1} · ${image.name}`)"
+          >
+            <img :src="image.dataUrl" :alt="image.name" />
+          </button>
+          <span class="attach__meta">{{ formatBytes(image.bytes) }}</span>
+          <button type="button" class="attach__remove" title="移除图片" @click="removeImage(image.id)">×</button>
+        </div>
+        <span v-if="imageBusy" class="agent__hint">处理中…</span>
+      </div>
+      <div class="agent__composer-row">
+        <button
+          class="agent__attach"
+          type="button"
+          title="添加图片（也可直接 Ctrl+V 粘贴）"
+          :disabled="sending || imageBusy"
+          @click="pickImages"
+        >
+          图片
+        </button>
+        <input
+          ref="fileInput"
+          class="agent__file"
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          @change="onFilesPicked"
+        />
+        <textarea
+          v-model="input"
+          class="agent__input"
+          rows="3"
+          placeholder="描述你的问题，Enter 发送，Shift+Enter 换行；可直接 Ctrl+V 粘贴截图"
+          @keydown.enter="onEnter"
+          @paste="onPasteImages"
+        />
+        <div class="agent__send">
+          <button v-if="sending" class="btn btn--ghost" @click="stop">停止</button>
+          <button class="btn btn--primary" :disabled="!canSend" @click="send()">发送</button>
+        </div>
       </div>
     </footer>
+
+    <div v-if="imagePreview" class="agent-preview" @click.self="closePreview">
+      <figure class="agent-preview__frame">
+        <img :src="imagePreview.src" alt="图片预览" />
+        <figcaption>{{ imagePreview.label }}</figcaption>
+      </figure>
+      <button class="agent-preview__close" @click="closePreview">关闭</button>
+    </div>
   </section>
 </template>
 
@@ -694,8 +832,183 @@ onBeforeUnmount(() => controller?.abort())
   padding: 10px 16px 14px;
   background: var(--fm-panel, #252526);
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent__composer-row {
+  display: flex;
   gap: 10px;
   align-items: flex-end;
+}
+
+.agent__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.attach {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.attach__open {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1e1e1e;
+  cursor: zoom-in;
+}
+
+.attach__open img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.attach__meta {
+  font-size: 10px;
+  color: #8b949e;
+}
+
+.attach__remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #3c3c3c;
+  background: #2d2d30;
+  color: #d4d4d4;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.attach__remove:hover {
+  color: #f85149;
+  border-color: #f85149;
+}
+
+.agent__hint {
+  font-size: 11px;
+  color: #8b949e;
+}
+
+.agent__file {
+  display: none;
+}
+
+.agent__attach {
+  align-self: flex-end;
+  border: 1px solid #3c3c3c;
+  background: #2d2d30;
+  color: inherit;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.agent__attach:hover:not(:disabled) {
+  border-color: #4a4a4a;
+  background: #333337;
+}
+
+.agent__attach:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.msg__images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.msg__image {
+  width: 120px;
+  height: 120px;
+  padding: 0;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1e1e1e;
+  cursor: zoom-in;
+}
+
+.msg__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.msg__image:hover {
+  border-color: #58a6ff;
+}
+
+.agent-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.agent-preview__frame {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(92vw, 1400px);
+  max-height: 82vh;
+}
+
+.agent-preview__frame img {
+  max-width: 92vw;
+  max-height: 76vh;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #111;
+}
+
+.agent-preview__frame figcaption {
+  font-size: 12px;
+  color: #b8c0c8;
+  word-break: break-all;
+}
+
+.agent-preview__close {
+  border: 1px solid #3c3c3c;
+  background: #2d2d30;
+  color: inherit;
+  border-radius: 4px;
+  padding: 6px 16px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.agent-preview__close:hover {
+  border-color: #4a4a4a;
+  background: #333337;
 }
 
 .agent__input {
