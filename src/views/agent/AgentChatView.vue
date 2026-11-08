@@ -22,6 +22,7 @@ import { pushToast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/auth'
 
 import { parseRetrievalMetrics, type RetrievalMetrics } from './retrievalMetrics'
+import { buildToolWarning, toolLabel } from './toolWarnings'
 import { useAgentImages, type DraftImage } from './useAgentImages'
 
 defineOptions({ name: 'AgentChatView' })
@@ -47,6 +48,10 @@ interface ChatMessage {
   tools: ToolCard[]
   error?: string
   pending?: boolean
+  /** 本轮提问原文，失败后用于“重新提问” */
+  sourceText?: string
+  /** 有工具未成功时显示在回答下方 */
+  toolWarning?: string
   /** 本次回答的知识库检索近似指标（最后一次 search_kb 的结果） */
   retrieval?: RetrievalMetrics | null
   confirm?: {
@@ -206,6 +211,7 @@ function applyEvent(message: ChatMessage, event: AgentEvent) {
       break
     case 'done':
       if (event.session_id) sessionId.value = event.session_id
+      message.toolWarning = buildToolWarning(message.tools) ?? undefined
       break
   }
 }
@@ -224,6 +230,7 @@ async function send(preset?: string) {
   sending.value = true
   messages.value.push({ id: msgSeq++, role: 'user', content: message, images: sentImages, tools: [] })
   const assistant = newAssistant()
+  assistant.sourceText = message
   scrollToBottom()
 
   controller = new AbortController()
@@ -251,6 +258,11 @@ async function send(preset?: string) {
 
 function stop() {
   controller?.abort()
+}
+
+function retry(message: ChatMessage) {
+  if (!message.sourceText || sending.value) return
+  void send(message.sourceText)
 }
 
 async function doConfirm(message: ChatMessage) {
@@ -463,7 +475,7 @@ onBeforeUnmount(() => {
           <div v-for="(tool, index) in message.tools" :key="`${tool.callId}-${index}`" class="tool" :class="`tool--${tool.status}`">
             <button class="tool__head" @click="tool.expanded = !tool.expanded">
               <span class="tool__icon">{{ tool.status === 'running' ? '◐' : tool.status === 'error' || tool.ok === false ? '✕' : '✓' }}</span>
-              <code>{{ tool.name }}</code>
+              <code :title="tool.name">{{ toolLabel(tool.name) }}</code>
               <span class="tool__meta">
                 <template v-if="tool.status === 'running'">执行中…</template>
                 <template v-else>
@@ -489,6 +501,18 @@ onBeforeUnmount(() => {
           </div>
 
           <p v-if="message.error" class="msg__error">{{ message.error }}</p>
+          <div v-if="message.toolWarning" class="msg__warning">
+            <span class="msg__warning-text">⚠ {{ message.toolWarning }}</span>
+            <button
+              v-if="message.sourceText"
+              type="button"
+              class="msg__warning-action"
+              :disabled="sending"
+              @click="retry(message)"
+            >
+              重新提问
+            </button>
+          </div>
           <div v-if="message.traceId" class="msg__trace">trace {{ message.traceId }}</div>
 
           <div
@@ -753,6 +777,45 @@ onBeforeUnmount(() => {
   margin: 8px 0 0;
   color: #f85149;
   font-size: 12px;
+}
+
+.msg__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+  border: 1px solid #d29922;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: rgba(210, 153, 34, 0.08);
+  color: #e3b341;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.msg__warning-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.msg__warning-action {
+  flex: none;
+  border: 1px solid #d29922;
+  border-radius: 4px;
+  background: transparent;
+  color: #e3b341;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.msg__warning-action:hover:not(:disabled) {
+  background: rgba(210, 153, 34, 0.16);
+}
+
+.msg__warning-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .msg__trace {
