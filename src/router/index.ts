@@ -74,6 +74,12 @@ const router = createRouter({
       meta: { title: 'Agent 知识库' },
     },
     {
+      path: '/agent/eval',
+      name: 'agent-eval',
+      component: () => import('../views/agent/EvalView.vue'),
+      meta: { title: '知识库检索评测', requiresPermission: 'agent.kb.manage' },
+    },
+    {
       path: '/agent/profile',
       name: 'agent-profile',
       component: () => import('../views/agent/AgentProfileView.vue'),
