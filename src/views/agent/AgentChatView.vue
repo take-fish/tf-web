@@ -21,6 +21,7 @@ import { formatApiError } from '@/lib/http'
 import { pushToast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/auth'
 
+import { parseRetrievalMetrics, type RetrievalMetrics } from './retrievalMetrics'
 import { useAgentImages, type DraftImage } from './useAgentImages'
 
 defineOptions({ name: 'AgentChatView' })
@@ -46,6 +47,8 @@ interface ChatMessage {
   tools: ToolCard[]
   error?: string
   pending?: boolean
+  /** 本次回答的知识库检索近似指标（最后一次 search_kb 的结果） */
+  retrieval?: RetrievalMetrics | null
   confirm?: {
     confirmId: string
     description: string
@@ -92,11 +95,14 @@ const DEFAULT_IMAGE_PROMPT = '请识别并说明这些图片的内容。'
 const statusText = computed(() => {
   if (!status.value) return '检测中…'
   const parts: string[] = []
-  parts.push(status.value.llm.ok ? `模型 ${status.value.llm.model}` : '模型不可用')
   parts.push(status.value.db.ok ? '审计库 OK' : '审计库不可用')
-  parts.push((status.value.vector ?? status.value.qdrant)?.ok ? `向量库 OK（${status.value.vector?.backend ?? 'es'}）` : '向量库不可用')
+  parts.push((status.value.vector ?? status.value.qdrant)?.ok ? '向量库 OK' : '向量库不可用')
   return parts.join(' · ')
 })
+
+function percent(value: number): string {
+  return `${Math.round(value * 100)}%`
+}
 
 const FALLBACK_SUGGESTIONS = [
   '发布流程是什么？回滚怎么做？',
@@ -177,6 +183,9 @@ function applyEvent(message: ChatMessage, event: AgentEvent) {
         if (event.ms !== undefined) existing.ms = event.ms
         if (event.ok !== undefined) existing.ok = event.ok
         if (event.message) existing.message = event.message
+      }
+      if (event.name === 'search_kb' && event.status === 'done') {
+        message.retrieval = parseRetrievalMetrics(event.data)
       }
       scrollToBottom()
       break
@@ -383,6 +392,7 @@ onBeforeUnmount(() => {
       <div class="agent__controls">
         <button class="agent__ghost" title="历史会话" @click="openHistory">历史会话</button>
         <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
+        <button v-if="auth.hasPermission('agent.kb.manage')" class="agent__ghost" title="知识库检索评测" @click="router.push('/agent/eval')">评测</button>
         <button v-if="auth.hasPermission('agent.profile.manage')" class="agent__ghost" title="试衣间：改 Agent 的样子" @click="router.push('/agent/profile')">试衣间</button>
         <button class="agent__ghost" title="新建会话" @click="resetSession">新会话</button>
       </div>
@@ -480,6 +490,33 @@ onBeforeUnmount(() => {
 
           <p v-if="message.error" class="msg__error">{{ message.error }}</p>
           <div v-if="message.traceId" class="msg__trace">trace {{ message.traceId }}</div>
+
+          <div
+            v-if="message.role === 'assistant' && !message.pending && message.retrieval"
+            class="answer-metrics"
+            aria-label="知识库检索指标"
+          >
+            <div
+              class="answer-metrics__tile"
+              title="召回率 = 系统找回的相关片段 ÷ 知识库里所有相关片段（当前按关键词覆盖规则判定）"
+            >
+              <span class="answer-metrics__label">召回率</span>
+              <strong class="answer-metrics__value">{{ percent(message.retrieval.recall) }}</strong>
+              <span class="answer-metrics__hint">全库相关 {{ message.retrieval.relevant }} 条</span>
+            </div>
+            <div
+              class="answer-metrics__tile"
+              title="精确率 = 系统找回的相关片段 ÷ 系统本次找回的片段总数"
+            >
+              <span class="answer-metrics__label">精确率</span>
+              <strong class="answer-metrics__value">{{ percent(message.retrieval.precision) }}</strong>
+              <span class="answer-metrics__hint">{{ message.retrieval.matched }}/{{ message.retrieval.retrieved }} 片段相关</span>
+            </div>
+            <p class="answer-metrics__note">
+              召回率 = 系统找回的相关片段 ÷ 知识库里所有相关片段；精确率 = 系统找回的相关片段 ÷
+              系统本次找回的片段总数。相关由关键词覆盖规则判定。
+            </p>
+          </div>
         </div>
       </article>
     </div>
@@ -504,11 +541,16 @@ onBeforeUnmount(() => {
         <button
           class="agent__attach"
           type="button"
+          aria-label="添加图片"
           title="添加图片（也可直接 Ctrl+V 粘贴）"
           :disabled="sending || imageBusy"
           @click="pickImages"
         >
-          图片
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <circle cx="8.5" cy="9" r="1.5" />
+            <path d="m21 15-4.5-4.5L7 20" />
+          </svg>
         </button>
         <input
           ref="fileInput"
@@ -910,24 +952,80 @@ onBeforeUnmount(() => {
 }
 
 .agent__attach {
+  flex: 0 0 auto;
   align-self: flex-end;
-  border: 1px solid #3c3c3c;
-  background: #2d2d30;
-  color: inherit;
-  border-radius: 4px;
-  padding: 6px 10px;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #8b949e;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .agent__attach:hover:not(:disabled) {
-  border-color: #4a4a4a;
-  background: #333337;
+  border-color: #3c3c3c;
+  background: #2d2d30;
+  color: #d4d4d4;
+}
+
+.agent__attach:focus-visible {
+  outline: 2px solid #4ea1ff;
+  outline-offset: 1px;
 }
 
 .agent__attach:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
+}
+
+.answer-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.answer-metrics__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 118px;
+  padding: 7px 12px 8px;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #1b1f24;
+}
+
+.answer-metrics__label {
+  font-size: 11px;
+  color: #8b949e;
+}
+
+.answer-metrics__value {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #e6edf3;
+  font-variant-numeric: tabular-nums;
+}
+
+.answer-metrics__hint {
+  font-size: 10px;
+  color: #6e7681;
+}
+
+.answer-metrics__note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #6e7681;
 }
 
 .msg__images {
