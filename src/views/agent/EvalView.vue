@@ -17,10 +17,12 @@ import {
   poolSet,
   removeEvalSet,
   removeQuestion,
+  updateQuestion,
   type EvalCandidate,
   type EvalLabel,
   type EvalMetrics,
   type EvalQuestionSummary,
+  type EvalQuestionType,
   type EvalRunDetail,
   type EvalRunSummary,
   type EvalSetDetail,
@@ -29,7 +31,13 @@ import {
 import ErrorBanner from '@/components/ErrorBanner.vue'
 import { formatApiError } from '@/lib/http'
 
-import { LABEL_OPTIONS, formatPercent, formatTime } from './evalFormat'
+import {
+  LABEL_OPTIONS,
+  QUESTION_TYPE_OPTIONS,
+  formatPercent,
+  formatTime,
+  typeText,
+} from './evalFormat'
 
 defineOptions({ name: 'AgentEvalView' })
 
@@ -44,6 +52,19 @@ const EMPTY_METRICS: EvalMetrics = {
   precision: null,
   recall: null,
   mrr: null,
+  section_coverage: null,
+}
+
+const TYPE_ORDER: EvalQuestionType[] = ['fact', 'flow']
+
+function groupByType(
+  byType: Partial<Record<EvalQuestionType, EvalMetrics>> | undefined,
+): { type: EvalQuestionType; metrics: EvalMetrics }[] {
+  if (!byType) return []
+  return TYPE_ORDER.filter((type) => byType[type]).map((type) => ({
+    type,
+    metrics: byType[type] as EvalMetrics,
+  }))
 }
 
 const sets = ref<EvalSetSummary[]>([])
@@ -61,6 +82,8 @@ const notice = ref('')
 const showCreate = ref(false)
 const importText = ref('')
 const showHistory = ref(false)
+const importType = ref<EvalQuestionType>('fact')
+const savingType = ref('')
 const expanded = ref<Record<string, boolean>>({})
 const expandedText = ref<Record<number, boolean>>({})
 const candidates = ref<Record<string, EvalCandidate[]>>({})
@@ -77,6 +100,8 @@ const activeSet = computed(() => sets.value.find((item) => item.id === activeSet
 const questions = computed(() => detail.value?.questions ?? [])
 const metrics = computed(() => detail.value?.metrics ?? EMPTY_METRICS)
 const topK = computed(() => detail.value?.top_k ?? activeSet.value?.top_k ?? 8)
+const detailTypeGroups = computed(() => groupByType(detail.value?.by_type))
+const runTypeGroups = computed(() => groupByType(activeRun.value?.detail.by_type))
 
 function kbName(id: string): string {
   return kbs.value.find((item) => item.id === id)?.name ?? id
@@ -213,10 +238,12 @@ async function onImport() {
   if (!queries.length) return
   loading.value = true
   try {
-    const result = await importQuestions(activeSetId.value, queries)
+    const result = await importQuestions(activeSetId.value, queries, importType.value)
     importText.value = ''
     await refreshSets()
-    flash(`新增 ${result.data.added} 条问题，跳过 ${result.data.skipped} 条重复/空行`)
+    flash(
+      `新增 ${result.data.added} 条${typeText(importType.value)}问题，跳过 ${result.data.skipped} 条重复/空行`,
+    )
   } catch (err) {
     error.value = formatApiError(err, '导入问题失败')
   } finally {
@@ -297,6 +324,26 @@ async function onLabel(candidate: EvalCandidate, label: EvalLabel | null) {
     error.value = formatApiError(err, '保存标注失败')
   } finally {
     savingLabel.value = null
+  }
+}
+
+function onTypeInput(question: EvalQuestionSummary, event: Event) {
+  const target = event.target as HTMLSelectElement
+  void onTypeChange(question, target.value as EvalQuestionType)
+}
+
+async function onTypeChange(question: EvalQuestionSummary, next: EvalQuestionType) {
+  if (savingType.value || question.type === next) return
+  savingType.value = question.id
+  try {
+    const updated = (await updateQuestion(question.id, { type: next })).data
+    question.type = updated.type
+    await refreshActive()
+    flash(`题型已改为${typeText(updated.type)}`)
+  } catch (err) {
+    error.value = formatApiError(err, '题型保存失败')
+  } finally {
+    savingType.value = ''
   }
 }
 
@@ -450,6 +497,11 @@ onMounted(async () => {
             <span class="metric__hint">第一条相关片段的倒数名次</span>
           </div>
           <div class="metric">
+            <span class="metric__label">章节覆盖@{{ topK }}</span>
+            <strong class="metric__value">{{ formatPercent(metrics.section_coverage) }}</strong>
+            <span class="metric__hint">前 {{ topK }} 条覆盖的相关章节占比（需重建索引）</span>
+          </div>
+          <div class="metric">
             <span class="metric__label">标注进度</span>
             <strong class="metric__value">{{ metrics.complete_count }}/{{ metrics.question_count }}</strong>
             <span class="metric__hint">
@@ -459,8 +511,29 @@ onMounted(async () => {
         </div>
         <p class="eval__note">
           召回率 = 前 {{ topK }} 条中相关片段 ÷ 候选池内全部标注为相关的片段（池化召回，不是全库）；
+          章节覆盖 = 前 {{ topK }} 条命中的相关章节 ÷ 池内全部相关章节，用来评估整节回捞，老索引没有章节元数据时显示 —；
           未标注完整的题不计入汇总。0 不相关 / 1 部分相关 / 2 高度相关。
         </p>
+
+        <div v-if="detailTypeGroups.length" class="eval__by-type">
+          <div class="eval__by-type-title">按题型拆分</div>
+          <div class="eval__by-type-grid">
+            <div v-for="group in detailTypeGroups" :key="group.type" class="eval__type-card">
+              <header>
+                <strong>{{ typeText(group.type) }}</strong>
+                <span class="eval__muted">
+                  {{ group.metrics.complete_count }}/{{ group.metrics.question_count }} 题完整
+                </span>
+              </header>
+              <div class="eval__type-metrics">
+                <span>P {{ formatPercent(group.metrics.precision) }}</span>
+                <span>R {{ formatPercent(group.metrics.recall) }}</span>
+                <span>MRR {{ formatPercent(group.metrics.mrr) }}</span>
+                <span>覆盖 {{ formatPercent(group.metrics.section_coverage) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="eval__import">
           <textarea
@@ -469,6 +542,11 @@ onMounted(async () => {
             rows="3"
             placeholder="导入问题：一行一题，最多 100 条"
           />
+          <select v-model="importType" class="eval__select" title="本批问题的题型">
+            <option v-for="option in QUESTION_TYPE_OPTIONS" :key="option.value" :value="option.value">
+              {{ option.text }}
+            </option>
+          </select>
           <button class="btn" :disabled="loading || !importText.trim()" @click="onImport">导入问题</button>
         </div>
 
@@ -477,12 +555,27 @@ onMounted(async () => {
             <header class="eval__question-head" @click="toggleQuestion(question)">
               <span class="eval__q-index">{{ index + 1 }}</span>
               <span class="eval__q-text">{{ question.query }}</span>
+              <select
+                class="eval__select eval__select--type"
+                :value="question.type"
+                :disabled="savingType === question.id"
+                :title="QUESTION_TYPE_OPTIONS.find((option) => option.value === question.type)?.hint"
+                @click.stop
+                @change="onTypeInput(question, $event)"
+              >
+                <option v-for="option in QUESTION_TYPE_OPTIONS" :key="option.value" :value="option.value">
+                  {{ option.text }}
+                </option>
+              </select>
               <span class="badge" :class="`badge--${stateInfo(question).tone}`">
                 {{ stateInfo(question).text }}
               </span>
               <span v-if="question.complete" class="eval__q-metrics">
                 P {{ formatPercent(question.precision) }} · R {{ formatPercent(question.recall) }} · MRR
                 {{ formatPercent(question.mrr) }}
+                <template v-if="question.section_coverage !== null">
+                  · 覆盖 {{ formatPercent(question.section_coverage) }}
+                </template>
               </span>
               <span v-else class="eval__muted">
                 {{ question.labeled_count }}/{{ question.candidate_count }} 已标注
@@ -508,6 +601,9 @@ onMounted(async () => {
                   <span class="cand__title">
                     {{ candidate.title }}
                     <span class="eval__muted">#{{ candidate.seq }}</span>
+                    <span v-if="candidate.section" class="cand__section" :title="candidate.section">
+                      {{ candidate.section }}
+                    </span>
                   </span>
                   <span class="cand__channels">
                     <span v-for="channel in channels(candidate)" :key="channel">{{ channel }}</span>
@@ -567,6 +663,7 @@ onMounted(async () => {
                 <span>P {{ formatPercent(run.precision) }}</span>
                 <span>R {{ formatPercent(run.recall) }}</span>
                 <span>MRR {{ formatPercent(run.mrr) }}</span>
+                <span>覆盖 {{ formatPercent(run.section_coverage) }}</span>
                 <span class="eval__muted">
                   {{ run.complete_count }}/{{ run.question_count }} 题 · k={{ run.top_k }}
                 </span>
@@ -579,11 +676,20 @@ onMounted(async () => {
                 <strong>快照 {{ formatTime(activeRun.created_at) }}</strong>
                 <span class="eval__muted">
                   P {{ formatPercent(activeRun.precision) }} · R {{ formatPercent(activeRun.recall) }} ·
-                  MRR {{ formatPercent(activeRun.mrr) }}
+                  MRR {{ formatPercent(activeRun.mrr) }} · 覆盖
+                  {{ formatPercent(activeRun.section_coverage) }}
                 </span>
               </header>
+              <div v-if="runTypeGroups.length" class="eval__run-types">
+                <span v-for="group in runTypeGroups" :key="group.type" class="eval__run-type">
+                  {{ typeText(group.type) }}：P {{ formatPercent(group.metrics.precision) }} · R
+                  {{ formatPercent(group.metrics.recall) }} · 覆盖
+                  {{ formatPercent(group.metrics.section_coverage) }}
+                </span>
+              </div>
               <ul>
                 <li v-for="item in activeRun.detail.questions" :key="item.id">
+                  <span class="badge badge--pending">{{ typeText(item.type) }}</span>
                   <span class="eval__q-text">{{ item.query }}</span>
                   <span v-if="item.complete" class="eval__muted">
                     P {{ formatPercent(item.precision) }} · R {{ formatPercent(item.recall) }} · MRR
@@ -837,6 +943,53 @@ onMounted(async () => {
   padding-left: 8px;
 }
 
+.eval__by-type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eval__by-type-title {
+  font-size: 11px;
+  color: #8b949e;
+}
+
+.eval__by-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.eval__type-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #1b1f24;
+  font-size: 11px;
+}
+
+.eval__type-card header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.eval__type-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: #9ee6a8;
+  font-variant-numeric: tabular-nums;
+}
+
+.eval__select--type {
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
 .eval__import {
   display: flex;
   gap: 8px;
@@ -925,6 +1078,18 @@ onMounted(async () => {
   min-width: 140px;
   color: #e6edf3;
   word-break: break-word;
+}
+
+.cand__section {
+  display: inline-block;
+  max-width: 240px;
+  margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  font-size: 10px;
+  color: #8b949e;
 }
 
 .cand__channels {
@@ -1039,6 +1204,16 @@ onMounted(async () => {
   flex-wrap: wrap;
   margin-bottom: 6px;
   font-size: 12px;
+}
+
+.eval__run-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: #9ee6a8;
+  font-variant-numeric: tabular-nums;
 }
 
 .eval__run-detail ul {
