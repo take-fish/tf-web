@@ -4,6 +4,9 @@ const BASE = '/api/v1/agent/eval'
 
 export type EvalLabel = 0 | 1 | 2
 
+/** fact = 事实型（问是什么/在哪），flow = 流程型（问怎么做） */
+export type EvalQuestionType = 'fact' | 'flow'
+
 export interface EvalSetSummary {
   id: string
   name: string
@@ -25,11 +28,14 @@ export interface EvalMetrics {
   precision: number | null
   recall: number | null
   mrr: number | null
+  /** 相关章节覆盖率：前 k 条覆盖的相关章节 ÷ 池内全部相关章节；无章节元数据时为 null */
+  section_coverage: number | null
 }
 
 export interface EvalQuestionSummary {
   id: string
   query: string
+  type: EvalQuestionType
   note: string
   pooled_at: string | null
   complete: boolean
@@ -39,6 +45,7 @@ export interface EvalQuestionSummary {
   precision: number | null
   recall: number | null
   mrr: number | null
+  section_coverage: number | null
 }
 
 export interface EvalSetInfo {
@@ -53,6 +60,8 @@ export interface EvalSetInfo {
 export interface EvalSetDetail extends EvalSetInfo {
   questions: EvalQuestionSummary[]
   metrics: EvalMetrics
+  /** 按题型拆分的指标；只有出现过该题型的题时才有对应键 */
+  by_type: Partial<Record<EvalQuestionType, EvalMetrics>>
 }
 
 export interface EvalCandidate {
@@ -60,6 +69,9 @@ export interface EvalCandidate {
   question_id: string
   doc_id: string
   seq: number
+  /** 命中块所属章节（老索引为空） */
+  section: string
+  section_seq: number | null
   title: string
   text: string
   score: number
@@ -85,6 +97,7 @@ export interface EvalRunSummary {
   precision: number | null
   recall: number | null
   mrr: number | null
+  section_coverage: number | null
   created_at: string | null
 }
 
@@ -92,6 +105,7 @@ export interface EvalRunDetail extends EvalRunSummary {
   detail: {
     set: EvalSetInfo
     metrics: EvalMetrics
+    by_type?: Partial<Record<EvalQuestionType, EvalMetrics>>
     questions: EvalQuestionSummary[]
   }
 }
@@ -120,8 +134,17 @@ export function removeEvalSet(setId: string): Promise<{ code: number; msg: strin
 export function importQuestions(
   setId: string,
   queries: string[],
+  type: EvalQuestionType = 'fact',
 ): Promise<{ code: number; data: { added: number; skipped: number; ids: string[] } }> {
-  return postJson(`${BASE}/sets/${setId}/questions`, { queries })
+  return postJson(`${BASE}/sets/${setId}/questions`, { queries, type })
+}
+
+/** 修改题型（fact / flow），用于按题型拆分指标。 */
+export function updateQuestion(
+  questionId: string,
+  payload: { type?: EvalQuestionType; note?: string },
+): Promise<{ code: number; data: { id: string; type: EvalQuestionType; note: string } }> {
+  return patchJson(`${BASE}/questions/${questionId}`, payload)
 }
 
 export function removeQuestion(questionId: string): Promise<{ code: number; msg: string }> {

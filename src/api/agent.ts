@@ -138,6 +138,25 @@ export function getSession(sessionId: string): Promise<{ code: number; data: Ses
 export function removeSession(sessionId: string): Promise<{ code: number; msg: string }> {
   return deleteJson(`${BASE}/sessions/${sessionId}`)
 }
+
+export interface DistillResult {
+  id: string
+  title: string
+  kb_id: string
+  review_status: string
+  /** 同一份整理结果已经沉淀过时为 true */
+  duplicate: boolean
+}
+
+/** 把会话整理成知识库草稿：只写待审核文档，不自动进索引。 */
+export function distillSession(
+  sessionId: string,
+  kbId = '',
+): Promise<{ code: number; data: DistillResult }> {
+  const suffix = kbId ? `?kb_id=${encodeURIComponent(kbId)}` : ''
+  return postJson(`${BASE}/sessions/${encodeURIComponent(sessionId)}/distill${suffix}`, {})
+}
+
 export interface StatusInfo {
   llm: { ok: boolean; model: string; base_url: string; error: string }
   db: { ok: boolean }
@@ -147,6 +166,8 @@ export interface StatusInfo {
   qdrant?: { ok: boolean; url: string }
   tools: number
   embedding: { model: string; dim: number }
+  /** 会话沉淀开关（Nacos agent.knowledge-base.distill-enabled） */
+  distill?: { enabled: boolean }
 }
 
 export function fetchStatus(): Promise<{ code: number; data: StatusInfo }> {

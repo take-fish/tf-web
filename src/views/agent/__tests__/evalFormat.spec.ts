@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatPercent, formatTime, labelText } from '../evalFormat'
+import { formatPercent, formatTime, labelText, typeText } from '../evalFormat'
 
 describe('evalFormat', () => {
   it('格式化指标百分比并处理无分母', () => {
@@ -20,5 +20,11 @@ describe('evalFormat', () => {
   it('时间只保留到分钟', () => {
     expect(formatTime('2026-11-08T10:30:45.123')).toBe('2026-11-08 10:30')
     expect(formatTime(null)).toBe('—')
+  })
+
+  it('题型文案兼容缺省值', () => {
+    expect(typeText('fact')).toBe('事实型')
+    expect(typeText('flow')).toBe('流程型')
+    expect(typeText(null)).toBe('事实型')
   })
 })
