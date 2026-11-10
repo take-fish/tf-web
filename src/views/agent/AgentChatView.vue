@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import {
   confirmAction,
+  distillSession,
   fetchProfile,
   fetchStatus,
   getSession,
@@ -75,6 +76,8 @@ const metaError = ref('')
 const sessions = ref<SessionSummary[]>([])
 const showHistory = ref(false)
 const historyLoading = ref(false)
+/** 正在沉淀的会话 id，避免连点 */
+const distilling = ref('')
 const scroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const router = useRouter()
@@ -104,6 +107,9 @@ const statusText = computed(() => {
   parts.push((status.value.vector ?? status.value.qdrant)?.ok ? '向量库 OK' : '向量库不可用')
   return parts.join(' · ')
 })
+
+/** 会话沉淀由 Nacos 开关控制，关闭时不展示入口。 */
+const distillEnabled = computed(() => status.value?.distill?.enabled === true)
 
 function percent(value: number): string {
   return `${Math.round(value * 100)}%`
@@ -375,6 +381,32 @@ async function resumeSession(item: SessionSummary) {
   }
 }
 
+/** 把会话整理成待审核草稿；只有管理员审核通过后才会进索引。 */
+async function runDistill(targetId: string) {
+  if (!targetId || distilling.value) return
+  distilling.value = targetId
+  try {
+    const { data } = await distillSession(targetId)
+    if (data.duplicate) {
+      pushToast(`《${data.title}》已沉淀过草稿，无需重复生成`, 'info')
+    } else {
+      pushToast(`已生成待审核草稿《${data.title}》，管理员通过后才会被检索`, 'success')
+    }
+  } catch (err) {
+    pushToast(formatApiError(err, '会话沉淀失败'))
+  } finally {
+    distilling.value = ''
+  }
+}
+
+function distillCurrent() {
+  void runDistill(sessionId.value)
+}
+
+function onDistill(item: SessionSummary) {
+  void runDistill(item.id)
+}
+
 async function deleteSession(item: SessionSummary) {
   try {
     await removeSession(item.id)
@@ -403,6 +435,15 @@ onBeforeUnmount(() => {
       </div>
       <div class="agent__controls">
         <button class="agent__ghost" title="历史会话" @click="openHistory">历史会话</button>
+        <button
+          v-if="distillEnabled && sessionId"
+          class="agent__ghost"
+          title="把当前会话整理成待审核知识库草稿"
+          :disabled="distilling !== ''"
+          @click="distillCurrent"
+        >
+          {{ distilling === sessionId ? '生成中…' : '沉淀草稿' }}
+        </button>
         <button class="agent__ghost" title="知识库管理" @click="router.push('/agent/kb')">知识库</button>
         <button v-if="auth.hasPermission('agent.kb.manage')" class="agent__ghost" title="知识库检索评测" @click="router.push('/agent/eval')">评测</button>
         <button v-if="auth.hasPermission('agent.profile.manage')" class="agent__ghost" title="试衣间：改 Agent 的样子" @click="router.push('/agent/profile')">试衣间</button>
@@ -413,7 +454,9 @@ onBeforeUnmount(() => {
     <div v-if="showHistory" class="history">
       <header class="history__head">
         <strong>历史会话</strong>
-        <span class="history__hint">{{ sessions.length }} 条</span>
+        <span class="history__hint">
+          {{ sessions.length }} 条<template v-if="distillEnabled"> · 可把值得复用的会话沉淀成知识库草稿</template>
+        </span>
         <button class="btn btn--sm" @click="showHistory = false">关闭</button>
       </header>
       <p v-if="historyLoading" class="history__empty">加载中…</p>
@@ -425,6 +468,15 @@ onBeforeUnmount(() => {
             <span class="history__meta">
               {{ item.message_count }} 条消息 · {{ item.updated_at?.replace('T', ' ').slice(0, 16) }}
             </span>
+          </button>
+          <button
+            v-if="distillEnabled"
+            class="history__distill"
+            title="整理成待审核知识库草稿"
+            :disabled="distilling !== ''"
+            @click.stop="onDistill(item)"
+          >
+            {{ distilling === item.id ? '生成中…' : '沉淀' }}
           </button>
           <button class="history__del" title="删除会话" @click="deleteSession(item)">×</button>
         </li>
@@ -1299,6 +1351,28 @@ onBeforeUnmount(() => {
 .history__meta {
   font-size: 11px;
   color: #8b8b8b;
+}
+
+.history__distill {
+  border: 1px solid #3c3c3c;
+  background: transparent;
+  color: #9ecbff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.history__distill:hover:not(:disabled) {
+  border-color: #58a6ff;
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.history__distill:disabled,
+.agent__ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .history__del {
